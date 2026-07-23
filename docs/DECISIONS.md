@@ -2,6 +2,22 @@
 
 Registro de decisiones técnicas/producto relevantes tomadas de forma autónoma, con motivo. Formato: fecha — decisión — motivo — alternativas consideradas.
 
+## 2026-07-23 — Máquina de desarrollo principal será un Mac mini dedicado, no esta máquina
+
+**Decisión**: se detiene todo intento de instalar Node.js/Homebrew en la máquina actual. El usuario indicó que un Mac mini dedicado a IA/desarrollo será la máquina principal en el futuro. Hasta entonces, el trabajo continúa exclusivamente en código, documentación y arquitectura, sin ninguna ejecución local (`npm install`, `npm run build`, `npm run dev`).
+
+**Motivo**: evitar instalar herramientas de sistema en una máquina que no será la de desarrollo definitiva, y evitar que un agente automatizado tome decisiones de instalación de software sobre una máquina ajena sin supervisión directa del usuario en cada paso.
+
+**Consecuencia importante**: ninguna parte del frontend (~9 commits de mejoras de UX) ha sido compilada, ejecutada en un navegador real, ni pasada por `tsc`/ESLint. Toda la verificación de esta fase ha sido manual (lectura de código, grep cruzado de imports/exports, revisión de tipos "a mano"). Ver `docs/DEVELOPMENT_HANDOFF.md` para el detalle exacto de qué queda sin validar y `docs/MAC_MINI_SETUP.md` para el procedimiento de arranque en la máquina definitiva.
+
+## 2026-07-23 — Alias `@/` resuelto también en Vite, no solo en tsconfig
+
+**Decisión**: añadir `resolve.alias` en `vite.config.ts` (mapeando `@` → `src/`) usando `fileURLToPath(new URL("./src", import.meta.url))`, sin añadir la dependencia `vite-tsconfig-paths`.
+
+**Motivo**: todo el código usa imports `@/lib/...`, `@/mocks/...`, etc. `tsconfig.json` ya resolvía el alias para el chequeo de tipos, pero Vite (el bundler/dev server real) no lee `tsconfig.json` para esto por defecto — sin este cambio, `npm run dev`/`npm run build` habrían fallado con errores de "módulo no encontrado" en prácticamente cualquier archivo del proyecto. Se detectó y corrigió de forma preventiva mientras se documentaba el procedimiento de arranque para el Mac mini, en vez de dejarlo como un problema a descubrir en la primera ejecución real.
+
+**Alternativa considerada**: instalar `vite-tsconfig-paths` (más automático si se añaden más paths en el futuro, pero es una dependencia extra que no se ha podido probar con `npm install` en este entorno). Se prefirió la solución sin dependencias nuevas por ser más fácil de verificar por lectura de código y no arriesgar un `npm install` que no se puede ejecutar aquí.
+
 ## 2026-07-23 — Proyecto aislado en subcarpeta `prfmn-club/`
 
 **Decisión**: crear el nuevo proyecto en `prfmn-club/`, dejando intactos todos los archivos y carpetas `PRFMN_*` existentes en el directorio padre.

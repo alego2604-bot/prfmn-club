@@ -2,6 +2,22 @@
 
 Formato: fecha, fase, resumen. Más reciente arriba.
 
+## 2026-07-23 — Fase 3: revisión UX y interactividad del mock (sin ejecución local)
+
+Sesión de trabajo dedicada exclusivamente a mejorar el frontend mock ya existente — sin backend, sin Stripe, sin instalar nada en el sistema. Entorno de trabajo confirmado sin Node.js disponible; se decidió posponer toda ejecución/validación real hasta un Mac mini dedicado (ver `DECISIONS.md`).
+
+- **Navegación móvil**: la Sidebar se ocultaba por completo por debajo de 1024px sin ninguna alternativa — bug crítico de usabilidad. Añadido `MobileNav` (drawer con hamburguesa) compartiendo config con `Sidebar` vía `src/layouts/nav.ts`. `Tabs` ahora hace scroll horizontal en vez de desbordar.
+- **Dashboard** rediseñado como Gym OS: acciones rápidas, "Necesita tu atención" ordenado por severidad, "Operativa de hoy" (clases + reservas/ocupación), "Estado del negocio" agrupado por categoría en vez de una rejilla plana de 12 KPIs.
+- **Clientes**: filtros derivados (Riesgo/Impagados/Nuevos/Inactivos en vez de solo estado), columna de alertas y estado de pago. Lógica compartida con Cliente 360 vía `src/lib/clientInsights.ts`.
+- **Cliente 360**: estado/pago/health score visibles en el header (sin entrar a ninguna pestaña); 5 acciones rápidas ahora funcionan de verdad con estado local (notas, gestión de membresía, contacto).
+- **POS**: eliminado el paso de pago independiente del flujo por defecto — seleccionar cliente confirma la venta (3 toques: producto → cliente → confirmación). Añadido selector de modo de cobro, clientes recientes, e integración con Cliente 360 vía `?clientId=`.
+- **Reservas**: añadir atleta/invitado, pasar asistencia y gestionar lista de espera pasan de botones decorativos a acciones reales sobre estado local, con confirmación visual.
+- **Leads/CRM**: avance de etapa de un toque, alta de nuevo lead, grid responsive corregido (empezaba en 2 columnas incluso en 375px).
+- **Impagados/Inventario**: reintentar cobro, contactar y reponer stock pasan de botones inertes a acciones con estado de carga/confirmación.
+- **Corrección de build preventiva**: `vite.config.ts` no resolvía el alias `@/` usado en todo el código (solo estaba en `tsconfig.json`, que no afecta al bundler). Añadido `resolve.alias` en Vite antes de que nadie llegara a ejecutar `npm run build` — ver `DECISIONS.md`.
+- Creados `docs/MAC_MINI_SETUP.md` y `docs/DEVELOPMENT_HANDOFF.md` para poder cambiar de máquina sin perder contexto.
+- 9 commits pequeños e incrementales sobre el commit estable anterior (`9d9374b`), ninguno reescribe historia.
+
 ## 2026-07-23 — Fase 1 + inicio Fase 2
 
 - Creado el proyecto `prfmn-club/` como carpeta aislada dentro del directorio de trabajo existente (que contiene un prototipo previo no relacionado, `PRFMN_TRACK_B_WORKING.html` y variantes, dejado intacto).
