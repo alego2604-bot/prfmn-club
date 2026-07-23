@@ -1,10 +1,35 @@
+import { useState } from "react";
 import { PAYMENTS } from "@/mocks/invoices";
 import { Badge, Button, Card, EmptyState } from "@/design-system/components";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Check, Loader2 } from "lucide-react";
+import type { Payment } from "@/lib/types";
 
 export default function UnpaidPage() {
-  const unpaid = PAYMENTS.filter((p) => p.status === "failed");
+  const [payments, setPayments] = useState<Payment[]>(PAYMENTS);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [contactedIds, setContactedIds] = useState<Set<string>>(new Set());
+
+  const unpaid = payments.filter((p) => p.status === "failed");
+
+  function retry(id: string) {
+    setRetryingId(id);
+    setTimeout(() => {
+      setPayments((prev) => prev.map((p) => (p.id === id ? { ...p, status: "paid" } : p)));
+      setRetryingId(null);
+    }, 900);
+  }
+
+  function contact(id: string) {
+    setContactedIds((prev) => new Set(prev).add(id));
+    setTimeout(() => {
+      setContactedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }, 1800);
+  }
 
   return (
     <div className="space-y-5">
@@ -17,16 +42,22 @@ export default function UnpaidPage() {
       ) : (
         <div className="space-y-2">
           {unpaid.map((p) => (
-            <Card key={p.id} className="flex items-center justify-between p-4">
+            <Card key={p.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="font-medium text-text-primary">{p.clientName}</p>
                 <p className="text-xs text-text-tertiary">Rechazado el {formatDate(p.createdAt)}</p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <span className="font-semibold tabular-nums text-text-primary">{formatCurrency(p.amountCents)}</span>
                 <Badge tone="danger">Rechazado</Badge>
-                <Button size="sm">Reintentar cobro</Button>
-                <Button size="sm" variant="secondary">Contactar</Button>
+                <Button size="sm" onClick={() => retry(p.id)} disabled={retryingId === p.id}>
+                  {retryingId === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {retryingId === p.id ? "Reintentando..." : "Reintentar cobro"}
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => contact(p.id)} disabled={contactedIds.has(p.id)}>
+                  {contactedIds.has(p.id) ? <Check className="h-4 w-4 text-success" /> : null}
+                  {contactedIds.has(p.id) ? "Contactado" : "Contactar"}
+                </Button>
               </div>
             </Card>
           ))}
