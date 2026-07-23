@@ -1,0 +1,67 @@
+import type { Invoice, Payment } from "@/lib/types";
+
+export const INVOICES: Invoice[] = [
+  {
+    id: "i1",
+    number: "2026-0142",
+    clientId: "c1",
+    clientName: "Marta García",
+    status: "paid",
+    issueDate: "2026-07-01",
+    dueDate: "2026-07-05",
+    totalCents: 8900,
+    lines: [{ id: "il1", description: "Cuota Unlimited — Julio", qty: 1, unitPriceCents: 8900, taxRate: 21 }],
+  },
+  {
+    id: "i2",
+    number: "2026-0143",
+    clientId: "c2",
+    clientName: "Carlos Medina",
+    status: "issued",
+    issueDate: "2026-07-01",
+    dueDate: "2026-07-05",
+    totalCents: 6900,
+    lines: [{ id: "il2", description: "Cuota 3x semana — Julio", qty: 1, unitPriceCents: 6900, taxRate: 21 }],
+  },
+  {
+    id: "i3",
+    number: "2026-0144",
+    clientId: "c3",
+    clientName: "Laura Fernández",
+    status: "paid",
+    issueDate: "2026-07-01",
+    dueDate: "2026-07-05",
+    totalCents: 8900,
+    lines: [{ id: "il3", description: "Cuota Unlimited — Julio", qty: 1, unitPriceCents: 8900, taxRate: 21 }],
+  },
+  {
+    id: "i4",
+    number: "2026-0145",
+    clientId: "c7",
+    clientName: "Diego Ramos",
+    status: "paid",
+    issueDate: "2026-07-15",
+    dueDate: "2026-07-15",
+    totalCents: 12000,
+    lines: [{ id: "il4", description: "Bono 10 drop-ins", qty: 1, unitPriceCents: 12000, taxRate: 21 }],
+  },
+  {
+    id: "i5",
+    number: "2026-0146",
+    clientId: "c5",
+    clientName: "Javier Ortega",
+    status: "void",
+    issueDate: "2026-06-01",
+    dueDate: "2026-06-05",
+    totalCents: 5900,
+    lines: [{ id: "il5", description: "Cuota 2x semana — Junio (anulada, membresía pausada)", qty: 1, unitPriceCents: 5900, taxRate: 21 }],
+  },
+];
+
+export const PAYMENTS: Payment[] = [
+  { id: "pay1", clientId: "c1", clientName: "Marta García", invoiceId: "i1", amountCents: 8900, status: "paid", method: "card", createdAt: "2026-07-01T09:00:00" },
+  { id: "pay2", clientId: "c2", clientName: "Carlos Medina", invoiceId: "i2", amountCents: 6900, status: "failed", method: "card", createdAt: "2026-07-01T09:05:00" },
+  { id: "pay3", clientId: "c3", clientName: "Laura Fernández", invoiceId: "i3", amountCents: 8900, status: "paid", method: "card", createdAt: "2026-07-01T09:10:00" },
+  { id: "pay4", clientId: "c7", clientName: "Diego Ramos", invoiceId: "i4", amountCents: 12000, status: "paid", method: "apple_pay", createdAt: "2026-07-15T18:22:00" },
+  { id: "pay5", clientId: "c4", clientName: "Paula Ibáñez", invoiceId: null, amountCents: 250, status: "paid", method: "card", createdAt: "2026-07-22T18:40:00" },
+];
