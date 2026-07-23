@@ -15,13 +15,6 @@ const STATUS_LABEL: Record<ClientStatus, string> = {
   pending_approval: "Pendiente aprobación",
 };
 
-const STATUS_TONE: Record<ClientStatus, "success" | "warning" | "danger" | "info"> = {
-  active: "success",
-  paused: "warning",
-  cancelled: "danger",
-  pending_approval: "info",
-};
-
 type QuickFilter = "all" | "active" | "risk" | "unpaid" | "new" | "inactive";
 
 const FILTERS: { value: QuickFilter; label: string }[] = [
