@@ -55,6 +55,25 @@ export const CLASS_SESSIONS: ClassSession[] = [
   session("s13", "Conditioning", 5, 18, 30, 45, "Sara", 16, 15, 2),
 ];
 
+// Ancla de fechas del dataset mock: dayOffset 3 = "hoy" para este set de datos de ejemplo.
+// Ver docs/DEVELOPMENT_HANDOFF.md — al conectar datos reales esto desaparece (las sesiones
+// vendrán con su propia fecha real, no relativa a un offset fijo).
+const MOCK_ANCHOR = new Date("2026-07-20T00:00:00");
+export const TODAY_OFFSET = 3;
+
+export function dateForOffset(offset: number): Date {
+  const d = new Date(MOCK_ANCHOR);
+  d.setDate(d.getDate() + offset);
+  return d;
+}
+
+export function sessionsForOffset(offset: number): ClassSession[] {
+  const dayStr = dateForOffset(offset).toDateString();
+  return CLASS_SESSIONS.filter((s) => new Date(s.startsAt).toDateString() === dayStr).sort(
+    (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
+  );
+}
+
 export const BOOKINGS: Booking[] = [
   { id: "b1", sessionId: "s5", clientId: "c1", clientName: "Marta García", status: "waitlisted", bookedAt: "2026-07-22T10:00:00" },
   { id: "b2", sessionId: "s1", clientId: "c2", clientName: "Carlos Medina", status: "booked", bookedAt: "2026-07-21T09:00:00" },

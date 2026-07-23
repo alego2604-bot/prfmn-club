@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CLASS_SESSIONS, BOOKINGS } from "@/mocks";
+import { BOOKINGS, TODAY_OFFSET, sessionsForOffset } from "@/mocks/bookings";
 import { Badge, Card, Drawer } from "@/design-system/components";
 import { Button } from "@/design-system/components";
 import { formatTime, cn } from "@/lib/utils";
@@ -7,24 +7,15 @@ import type { ClassSession } from "@/lib/types";
 import { Users, Plus } from "lucide-react";
 
 const DAYS = [
-  { offset: 3, label: "Lun 20" },
-  { offset: 4, label: "Mar 21" },
-  { offset: 5, label: "Mié 22" },
+  { offset: TODAY_OFFSET, label: "Hoy" },
+  { offset: TODAY_OFFSET + 1, label: "Mañana" },
+  { offset: TODAY_OFFSET + 2, label: "Pasado mañana" },
 ];
 
-function sessionsForDay(offset: number): ClassSession[] {
-  const base = new Date("2026-07-20T00:00:00");
-  base.setDate(base.getDate() + offset);
-  const dayStr = base.toDateString();
-  return CLASS_SESSIONS.filter((s) => new Date(s.startsAt).toDateString() === dayStr).sort(
-    (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
-  );
-}
-
 export default function BookingsPage() {
-  const [dayOffset, setDayOffset] = useState(3);
+  const [dayOffset, setDayOffset] = useState(TODAY_OFFSET);
   const [selected, setSelected] = useState<ClassSession | null>(null);
-  const sessions = useMemo(() => sessionsForDay(dayOffset), [dayOffset]);
+  const sessions = useMemo(() => sessionsForOffset(dayOffset), [dayOffset]);
   const roster = selected ? BOOKINGS.filter((b) => b.sessionId === selected.id) : [];
 
   return (
