@@ -2,10 +2,10 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, CreditCard } from "lucide-react";
 import { CLIENTS } from "@/mocks/clients";
-import { PAYMENTS } from "@/mocks/invoices";
 import { Avatar, Badge, SearchInput, Tabs } from "@/design-system/components";
 import { DataTable, type Column } from "@/design-system/components/DataTable";
 import { formatDate, daysAgo } from "@/lib/utils";
+import { hasFailedPayment, paymentStatusLabel } from "@/lib/clientInsights";
 import type { Client, ClientStatus } from "@/lib/types";
 
 const STATUS_LABEL: Record<ClientStatus, string> = {
@@ -32,17 +32,6 @@ const FILTERS: { value: QuickFilter; label: string }[] = [
   { value: "new", label: "Nuevos" },
   { value: "inactive", label: "Inactivos" },
 ];
-
-function hasFailedPayment(clientId: string): boolean {
-  return PAYMENTS.some((p) => p.clientId === clientId && p.status === "failed");
-}
-
-function paymentStatusLabel(clientId: string): { label: string; tone: "success" | "danger" | "neutral" } {
-  const clientPayments = PAYMENTS.filter((p) => p.clientId === clientId);
-  if (clientPayments.some((p) => p.status === "failed")) return { label: "Rechazado", tone: "danger" };
-  if (clientPayments.length === 0) return { label: "Sin cobros", tone: "neutral" };
-  return { label: "Al día", tone: "success" };
-}
 
 function matchesFilter(c: Client, filter: QuickFilter): boolean {
   switch (filter) {

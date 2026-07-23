@@ -1,19 +1,27 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Mail, Phone, FileText, StickyNote } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Mail, Phone, FileText, StickyNote, Check, MessageCircle, ShoppingCart, CalendarPlus, PenLine, IdCard } from "lucide-react";
 import { getClientById } from "@/mocks/clients";
 import { BOOKINGS } from "@/mocks/bookings";
 import { INVOICES, PAYMENTS } from "@/mocks/invoices";
-import { Avatar, Badge, Button, Card, EmptyState, Tabs } from "@/design-system/components";
+import { Avatar, Badge, Button, Card, EmptyState, Modal, Tabs } from "@/design-system/components";
 import { HealthScoreRing } from "@/design-system/components/HealthScoreRing";
 import { formatCurrency, formatDate, daysAgo } from "@/lib/utils";
-import type { ClientStatus } from "@/lib/types";
+import { paymentStatusLabel } from "@/lib/clientInsights";
+import type { ClientNote, ClientStatus } from "@/lib/types";
 
 const STATUS_LABEL: Record<ClientStatus, string> = {
   active: "Activo",
   paused: "Pausado",
   cancelled: "Baja",
   pending_approval: "Pendiente aprobación",
+};
+
+const STATUS_TONE: Record<ClientStatus, "success" | "warning" | "danger" | "info"> = {
+  active: "success",
+  paused: "warning",
+  cancelled: "danger",
+  pending_approval: "info",
 };
 
 const TABS = [
@@ -26,19 +34,55 @@ const TABS = [
 
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const [tab, setTab] = useState<(typeof TABS)[number]["value"]>("resumen");
+  const navigate = useNavigate();
   const client = id ? getClientById(id) : undefined;
 
-  if (!client) {
-    return (
-      <EmptyState icon={FileText} title="Cliente no encontrado" description="El cliente que buscas no existe o fue eliminado." />
-    );
+  const [tab, setTab] = useState<(typeof TABS)[number]["value"]>("resumen");
+  const [notes, setNotes] = useState<ClientNote[]>(client?.notes ?? []);
+  const [status, setStatus] = useState<ClientStatus | undefined>(client?.status);
+  const [noteModalOpen, setNoteModalOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [membershipModalOpen, setMembershipModalOpen] = useState(false);
+  const [membershipConfirmed, setMembershipConfirmed] = useState(false);
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [contactSent, setContactSent] = useState(false);
+  const [messageDraft, setMessageDraft] = useState("");
+
+  if (!client || !status) {
+    return <EmptyState icon={FileText} title="Cliente no encontrado" description="El cliente que buscas no existe o fue eliminado." />;
   }
 
   const clientBookings = BOOKINGS.filter((b) => b.clientId === client.id);
   const clientInvoices = INVOICES.filter((i) => i.clientId === client.id);
   const clientPayments = PAYMENTS.filter((p) => p.clientId === client.id);
   const lastVisitDays = client.lastVisitAt ? daysAgo(client.lastVisitAt) : null;
+  const payment = paymentStatusLabel(client.id);
+
+  function addNote() {
+    if (!noteDraft.trim()) return;
+    setNotes((prev) => [{ id: `local-${Date.now()}`, author: "Alex", body: noteDraft.trim(), createdAt: new Date().toISOString() }, ...prev]);
+    setNoteDraft("");
+    setNoteModalOpen(false);
+    setTab("notas");
+  }
+
+  function applyMembershipAction(next: ClientStatus) {
+    setStatus(next);
+    setMembershipConfirmed(true);
+    setTimeout(() => {
+      setMembershipModalOpen(false);
+      setMembershipConfirmed(false);
+    }, 900);
+  }
+
+  function sendContactMessage() {
+    setContactSent(true);
+    setTimeout(() => {
+      setContactModalOpen(false);
+      setContactSent(false);
+      setMessageDraft("");
+    }, 900);
+  }
 
   return (
     <div className="space-y-6">
@@ -50,10 +94,12 @@ export default function ClientDetailPage() {
         <div className="flex items-center gap-4">
           <Avatar name={client.fullName} size="lg" />
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-2xl font-semibold tracking-tight text-text-primary">{client.fullName}</h2>
-              <Badge tone={client.status === "active" ? "success" : client.status === "pending_approval" ? "info" : "warning"}>
-                {STATUS_LABEL[client.status]}
+              <Badge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Badge>
+              <Badge tone={payment.tone}>{payment.label}</Badge>
+              <Badge tone={client.health.riskLevel === "high" ? "danger" : client.health.riskLevel === "medium" ? "warning" : "success"}>
+                Score {client.health.score}/100
               </Badge>
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-tertiary">
@@ -62,10 +108,24 @@ export default function ClientDetailPage() {
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="secondary">Enviar mensaje</Button>
-          <Button>Editar ficha</Button>
-        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => setContactModalOpen(true)}>
+          <MessageCircle className="h-4 w-4" /> Contactar
+        </Button>
+        <Button variant="secondary" onClick={() => navigate(`/pos?clientId=${client.id}`)}>
+          <ShoppingCart className="h-4 w-4" /> Añadir venta
+        </Button>
+        <Button variant="secondary" onClick={() => navigate("/reservas")}>
+          <CalendarPlus className="h-4 w-4" /> Crear reserva
+        </Button>
+        <Button variant="secondary" onClick={() => setNoteModalOpen(true)}>
+          <PenLine className="h-4 w-4" /> Añadir nota
+        </Button>
+        <Button variant="secondary" onClick={() => setMembershipModalOpen(true)}>
+          <IdCard className="h-4 w-4" /> Gestionar membresía
+        </Button>
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -191,11 +251,11 @@ export default function ClientDetailPage() {
       )}
 
       {tab === "notas" && (
-        client.notes.length === 0 ? (
+        notes.length === 0 ? (
           <EmptyState icon={StickyNote} title="Sin notas todavía" description="Añade notas internas sobre este cliente." />
         ) : (
           <div className="space-y-2">
-            {client.notes.map((n) => (
+            {notes.map((n) => (
               <Card key={n.id} className="p-4">
                 <p className="text-sm text-text-primary">{n.body}</p>
                 <p className="mt-2 text-xs text-text-tertiary">{n.author} · {formatDate(n.createdAt)}</p>
@@ -221,6 +281,70 @@ export default function ClientDetailPage() {
           </div>
         )
       )}
+
+      <Modal open={noteModalOpen} onClose={() => setNoteModalOpen(false)} title="Añadir nota">
+        <textarea
+          autoFocus
+          value={noteDraft}
+          onChange={(e) => setNoteDraft(e.target.value)}
+          placeholder="Escribe una nota interna sobre este cliente..."
+          className="h-28 w-full resize-none rounded-xl border border-border-subtle bg-surface p-3 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent/50 focus:outline-none"
+        />
+        <div className="mt-3 flex justify-end">
+          <Button onClick={addNote} disabled={!noteDraft.trim()}>Guardar nota</Button>
+        </div>
+      </Modal>
+
+      <Modal open={membershipModalOpen} onClose={() => setMembershipModalOpen(false)} title="Gestionar membresía">
+        {membershipConfirmed ? (
+          <div className="flex items-center gap-2 py-6 text-success">
+            <Check className="h-5 w-5" /> Membresía actualizada
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs text-text-tertiary">Tarifa actual</p>
+              <p className="font-medium text-text-primary">{client.ratePlan}</p>
+            </div>
+            <div>
+              <p className="text-xs text-text-tertiary">Estado actual</p>
+              <Badge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Badge>
+            </div>
+            <div className="flex flex-wrap gap-2 border-t border-border-subtle pt-4">
+              {status !== "active" && (
+                <Button size="sm" onClick={() => applyMembershipAction("active")}>Reanudar membresía</Button>
+              )}
+              {status === "active" && (
+                <Button size="sm" variant="secondary" onClick={() => applyMembershipAction("paused")}>Pausar membresía</Button>
+              )}
+              {status !== "cancelled" && (
+                <Button size="sm" variant="destructive" onClick={() => applyMembershipAction("cancelled")}>Cancelar membresía</Button>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={contactModalOpen} onClose={() => setContactModalOpen(false)} title={`Contactar a ${client.fullName}`}>
+        {contactSent ? (
+          <div className="flex items-center gap-2 py-6 text-success">
+            <Check className="h-5 w-5" /> Mensaje enviado
+          </div>
+        ) : (
+          <>
+            <textarea
+              autoFocus
+              value={messageDraft}
+              onChange={(e) => setMessageDraft(e.target.value)}
+              placeholder="Escribe un mensaje..."
+              className="h-28 w-full resize-none rounded-xl border border-border-subtle bg-surface p-3 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent/50 focus:outline-none"
+            />
+            <div className="mt-3 flex justify-end">
+              <Button onClick={sendContactMessage} disabled={!messageDraft.trim()}>Enviar</Button>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
