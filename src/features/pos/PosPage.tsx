@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PRODUCTS, CLIENTS } from "@/mocks";
 import { Button, Card, SearchInput } from "@/design-system/components";
 import { formatCurrency, cn } from "@/lib/utils";
 import type { Product, Client, ProductCategory } from "@/lib/types";
-import { Check, User, X } from "lucide-react";
+import { Check, User, X, UserRound } from "lucide-react";
 
-type Step = "product" | "client" | "payment" | "done";
+type Step = "product" | "client" | "done";
+type PaymentMode = "now" | "account" | "invoice";
 
 const CATEGORY_LABEL: Record<ProductCategory, string> = {
   drink: "Bebidas",
@@ -19,10 +21,32 @@ const CATEGORY_LABEL: Record<ProductCategory, string> = {
 
 const SECONDARY_CATEGORIES: ProductCategory[] = ["apparel", "accessory", "merch", "event", "bundle"];
 
+const PAYMENT_MODES: { value: PaymentMode; label: string }[] = [
+  { value: "now", label: "Ahora" },
+  { value: "account", label: "A cuenta" },
+  { value: "invoice", label: "Próxima factura" },
+];
+
+const PAYMENT_MODE_CONFIRMATION: Record<PaymentMode, string> = {
+  now: "Cobrado",
+  account: "Cargado a cuenta del cliente",
+  invoice: "Añadido a la próxima factura",
+};
+
+const RECENT_CLIENTS = [...CLIENTS]
+  .filter((c) => c.status === "active" && c.lastVisitAt)
+  .sort((a, b) => new Date(b.lastVisitAt!).getTime() - new Date(a.lastVisitAt!).getTime())
+  .slice(0, 4);
+
 export default function PosPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const presetClientId = searchParams.get("clientId");
+  const presetClient = presetClientId ? CLIENTS.find((c) => c.id === presetClientId) ?? null : null;
+
   const [step, setStep] = useState<Step>("product");
   const [product, setProduct] = useState<Product | null>(null);
   const [client, setClient] = useState<Client | "anonymous" | null>(null);
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>("now");
   const [activeCategory, setActiveCategory] = useState<ProductCategory | null>(null);
   const [clientQuery, setClientQuery] = useState("");
 
@@ -38,23 +62,30 @@ export default function PosPage() {
     setStep("product");
     setProduct(null);
     setClient(null);
+    setPaymentMode("now");
     setActiveCategory(null);
     setClientQuery("");
   }
 
-  function selectProduct(p: Product) {
-    setProduct(p);
-    setStep("client");
+  function clearPresetClient() {
+    searchParams.delete("clientId");
+    setSearchParams(searchParams, { replace: true });
   }
 
-  function selectClient(c: Client | "anonymous") {
-    setClient(c);
-    setStep("payment");
-  }
-
-  function confirmSale() {
+  function finalizeSale(chosenClient: Client | "anonymous", mode: PaymentMode) {
+    setClient(chosenClient);
+    setPaymentMode(mode);
     setStep("done");
     setTimeout(reset, 1400);
+  }
+
+  function selectProduct(p: Product) {
+    setProduct(p);
+    if (presetClient) {
+      finalizeSale(presetClient, "now");
+    } else {
+      setStep("client");
+    }
   }
 
   if (step === "done") {
@@ -64,7 +95,7 @@ export default function PosPage() {
           <Check className="h-8 w-8 text-success" />
         </div>
         <div>
-          <p className="text-lg font-semibold text-text-primary">Confirmado</p>
+          <p className="text-lg font-semibold text-text-primary">{PAYMENT_MODE_CONFIRMATION[paymentMode]}</p>
           <p className="text-sm text-text-tertiary">
             {product?.name} · {client === "anonymous" ? "Venta anónima" : client?.fullName}
           </p>
@@ -86,6 +117,17 @@ export default function PosPage() {
           </Button>
         )}
       </div>
+
+      {presetClient && step === "product" && (
+        <Card className="flex items-center justify-between p-3">
+          <span className="inline-flex items-center gap-2 text-sm text-text-primary">
+            <UserRound className="h-4 w-4 text-accent" /> Vendiendo a <strong>{presetClient.fullName}</strong>
+          </span>
+          <button onClick={clearPresetClient} className="text-xs font-medium text-text-tertiary hover:text-text-primary">
+            Cambiar cliente
+          </button>
+        </Card>
+      )}
 
       {step === "product" && (
         <div className="space-y-6">
@@ -152,21 +194,65 @@ export default function PosPage() {
               <p className="text-xs text-text-tertiary">{formatCurrency(product.priceCents)}</p>
             </div>
           </Card>
-          <SearchInput placeholder="Buscar cliente..." value={clientQuery} onChange={(e) => setClientQuery(e.target.value)} autoFocus />
+
+          <div>
+            <p className="mb-1.5 text-xs font-medium text-text-tertiary">Cobro</p>
+            <div className="inline-flex gap-1 rounded-xl border border-border-subtle bg-surface p-1">
+              {PAYMENT_MODES.map((m) => (
+                <button
+                  key={m.value}
+                  onClick={() => setPaymentMode(m.value)}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                    paymentMode === m.value ? "bg-accent text-accent-contrast" : "text-text-secondary hover:text-text-primary"
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {!clientQuery && RECENT_CLIENTS.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-text-tertiary">Clientes recientes</p>
+              <div className="flex flex-wrap gap-2">
+                {RECENT_CLIENTS.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => finalizeSale(c, paymentMode)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-border-subtle bg-surface px-3 py-2 text-sm font-medium text-text-primary hover:border-accent/40"
+                  >
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/15 text-[10px] font-semibold text-accent">
+                      {c.fullName.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+                    </span>
+                    {c.fullName.split(" ")[0]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <SearchInput placeholder="Buscar cliente..." value={clientQuery} onChange={(e) => setClientQuery(e.target.value)} />
+
           <button
-            onClick={() => selectClient("anonymous")}
+            onClick={() => finalizeSale("anonymous", "now")}
             className="flex w-full items-center gap-3 rounded-xl border border-border-subtle bg-surface p-3 text-left hover:border-accent/40"
           >
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5">
               <User className="h-4 w-4 text-text-tertiary" />
             </div>
-            <span className="text-sm font-medium text-text-primary">Venta anónima</span>
+            <div>
+              <p className="text-sm font-medium text-text-primary">Venta anónima</p>
+              <p className="text-xs text-text-tertiary">Siempre cobro inmediato</p>
+            </div>
           </button>
+
           <div className="space-y-1.5">
             {filteredClients.map((c) => (
               <button
                 key={c.id}
-                onClick={() => selectClient(c)}
+                onClick={() => finalizeSale(c, paymentMode)}
                 className="flex w-full items-center gap-3 rounded-xl border border-border-subtle bg-surface p-3 text-left hover:border-accent/40"
               >
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/15 text-xs font-semibold text-accent">
@@ -175,30 +261,6 @@ export default function PosPage() {
                 <span className="text-sm font-medium text-text-primary">{c.fullName}</span>
               </button>
             ))}
-          </div>
-        </div>
-      )}
-
-      {step === "payment" && product && (
-        <div className="space-y-4">
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">{product.imageEmoji}</span>
-              <div>
-                <p className="font-medium text-text-primary">{product.name}</p>
-                <p className="text-xs text-text-tertiary">{client === "anonymous" ? "Venta anónima" : client?.fullName}</p>
-              </div>
-              <span className="ml-auto text-lg font-semibold tabular-nums text-text-primary">{formatCurrency(product.priceCents)}</span>
-            </div>
-          </Card>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Button size="lg" onClick={confirmSale}>Cobrar ahora</Button>
-            <Button size="lg" variant="secondary" onClick={confirmSale} disabled={client === "anonymous"}>
-              A cuenta del cliente
-            </Button>
-            <Button size="lg" variant="secondary" onClick={confirmSale} disabled={client === "anonymous"}>
-              A próxima factura
-            </Button>
           </div>
         </div>
       )}
