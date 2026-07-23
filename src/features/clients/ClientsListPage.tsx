@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CLIENTS } from "@/mocks";
+import { AlertTriangle, CreditCard } from "lucide-react";
+import { CLIENTS } from "@/mocks/clients";
+import { PAYMENTS } from "@/mocks/invoices";
 import { Avatar, Badge, SearchInput, Tabs } from "@/design-system/components";
 import { DataTable, type Column } from "@/design-system/components/DataTable";
-import { formatDate } from "@/lib/utils";
+import { formatDate, daysAgo } from "@/lib/utils";
 import type { Client, ClientStatus } from "@/lib/types";
 
 const STATUS_LABEL: Record<ClientStatus, string> = {
@@ -20,25 +22,54 @@ const STATUS_TONE: Record<ClientStatus, "success" | "warning" | "danger" | "info
   pending_approval: "info",
 };
 
-const FILTERS = [
+type QuickFilter = "all" | "active" | "risk" | "unpaid" | "new" | "inactive";
+
+const FILTERS: { value: QuickFilter; label: string }[] = [
   { value: "all", label: "Todos" },
   { value: "active", label: "Activos" },
-  { value: "pending_approval", label: "Pendientes" },
-  { value: "paused", label: "Pausados" },
-  { value: "cancelled", label: "Bajas" },
-] as const;
+  { value: "risk", label: "Riesgo" },
+  { value: "unpaid", label: "Impagados" },
+  { value: "new", label: "Nuevos" },
+  { value: "inactive", label: "Inactivos" },
+];
+
+function hasFailedPayment(clientId: string): boolean {
+  return PAYMENTS.some((p) => p.clientId === clientId && p.status === "failed");
+}
+
+function paymentStatusLabel(clientId: string): { label: string; tone: "success" | "danger" | "neutral" } {
+  const clientPayments = PAYMENTS.filter((p) => p.clientId === clientId);
+  if (clientPayments.some((p) => p.status === "failed")) return { label: "Rechazado", tone: "danger" };
+  if (clientPayments.length === 0) return { label: "Sin cobros", tone: "neutral" };
+  return { label: "Al día", tone: "success" };
+}
+
+function matchesFilter(c: Client, filter: QuickFilter): boolean {
+  switch (filter) {
+    case "all":
+      return true;
+    case "active":
+      return c.status === "active";
+    case "risk":
+      return c.status !== "cancelled" && c.health.riskLevel !== "low";
+    case "unpaid":
+      return hasFailedPayment(c.id);
+    case "new":
+      return daysAgo(c.joinedAt) <= 30;
+    case "inactive":
+      return c.status === "paused" || c.status === "cancelled";
+    default:
+      return true;
+  }
+}
 
 export default function ClientsListPage() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]["value"]>("all");
+  const [filter, setFilter] = useState<QuickFilter>("all");
 
   const filtered = useMemo(() => {
-    return CLIENTS.filter((c) => {
-      const matchesFilter = filter === "all" || c.status === filter;
-      const matchesQuery = c.fullName.toLowerCase().includes(query.toLowerCase());
-      return matchesFilter && matchesQuery;
-    });
+    return CLIENTS.filter((c) => matchesFilter(c, filter) && c.fullName.toLowerCase().includes(query.toLowerCase()));
   }, [query, filter]);
 
   const pendingCount = CLIENTS.filter((c) => c.status === "pending_approval").length;
@@ -49,17 +80,23 @@ export default function ClientsListPage() {
       render: (c) => (
         <div className="flex items-center gap-3">
           <Avatar name={c.fullName} size="sm" />
-          <div>
-            <p className="font-medium text-text-primary">{c.fullName}</p>
-            <p className="text-xs text-text-tertiary">{c.email}</p>
+          <div className="min-w-0">
+            <p className="truncate font-medium text-text-primary">{c.fullName}</p>
+            <p className="truncate text-xs text-text-tertiary">{STATUS_LABEL[c.status]}</p>
           </div>
         </div>
       ),
     },
-    { header: "Tarifa", render: (c) => c.ratePlan },
-    { header: "Estado", render: (c) => <Badge tone={STATUS_TONE[c.status]}>{STATUS_LABEL[c.status]}</Badge> },
-    { header: "Alta", render: (c) => formatDate(c.joinedAt) },
+    { header: "Membresía", render: (c) => c.ratePlan },
     { header: "Última visita", render: (c) => (c.lastVisitAt ? formatDate(c.lastVisitAt) : "—") },
+    { header: "Frecuencia (30d)", render: (c) => `${c.visitsLast30Days} sesiones` },
+    {
+      header: "Pago",
+      render: (c) => {
+        const p = paymentStatusLabel(c.id);
+        return <Badge tone={p.tone}>{p.label}</Badge>;
+      },
+    },
     {
       header: "Health Score",
       render: (c) => (
@@ -71,6 +108,28 @@ export default function ClientsListPage() {
           {c.health.score}/100
         </span>
       ),
+    },
+    {
+      header: "Alertas",
+      render: (c) => {
+        const risk = c.health.riskLevel !== "low";
+        const unpaid = hasFailedPayment(c.id);
+        if (!risk && !unpaid) return <span className="text-text-tertiary">—</span>;
+        return (
+          <div className="flex items-center gap-1.5">
+            {risk && (
+              <span title={`Riesgo de baja ${c.health.riskLevel === "high" ? "alto" : "medio"}`}>
+                <AlertTriangle className={c.health.riskLevel === "high" ? "h-4 w-4 text-danger" : "h-4 w-4 text-warning"} />
+              </span>
+            )}
+            {unpaid && (
+              <span title="Pago rechazado pendiente">
+                <CreditCard className="h-4 w-4 text-danger" />
+              </span>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -84,11 +143,17 @@ export default function ClientsListPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Tabs value={filter} onChange={setFilter} options={FILTERS as unknown as { value: typeof filter; label: string }[]} />
+        <Tabs value={filter} onChange={setFilter} options={FILTERS} />
         <SearchInput placeholder="Buscar por nombre..." value={query} onChange={(e) => setQuery(e.target.value)} className="max-w-xs" />
       </div>
 
-      <DataTable columns={columns} rows={filtered} rowKey={(c) => c.id} onRowClick={(c) => navigate(`/clientes/${c.id}`)} />
+      {filtered.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-border py-16 text-center text-sm text-text-tertiary">
+          Ningún cliente coincide con este filtro.
+        </p>
+      ) : (
+        <DataTable columns={columns} rows={filtered} rowKey={(c) => c.id} onRowClick={(c) => navigate(`/clientes/${c.id}`)} />
+      )}
     </div>
   );
 }
