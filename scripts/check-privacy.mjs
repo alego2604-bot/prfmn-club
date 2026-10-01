@@ -2,7 +2,7 @@
 /**
  * Business OS · guardia de privacidad (docs/SECURITY.md).
  * Revisa los ficheros versionados en busca de datos personales o secretos que nunca deben estar en Git:
- * DNI/NIE con letra de control válida, IBAN, teléfonos, emails de dominios reales, claves y tokens.
+ * DNI/NIE con letra de control válida, números de factura con serie, IBAN, teléfonos, emails de dominios reales, claves y tokens.
  * Los valores sintéticos permitidos se declaran en ALLOW. Sale con código 1 si encuentra algo.
  */
 import { execFileSync } from "node:child_process";
@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 
 const ALLOW = new Set([
   // Fixtures sintéticos (no corresponden a ninguna persona).
-  "12345678Z", "87654321X", "X1234567L",
+  "12345678Z", "87654321X", "X1234567L", "AB1234567",
 ]);
 const ALLOWED_EMAIL = /@(example\.(com|org)|[a-z0-9-]+\.test|test\.dev|empresa\.com|anthropic\.com)$/i;
 const SKIP = [/^package-lock\.json$/, /^docs\/archive\//, /^scripts\/check-privacy\.mjs$/, /\.(png|jpg|jpeg|gif|webp|ico|woff2?)$/];
@@ -24,6 +24,7 @@ const dniValid = (raw) => {
 
 const RULES = [
   { name: "DNI/NIE válido", re: /\b[XYZxyz]?\d{7,8}[A-Za-z]\b/g, check: (m) => dniValid(m.length === 8 ? "0" + m : m) && !ALLOW.has(m.toUpperCase()) },
+  { name: "Nº de factura real", re: /\b[A-Z]{1,2}\d{7}\b/g, check: (m) => !/^(T|U)26000\d\d$/.test(m) && !ALLOW.has(m) },
   { name: "IBAN", re: /\b[A-Z]{2}\d{2}(?:[ ]?\d{4}){4,7}\b/g },
   { name: "Teléfono", re: /(?:\+34[ ]?)?\b[67]\d{2}[ ]?\d{3}[ ]?\d{3}\b/g, check: (m) => !/^(\+34 ?)?6(\d)\2 ?\d{3} ?\d{3}$/.test(m) && !/(000|111|222|333|444|555|666|777|888|999) ?\d{3}$/.test(m) && !/^(\+34 ?)?600 ?000 ?000$/.test(m) },
   { name: "Email real", re: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, check: (m) => !ALLOWED_EMAIL.test(m) },
