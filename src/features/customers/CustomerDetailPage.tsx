@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { AlertCircle, ArrowLeft, BellOff, Mail, MessageCircle, NotebookPen, Pencil, Pin, Receipt, ShoppingBag, StickyNote, UserX } from "lucide-react";
+import { AlertCircle, ArrowLeft, BellOff, CreditCard, Mail, MessageCircle, NotebookPen, Pencil, Pin, Receipt, ShoppingBag, StickyNote, UserX } from "lucide-react";
 import { useCtx, useSession, useWorkspace, usePersonName } from "@/app/session";
-import { Avatar, Badge, Button, Callout, Card, DescriptionList, EmptyState, Field, Input, Kpi, Mono, Page, Switch, Tabs, Textarea, useToast } from "@/design-system/components";
+import { Avatar, Badge, Button, Callout, Card, CardHeader, DescriptionList, EmptyState, Field, Input, Mono, Page, Switch, Tabs, Textarea, useToast } from "@/design-system/components";
+import { Sparkline } from "@/design-system/components/charts";
 import { addCustomerNote, customerName } from "@/data/repos/customers";
-import { daysBetween, formatDate, formatDateTime, relativeDays } from "@/lib/dates";
+import { capitalize, daysBetween, formatDate, formatDateTime, relativeDays, toISODate } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import { CustomerForm, CUSTOMER_STATUS } from "./CustomerForm";
@@ -37,13 +38,23 @@ export default function CustomerDetailPage() {
     const activeInv = invoices.filter((i) => i.status !== "void");
     const pending = activeInv.filter((i) => i.status === "issued" || i.status === "partially_paid");
     const timeline = [
-      ...invoices.map((i) => ({ at: `${i.issueDate}T12:00:00`, icon: Receipt, title: `Factura ${i.number ?? i.externalNumber} · ${formatMoney(i.total)}`, sub: `${i.concept ?? ""}${i.servicePeriodStart ? ` · periodo ${formatDate(`${i.servicePeriodStart}T00:00`).slice(3)}` : ""} · ${INVOICE_STATUS[i.status].label}`, to: `/facturas?factura=${i.id}` })),
-      ...sales.map((s) => ({ at: s.occurredAt, icon: ShoppingBag, title: `Compra #${s.number} · ${formatMoney(s.total)}${s.status === "voided" ? " (anulada)" : ""}`, sub: items.get(s.id) ?? "", to: `/ventas?venta=${s.id}` })),
-      ...notes.map((n) => ({ at: n.createdAt, icon: StickyNote, title: "Nota interna", sub: n.body, to: undefined as string | undefined })),
-      ...ws.auditLogs.filter((l) => l.entityId === c.id && l.entityType === "customers" && l.action !== "note").map((l) => ({ at: l.createdAt, icon: Pencil, title: l.action === "insert" ? "Ficha creada" : "Ficha actualizada", sub: `${l.actorName}${l.changes ? ` · ${Object.keys(l.changes).join(", ")}` : ""}`, to: undefined })),
+      ...invoices.map((i) => ({ at: `${i.issueDate}T12:00:00`, kind: "invoice", icon: Receipt, title: `Factura ${i.number ?? i.externalNumber} · ${formatMoney(i.total)}`, sub: `${i.concept ?? ""}${i.servicePeriodStart ? ` · periodo ${formatDate(`${i.servicePeriodStart}T00:00`).slice(3)}` : ""} · ${INVOICE_STATUS[i.status].label}`, to: `/facturas?factura=${i.id}` })),
+      ...sales.map((s) => ({ at: s.occurredAt, kind: "purchase", icon: ShoppingBag, title: `Compra #${s.number} · ${formatMoney(s.total)}${s.status === "voided" ? " (anulada)" : ""}`, sub: items.get(s.id) ?? "", to: `/ventas?venta=${s.id}` })),
+      ...notes.map((n) => ({ at: n.createdAt, kind: "note", icon: StickyNote, title: "Nota interna", sub: n.body, to: undefined as string | undefined })),
+      ...ws.auditLogs.filter((l) => l.entityId === c.id && l.entityType === "customers" && l.action !== "note").map((l) => ({ at: l.createdAt, kind: "change", icon: Pencil, title: l.action === "insert" ? "Ficha creada" : "Ficha actualizada", sub: `${l.actorName}${l.changes ? ` · ${Object.keys(l.changes).join(", ")}` : ""}`, to: undefined })),
     ].sort((a, b) => b.at.localeCompare(a.at));
+    const now = new Date();
+    const monthly = Array.from({ length: 12 }, (_, i) => {
+      const start = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+      const key = toISODate(start).slice(0, 7);
+      return sales.filter((s) => s.status !== "voided" && s.occurredAt.slice(0, 7) === key).reduce((a, s) => a + s.total, 0)
+        + activeInv.filter((x) => (x.issueDate ?? "").slice(0, 7) === key).reduce((a, x) => a + x.total, 0);
+    });
+    const lastFee = activeInv.filter((i) => i.servicePeriodEnd).sort((a, b) => (b.servicePeriodEnd ?? "").localeCompare(a.servicePeriodEnd ?? ""))[0];
+    const renewal = lastFee?.servicePeriodEnd ? toISODate(new Date(new Date(`${lastFee.servicePeriodEnd}T00:00`).getTime() + 86_400_000)) : undefined;
     return {
-      invoices, sales, notes, items, lastInvoice, pending, timeline,
+      invoices, sales, notes, items, lastInvoice, pending, timeline, monthly, renewal,
+      pendingAmount: pending.reduce((s, i) => s + i.total - i.amountPaid, 0),
       billed: activeInv.reduce((s, i) => s + i.total, 0),
       spent: sales.filter((s) => s.status !== "voided").reduce((a, s) => a + s.total, 0),
       lastActivity: timeline.find((t) => t.icon !== StickyNote && t.icon !== Pencil)?.at,
@@ -74,30 +85,48 @@ export default function CustomerDetailPage() {
     <Page>
       <Link to="/clientes" className="mb-4 inline-flex items-center gap-1.5 text-sm text-fg-3 hover:text-fg"><ArrowLeft className="h-4 w-4" />Clientes</Link>
 
-      <Card className="mb-6">
-        <div className="flex flex-col gap-5 md:flex-row md:items-center">
-          <Avatar name={name} size={56} />
-          <div className="min-w-0 flex-1">
+      <div className="mb-6 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
+          <Avatar name={name} size={64} className="text-lg ring-4 ring-surface shadow-sm" />
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight">{name}</h1>
+              <h1 className="truncate text-3xl font-semibold tracking-[-0.03em]">{name}</h1>
               <Badge tone={CUSTOMER_STATUS[c.status].tone} dot>{CUSTOMER_STATUS[c.status].label}</Badge>
               {data.silenced && <Badge tone="info"><BellOff className="h-3 w-3" />Avisos silenciados hasta {formatDate(`${data.silenced.suppressAlertsUntil}T00:00`)}</Badge>}
             </div>
-            <div className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1 text-sm text-fg-3">
-              <span>Tarifa: <span className="text-fg">{data.lastInvoice?.concept ?? "—"}</span></span>
-              <span>Último movimiento: <span className="text-fg">{data.lastActivity ? relativeDays(data.lastActivity) : "—"}</span></span>
-              <span>Cliente desde: <span className="text-fg">{c.joinedAt ? formatDate(`${c.joinedAt}T00:00`) : "—"}</span></span>
-              {c.taxId && <span className="flex items-center gap-1">NIF: <Mono className="text-fg">{c.taxIdNormalized ?? c.taxId}</Mono>{c.taxIdValid === false && <AlertCircle className="h-3.5 w-3.5 text-danger" />}</span>}
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {waNumber && <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noreferrer"><Button icon={MessageCircle}>WhatsApp</Button></a>}
-            {c.email && <a href={`mailto:${c.email}`}><Button icon={Mail}>Email</Button></a>}
-            {can("customers.manage") && <Button icon={NotebookPen} onClick={() => setTab("notes")}>Nota</Button>}
-            {can("customers.manage") && <Button variant="primary" icon={Pencil} onClick={() => setEditing(true)}>Editar</Button>}
+            <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-3">
+              {c.email && <span>{c.email}</span>}
+              {c.phone && <span className="num">{c.phone}</span>}
+              {c.taxId && <span className="flex items-center gap-1"><Mono className="text-fg-2">{c.taxIdNormalized ?? c.taxId}</Mono>{c.taxIdValid === false && <AlertCircle className="h-3.5 w-3.5 text-danger" />}</span>}
+              {!c.email && !c.phone && !c.taxId && <span>Sin datos de contacto</span>}
+            </p>
           </div>
         </div>
-      </Card>
+        <div className="flex flex-wrap gap-2">
+          {waNumber && <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noreferrer" title="Abre WhatsApp con este número (envío manual)"><Button icon={MessageCircle}>Mensaje</Button></a>}
+          {c.email && <a href={`mailto:${c.email}`}><Button icon={Mail}>Email</Button></a>}
+          {can("customers.manage") && <Button icon={NotebookPen} onClick={() => setTab("notes")}>Nota</Button>}
+          {data.pending.length > 0 && can("payments.manage") && <Link to={`/facturas?factura=${data.pending[0]!.id}`}><Button icon={CreditCard}>Registrar cobro</Button></Link>}
+          {can("customers.manage") && <Button variant="primary" icon={Pencil} onClick={() => setEditing(true)}>Editar</Button>}
+        </div>
+      </div>
+
+      <div className="surface-card mb-6 grid overflow-hidden rounded-xl" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
+        {[
+          { label: "Tarifa / último concepto", value: data.lastInvoice?.concept ?? "—", small: true },
+          { label: "Última actividad", value: data.lastActivity ? capitalize(relativeDays(data.lastActivity)) : "—", sub: data.lastActivity ? formatDate(data.lastActivity) : undefined },
+          { label: "Saldo pendiente", value: formatMoney(data.pendingAmount), sub: data.pending.length ? `${data.pending.length} factura${data.pending.length === 1 ? "" : "s"}` : "Al día", tone: data.pendingAmount > 0 ? "warning" : undefined },
+          { label: "Próxima renovación", value: data.renewal ? formatDate(`${data.renewal}T00:00`) : "—", sub: data.renewal ? relativeDays(`${data.renewal}T00:00`) : "Sin cuota periódica" },
+          { label: "Valor total", value: formatMoney(data.billed + data.spent), sub: `${data.invoices.length} facturas · ${data.sales.length} compras` },
+          { label: "Cliente desde", value: c.joinedAt ? formatDate(`${c.joinedAt}T00:00`) : formatDate(c.createdAt), sub: c.joinedAt ? `${Math.max(0, Math.round(daysBetween(new Date(`${c.joinedAt}T00:00`), new Date()) / 30))} meses` : undefined },
+        ].map((f) => (
+          <div key={f.label} className="-ml-px -mt-px border-l border-t border-line px-5 py-4">
+            <p className="truncate text-xs font-medium text-fg-3">{f.label}</p>
+            <p className={cn("mt-1 truncate font-semibold tracking-[-0.02em]", f.small ? "text-[15px] leading-7" : "text-xl", f.tone === "warning" && "text-warning-fg")} title={String(f.value)}>{f.value}</p>
+            {f.sub && <p className="mt-0.5 truncate text-xs text-fg-3">{f.sub}</p>}
+          </div>
+        ))}
+      </div>
 
       {c.taxIdValid === false && <Callout tone="warning" className="mb-4" title="NIF no válido">«{c.taxId}» no supera la validación de DNI/NIE/CIF. Corrígelo antes de emitirle facturas nuevas.</Callout>}
 
@@ -115,34 +144,40 @@ export default function CustomerDetailPage() {
       />
 
       {tab === "overview" && (
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="grid grid-cols-2 gap-3 lg:col-span-2">
-            <Kpi label="Total facturado" value={formatMoney(data.billed)} hint={`${data.invoices.length} facturas`} />
-            <Kpi label="Compras en caja" value={formatMoney(data.spent)} hint={`${data.sales.length} compras`} />
-            <Kpi label="Pendiente de cobro" value={formatMoney(data.pending.reduce((s, i) => s + i.total - i.amountPaid, 0))} hint={data.pending.length ? `${data.pending.length} facturas` : "Al día"} />
-            <Kpi label="Antigüedad" value={c.joinedAt ? `${Math.max(0, Math.round(daysBetween(new Date(`${c.joinedAt}T00:00`), new Date()) / 30))} meses` : "—"} />
-            <Card className="col-span-2">
-              <h3 className="mb-3 text-sm font-semibold">Actividad reciente</h3>
-              <Timeline items={data.timeline.slice(0, 6)} />
+        <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr] [&>*]:min-w-0">
+          <Card>
+            <CardHeader title="Relación con el cliente" description="Compras, facturas, notas y cambios, del más reciente al más antiguo" action={data.timeline.length > 8 ? <button onClick={() => setTab("activity")} className="text-sm font-medium text-fg-3 hover:text-fg">Ver todo →</button> : undefined} />
+            <Timeline items={data.timeline.slice(0, 8)} />
+          </Card>
+          <div className="flex flex-col gap-4">
+            <Card>
+              <CardHeader className="mb-2" title="Gasto mensual" description="Compras + facturas · últimos 12 meses" />
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="figure text-3xl leading-none">{formatMoney(data.monthly.reduce((s, m) => s + m, 0))}</p>
+                  <p className="mt-1.5 text-xs text-fg-3">en 12 meses</p>
+                </div>
+                <Sparkline values={data.monthly} width={150} height={44} />
+              </div>
+            </Card>
+            {data.notes.filter((n) => n.pinned).map((n) => (
+              <div key={n.id} className="rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-fg"><Pin className="mr-1.5 inline h-3.5 w-3.5" />{n.body}</div>
+            ))}
+            <Card>
+              <CardHeader className="mb-1" title="Datos" />
+              <DescriptionList
+                items={[
+                  { label: "Email", value: c.email ?? "—" },
+                  { label: "Teléfono", value: c.phone ?? "—" },
+                  { label: "Dirección", value: [c.address, c.postalCode, c.city].filter(Boolean).join(", ") || "—" },
+                  { label: "Nacimiento", value: c.birthDate ? formatDate(`${c.birthDate}T00:00`) : "—" },
+                  { label: "Empresa", value: c.companyName ?? "—" },
+                  { label: "Origen", value: c.source === "import" ? "Importación" : c.source ?? "—" },
+                  { label: "Baja", value: c.leftAt ? formatDate(`${c.leftAt}T00:00`) : "—" },
+                ]}
+              />
             </Card>
           </div>
-          <Card>
-            <h3 className="mb-1 text-sm font-semibold">Datos</h3>
-            <DescriptionList
-              items={[
-                { label: "Email", value: c.email ?? "—" },
-                { label: "Teléfono", value: c.phone ?? "—" },
-                { label: "Dirección", value: [c.address, c.postalCode, c.city].filter(Boolean).join(", ") || "—" },
-                { label: "Nacimiento", value: c.birthDate ? formatDate(`${c.birthDate}T00:00`) : "—" },
-                { label: "Empresa", value: c.companyName ?? "—" },
-                { label: "Origen", value: c.source === "import" ? "Importación" : c.source ?? "—" },
-                { label: "Baja", value: c.leftAt ? formatDate(`${c.leftAt}T00:00`) : "—" },
-              ]}
-            />
-            {data.notes.filter((n) => n.pinned).map((n) => (
-              <div key={n.id} className="mt-4 rounded-md bg-warning-soft px-3 py-2.5 text-sm text-warning-fg"><Pin className="mr-1 inline h-3.5 w-3.5" />{n.body}</div>
-            ))}
-          </Card>
         </div>
       )}
 
@@ -222,30 +257,52 @@ export default function CustomerDetailPage() {
   );
 }
 
-function Timeline({ items }: { items: { at: string; icon: typeof Receipt; title: string; sub: string; to?: string }[] }) {
-  if (!items.length) return <p className="py-6 text-center text-sm text-fg-3">Sin actividad todavía.</p>;
+const TL_TONE: Record<string, string> = {
+  purchase: "bg-accent-soft text-accent-fg",
+  invoice: "bg-surface-sunken text-fg-2",
+  note: "bg-warning-soft text-warning-fg",
+  change: "bg-surface-sunken text-fg-3",
+};
+
+function Timeline({ items }: { items: { at: string; icon: typeof Receipt; title: string; sub: string; to?: string; kind?: string }[] }) {
+  if (!items.length) return <p className="py-8 text-center text-sm text-fg-3">Sin actividad todavía. Las compras en Caja, las facturas y las notas aparecerán aquí.</p>;
+  const groups: { label: string; items: typeof items }[] = [];
+  for (const t of items) {
+    const d = new Date(t.at);
+    const label = capitalize(d.toLocaleDateString("es-ES", { month: "long", year: "numeric" }));
+    const g = groups.at(-1);
+    if (g && g.label === label) g.items.push(t);
+    else groups.push({ label, items: [t] });
+  }
   return (
-    <ol className="relative flex flex-col">
-      {items.map((t, i) => {
-        const body = (
-          <>
-            <span className="relative z-10 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line bg-surface"><t.icon className="h-3.5 w-3.5 text-fg-3" /></span>
-            <span className="min-w-0 flex-1 pb-5">
-              <span className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <span className="text-sm font-medium">{t.title}</span>
-                <span className="text-xs text-fg-3">{formatDate(t.at)}</span>
-              </span>
-              {t.sub && <span className="mt-0.5 line-clamp-2 block text-sm text-fg-3">{t.sub}</span>}
-            </span>
-          </>
-        );
-        return (
-          <li key={i} className="relative flex gap-3">
-            {i < items.length - 1 && <span className="absolute left-[13.5px] top-8 h-[calc(100%-28px)] w-px bg-line" />}
-            {t.to ? <Link to={t.to} className="flex flex-1 gap-3 rounded hover:opacity-80">{body}</Link> : body}
-          </li>
-        );
-      })}
-    </ol>
+    <div className="flex flex-col gap-4">
+      {groups.map((g) => (
+        <section key={g.label}>
+          <p className="mb-2 text-2xs font-semibold uppercase tracking-[0.08em] text-fg-3">{g.label}</p>
+          <ol className="relative flex flex-col">
+            {g.items.map((t, i) => {
+              const body = (
+                <>
+                  <span className={cn("relative z-10 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg", TL_TONE[t.kind ?? "change"])}><t.icon className="h-3.5 w-3.5" /></span>
+                  <span className="min-w-0 flex-1 pb-4">
+                    <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+                      <span className="text-sm font-medium">{t.title}</span>
+                      <span className="text-xs text-fg-3 num">{formatDate(t.at).slice(0, 5)}</span>
+                    </span>
+                    {t.sub && <span className="mt-0.5 line-clamp-2 block text-sm text-fg-3">{t.sub}</span>}
+                  </span>
+                </>
+              );
+              return (
+                <li key={i} className="relative flex gap-3">
+                  {i < g.items.length - 1 && <span className="absolute left-[13.5px] top-8 h-[calc(100%-28px)] w-px bg-line" />}
+                  {t.to ? <Link to={t.to} className="-mx-2 flex flex-1 gap-3 rounded-lg px-2 transition-colors hover:bg-surface-2">{body}</Link> : body}
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      ))}
+    </div>
   );
 }

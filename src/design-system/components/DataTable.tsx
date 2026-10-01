@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Columns3, Download, FileSpreadsheet, Search, X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { formatNumber } from "@/lib/money";
 import { normalizeKey } from "@/lib/text";
 import { getPref, setPref } from "@/lib/localPrefs";
 import { downloadCsv, downloadXlsx, type ExportColumn, type ExportValue } from "@/lib/export";
@@ -135,7 +136,7 @@ export function DataTable<T>({
         )}
         {toolbar}
         <div className="ml-auto flex items-center gap-1.5">
-          <span className="hidden text-sm text-fg-3 md:inline num">{sorted.length.toLocaleString("es-ES")} {sorted.length === 1 ? "registro" : "registros"}</span>
+          <span className="hidden text-sm text-fg-3 md:inline num">{formatNumber(sorted.length)} {sorted.length === 1 ? "registro" : "registros"}</span>
           <Menu
             width={240}
             trigger={(_, toggle) => <IconButton icon={Columns3} label="Columnas" onClick={toggle} />}
@@ -170,20 +171,24 @@ export function DataTable<T>({
       </div>
 
       {selectable && selectedRows.length > 0 && (
-        <div className="mb-2 flex animate-fade-in items-center gap-3 rounded-md border border-accent/30 bg-accent-soft px-3 py-2 text-sm text-accent-fg">
-          <span className="font-medium num">{selectedRows.length} seleccionados</span>
-          <div className="flex items-center gap-2">{bulkActions?.(selectedRows, () => setSelected(new Set()))}</div>
-          <button className="ml-auto inline-flex items-center gap-1 hover:underline" onClick={() => setSelected(new Set())}>
-            <X className="h-3.5 w-3.5" /> Limpiar
-          </button>
+        <div className="fixed inset-x-0 bottom-20 z-40 flex justify-center px-4 lg:bottom-6" role="toolbar" aria-label="Acciones sobre la selección">
+          <div className="flex animate-slide-up items-center gap-3 rounded-xl bg-surface-inverse py-2 pl-4 pr-2 text-sm text-fg-inverse shadow-lg">
+            <span className="font-medium num">{selectedRows.length} seleccionado{selectedRows.length === 1 ? "" : "s"}</span>
+            <span className="h-4 w-px bg-fg-inverse/20" />
+            <div className="flex items-center gap-1.5 [&_button]:border-transparent [&_button]:bg-fg-inverse/10 [&_button]:text-fg-inverse [&_button:hover]:bg-fg-inverse/20">{bulkActions?.(selectedRows, () => setSelected(new Set()))}</div>
+            {exportName && <button className="h-8 rounded-md px-2.5 text-fg-inverse/80 hover:bg-fg-inverse/10 hover:text-fg-inverse" onClick={() => exportRows("xlsx")}>Exportar</button>}
+            <button className="flex h-8 w-8 items-center justify-center rounded-md text-fg-inverse/70 hover:bg-fg-inverse/10 hover:text-fg-inverse" onClick={() => setSelected(new Set())} aria-label="Limpiar selección">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-line bg-surface shadow-xs">
+      <div className="surface-card overflow-hidden rounded-xl">
         <div className="scrollbar-thin overflow-x-auto">
           <table className="w-full border-collapse text-sm">
-            <thead className="sticky top-0 z-10 bg-surface-2">
-              <tr className="border-b border-line">
+            <thead className="sticky top-0 z-10 bg-surface">
+              <tr>
                 {selectable && (
                   <th className="w-10 px-3">
                     <Checkbox
@@ -201,17 +206,17 @@ export function DataTable<T>({
                       key={c.id}
                       style={{ width: c.width }}
                       className={cn(
-                        "h-10 whitespace-nowrap px-3 text-xs font-medium text-fg-3",
+                        "h-10 whitespace-nowrap px-3 text-xs font-medium text-fg-3 first:pl-4 last:pr-4",
                         c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left",
                       )}
                     >
                       {c.sortValue ? (
                         <button
-                          className={cn("inline-flex items-center gap-1 rounded hover:text-fg", active && "text-fg")}
+                          className={cn("group/sort inline-flex items-center gap-1 rounded transition-colors hover:text-fg", active && "text-fg")}
                           onClick={() => setSort(active && sort!.dir === "desc" ? { id: c.id, dir: "asc" } : active && sort!.dir === "asc" ? null : { id: c.id, dir: "desc" })}
                         >
                           {c.header}
-                          {active && (sort!.dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                          {active ? (sort!.dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowDown className="h-3 w-3 opacity-0 transition-opacity group-hover/sort:opacity-40" />}
                         </button>
                       ) : (
                         c.header
@@ -229,8 +234,8 @@ export function DataTable<T>({
                     key={id}
                     onClick={onRowClick ? () => onRowClick(r) : undefined}
                     className={cn(
-                      "group border-b border-line last:border-0 transition-colors",
-                      onRowClick && "cursor-pointer hover:bg-surface-2",
+                      "group border-t border-line transition-colors duration-100",
+                      onRowClick && "cursor-pointer hover:bg-surface-2 active:bg-surface-sunken",
                       selected.has(id) && "bg-accent-soft/60",
                       rowClassName?.(r),
                     )}
@@ -244,8 +249,8 @@ export function DataTable<T>({
                       <td
                         key={c.id}
                         className={cn(
-                          dense ? "h-10" : "h-12",
-                          "px-3 align-middle",
+                          dense ? "h-10" : "h-11",
+                          "px-3 align-middle first:pl-4 last:pr-4",
                           c.align === "right" ? "text-right num" : c.align === "center" ? "text-center" : "text-left",
                           c.className,
                         )}
@@ -268,7 +273,7 @@ export function DataTable<T>({
       {pages > 1 && (
         <div className="flex items-center justify-between pt-3 text-sm text-fg-3">
           <span className="num">
-            {page * pageSize + 1}–{Math.min(sorted.length, (page + 1) * pageSize)} de {sorted.length.toLocaleString("es-ES")}
+            {formatNumber(page * pageSize + 1)}–{formatNumber(Math.min(sorted.length, (page + 1) * pageSize))} de {formatNumber(sorted.length)}
           </span>
           <div className="flex items-center gap-1">
             <IconButton icon={ChevronLeft} label="Anterior" disabled={page === 0} onClick={() => setPage((p) => p - 1)} />

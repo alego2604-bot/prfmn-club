@@ -5,7 +5,7 @@ import {
   Sheet, Upload, XCircle,
 } from "lucide-react";
 import { useCtx, useLocationScope, useSession, useWorkspace } from "@/app/session";
-import { Badge, Button, Callout, Card, CardHeader, Field, Kpi, Page, PageHeader, Segmented, Select, useToast } from "@/design-system/components";
+import { Badge, Button, Callout, Card, CardHeader, Field, Page, PageHeader, Segmented, Select, useToast } from "@/design-system/components";
 import { analyzeWorkbook } from "./engine/analyze";
 import { readFile } from "./engine/read";
 import { buildSalesPlan } from "./engine/salesPlan";
@@ -15,7 +15,7 @@ import { fieldsFor } from "./engine/fields";
 import type { FileAnalysis, ImportPlan, InvoiceRow, PlanOptions, SalesRow, TargetKind, WorkbookData } from "./engine/types";
 import { sha256Hex } from "@/lib/hash";
 import { formatDate, formatDateTime } from "@/lib/dates";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, NUM } from "@/lib/money";
 import { plural } from "@/lib/text";
 import { cn } from "@/lib/cn";
 
@@ -136,18 +136,20 @@ export default function ImportWizardPage() {
       <PageHeader title="Importar datos" description="Nada se guarda hasta el último paso. Verás cada registro, su nivel de confianza y el motivo de cada aviso." />
 
       {/* Stepper */}
-      <ol className="no-scrollbar mb-8 flex items-center gap-1 overflow-x-auto">
-        {STEPS.map((s, i) => (
-          <li key={s} className="flex shrink-0 items-center gap-1">
-            <span className={cn("flex h-8 items-center gap-2 rounded-full px-3 text-sm font-medium", i === step ? "bg-ink text-fg-inverse" : i < step || job ? "text-fg" : "text-fg-3")}>
-              <span className={cn("flex h-5 w-5 items-center justify-center rounded-full text-2xs num", i === step ? "bg-white/20" : i < step || job ? "bg-success text-white" : "border border-line")}>
-                {i < step || job ? <Check className="h-3 w-3" /> : i + 1}
+      <ol className="no-scrollbar mb-8 grid min-w-0 overflow-x-auto" style={{ gridTemplateColumns: `repeat(${STEPS.length}, minmax(96px, 1fr))` }} aria-label="Pasos">
+        {STEPS.map((s, i) => {
+          const doneStep = i < step || !!job;
+          const current = i === step && !job;
+          return (
+            <li key={s} className="relative flex flex-col gap-2 pr-2" aria-current={current ? "step" : undefined}>
+              <span className={cn("h-1 rounded-full transition-colors duration-300", doneStep ? "bg-accent" : current ? "bg-ink" : "bg-line")} />
+              <span className={cn("flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em]", current ? "text-fg" : doneStep ? "text-accent-fg" : "text-fg-3")}>
+                {doneStep ? <Check className="h-3.5 w-3.5" strokeWidth={2.5} /> : <span className="num">{i + 1}</span>}
+                {s}
               </span>
-              {s}
-            </span>
-            {i < STEPS.length - 1 && <span className="h-px w-5 bg-line" />}
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ol>
 
       {/* 1. Subir */}
@@ -157,10 +159,12 @@ export default function ImportWizardPage() {
             onClick={() => inputRef.current?.click()}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) void onFile(f); }}
-            className="flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-line-strong bg-surface px-6 py-16 text-center transition-colors hover:border-accent hover:bg-accent-soft/40"
+            className="group flex w-full flex-col items-center justify-center rounded-2xl border border-dashed border-line-strong bg-surface bg-[radial-gradient(ellipse_at_center,var(--accent-soft),transparent_60%)] px-6 py-16 text-center transition-all hover:border-accent hover:shadow-md"
           >
-            {busy ? <Loader2 className="h-8 w-8 animate-spin text-accent" /> : <Upload className="h-8 w-8 text-fg-3" />}
-            <p className="mt-4 text-md font-semibold">{busy ? "Leyendo archivo…" : "Arrastra tu archivo o haz clic para elegirlo"}</p>
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface shadow-sm ring-1 ring-line transition-transform group-hover:-translate-y-0.5">
+              {busy ? <Loader2 className="h-6 w-6 animate-spin text-accent" /> : <Upload className="h-6 w-6 text-fg-2" />}
+            </span>
+            <p className="mt-4 text-[15px] font-semibold">{busy ? "Leyendo archivo…" : "Arrastra tu archivo o haz clic para elegirlo"}</p>
             <p className="mt-1 text-sm text-fg-3">XLSX o CSV · ventas/caja o facturas emitidas · se detecta automáticamente</p>
           </button>
           <input ref={inputRef} type="file" accept=".xlsx,.xlsm,.csv,.txt,.xls,.pdf,.jpg,.jpeg,.png" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onFile(f); e.target.value = ""; }} />
@@ -228,7 +232,7 @@ export default function ImportWizardPage() {
                   <span className="block text-sm font-medium">{s.name}</span>
                   <span className="block text-xs text-fg-3">{s.reason || `Cabecera en fila ${s.headerRowIndex + 1} · ${s.columns.filter((c) => c.field).length} columnas reconocidas`}</span>
                 </span>
-                <span className="text-sm text-fg-3 num">{s.dataRowCount ? `${s.dataRowCount.toLocaleString("es-ES")} filas` : ""}</span>
+                <span className="text-sm text-fg-3 num">{s.dataRowCount ? `${s.dataRowCount.toLocaleString("es-ES", NUM)} filas` : ""}</span>
                 <Badge tone={ROLE_LABEL[s.role]!.tone}>{ROLE_LABEL[s.role]!.label}</Badge>
               </label>
             ))}
@@ -288,7 +292,7 @@ export default function ImportWizardPage() {
       {/* 4. Previsualizar */}
       {step === 3 && plan && (
         <div className="flex flex-col gap-4">
-          <Callout icon={Info}>Así se guardarán los registros. Primeras {Math.min(60, plan.rows.length)} de {plan.rows.length.toLocaleString("es-ES")} filas; en el siguiente paso las validarás todas.</Callout>
+          <Callout icon={Info}>Así se guardarán los registros. Primeras {Math.min(60, plan.rows.length)} de {plan.rows.length.toLocaleString("es-ES", NUM)} filas; en el siguiente paso las validarás todas.</Callout>
           {plan.catalog.length > 0 && (
             <Card padded={false}>
               <div className="p-5 pb-3"><CardHeader className="mb-0" title={`Catálogo · ${plan.catalog.length} productos`} description="IVA propuesto por categoría (a validar con la gestoría)." /></div>
@@ -310,14 +314,20 @@ export default function ImportWizardPage() {
       {/* 5. Validar */}
       {step === 4 && plan && summary && (
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-            <Kpi label="Registros encontrados" value={summary.found.toLocaleString("es-ES")} hint={summary.nonData ? `${summary.nonData} filas no son datos` : undefined} />
-            <Kpi label="Válidos" value={summary.valid.toLocaleString("es-ES")} hint={`${summary.highConfidence} alta · ${summary.mediumConfidence} media confianza`} />
-            <Kpi label="Requieren revisión" value={summary.review.toLocaleString("es-ES")} />
-            <Kpi label="Posibles duplicados" value={summary.duplicates.toLocaleString("es-ES")} />
-            <Kpi label="Errores" value={summary.errors.toLocaleString("es-ES")} />
-            <Kpi label="A importar" value={summary.toImport.toLocaleString("es-ES")} hint={formatMoney(summary.amountToImport)} />
-          </div>
+          <Card>
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-fg-2">Registros encontrados</p>
+                <p className="figure mt-1 text-5xl leading-none">{summary.found.toLocaleString("es-ES", NUM)}</p>
+                {summary.nonData > 0 && <p className="mt-2 text-xs text-fg-3">{summary.nonData} filas descartadas porque no son datos</p>}
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-medium text-fg-2">Se importarán</p>
+                <p className="mt-1 text-2xl font-semibold tracking-[-0.02em] num">{summary.toImport.toLocaleString("es-ES", NUM)} · {formatMoney(summary.amountToImport)}</p>
+              </div>
+            </div>
+            <ValidationBar summary={summary} />
+          </Card>
 
           {plan.controls.length > 0 && (
             <Card>
@@ -396,7 +406,7 @@ export default function ImportWizardPage() {
             Se crearán <strong className="text-fg">{plural(summary.toImport, plan.kind === "sales" ? "venta" : "factura", plan.kind === "sales" ? "ventas" : "facturas")}</strong> por <strong className="text-fg">{formatMoney(summary.amountToImport)}</strong>
             {summary.newProducts ? <>, <strong className="text-fg">{plural(summary.newProducts, "producto", "productos")}</strong></> : null}
             {summary.newCustomers ? <> y <strong className="text-fg">{plural(summary.newCustomers, "cliente", "clientes")}</strong></> : null}
-            {" "}en {locations.find((l) => l.id === options.locationId)?.name}. Se ignorarán {summary.ignored.toLocaleString("es-ES")} filas.
+            {" "}en {locations.find((l) => l.id === options.locationId)?.name}. Se ignorarán {summary.ignored.toLocaleString("es-ES", NUM)} filas.
           </p>
           <p className="mt-3 text-xs text-fg-3">Todo en una sola operación: o se guarda todo o nada. Cada registro queda enlazado a su fila de origen y la importación se puede revertir mientras sea seguro.</p>
           <div className="mt-6 flex justify-center gap-2">
@@ -409,7 +419,7 @@ export default function ImportWizardPage() {
         <Card className="mx-auto max-w-xl text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-success text-white"><Check className="h-6 w-6" /></div>
           <h2 className="text-xl font-semibold tracking-tight">Importación completada</h2>
-          <p className="mt-2 text-sm text-fg-3">{Object.entries(job.summary.created).map(([k, v]) => `${v.toLocaleString("es-ES")} ${k}`).join(" · ")} · {formatMoney(job.summary.totalAmount ?? 0)}</p>
+          <p className="mt-2 text-sm text-fg-3">{Object.entries(job.summary.created).map(([k, v]) => `${v.toLocaleString("es-ES", NUM)} ${k}`).join(" · ")} · {formatMoney(job.summary.totalAmount ?? 0)}</p>
           <div className="mt-6 flex flex-wrap justify-center gap-2">
             <Button onClick={() => navigate(`/importaciones/${job.id}`)}>Ver detalle</Button>
             <Button onClick={() => navigate(job.kind === "sales" ? "/ventas" : "/facturas")}>Ver {job.kind === "sales" ? "ventas" : "facturas"}</Button>
@@ -548,6 +558,35 @@ function RowsTable({ plan, rows, editable, onDecision, onProduct }: {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/** Distribución de la validación: barra proporcional + leyenda con icono, etiqueta y recuento (nunca solo color). */
+function ValidationBar({ summary }: { summary: { valid: number; review: number; duplicates: number; errors: number; highConfidence: number; mediumConfidence: number } }) {
+  const parts = [
+    { key: "valid", label: "Válidos", hint: `${summary.highConfidence} alta · ${summary.mediumConfidence} media confianza`, n: summary.valid, bar: "bg-success", icon: CheckCircle2, tone: "text-success-fg" },
+    { key: "review", label: "Requieren revisión", hint: "No se importan sin tu decisión", n: summary.review, bar: "bg-warning", icon: AlertTriangle, tone: "text-warning-fg" },
+    { key: "dup", label: "Posibles duplicados", hint: "Por defecto se omiten", n: summary.duplicates, bar: "bg-[var(--chart-2)]", icon: Copy, tone: "text-fg-2" },
+    { key: "err", label: "Errores", hint: "Se omiten", n: summary.errors, bar: "bg-danger", icon: XCircle, tone: "text-danger-fg" },
+  ];
+  const total = Math.max(1, parts.reduce((s, p) => s + p.n, 0));
+  return (
+    <div className="mt-6">
+      <div className="flex h-3 w-full gap-[2px] overflow-hidden rounded-full bg-surface-sunken" role="img" aria-label={parts.map((p) => `${p.label}: ${p.n}`).join(", ")}>
+        {parts.filter((p) => p.n > 0).map((p) => <span key={p.key} className={cn("h-full transition-[width] duration-700", p.bar)} style={{ width: `${(p.n / total) * 100}%` }} />)}
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {parts.map((p) => (
+          <div key={p.key} className="flex items-start gap-2.5">
+            <p.icon className={cn("mt-0.5 h-4 w-4 shrink-0", p.tone)} />
+            <div className="min-w-0">
+              <p className="text-sm"><span className="font-semibold num">{p.n.toLocaleString("es-ES", NUM)}</span> <span className="text-fg-2">{p.label}</span></p>
+              <p className="truncate text-xs text-fg-3">{p.hint}</p>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

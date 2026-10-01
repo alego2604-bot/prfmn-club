@@ -6,7 +6,7 @@ import { Badge, DataTable, Kpi, Page, PageHeader, Select, type Column } from "@/
 import { BarList } from "@/design-system/components/charts";
 import type { Payment } from "@/domain/types";
 import { formatDateTime } from "@/lib/dates";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, NUM } from "@/lib/money";
 import { usePeriodFilter } from "../shared/PeriodPicker";
 
 const SOURCE: Record<Payment["source"], string> = { pos: "Caja", manual: "Manual", import: "Importado", stripe: "Stripe", redsys: "Redsys", bank: "Banco" };
@@ -44,7 +44,7 @@ export default function PaymentsPage() {
       <div className="mb-5 grid gap-3 lg:grid-cols-3">
         <div className="grid grid-cols-2 gap-3 lg:col-span-1 lg:grid-cols-1">
           <Kpi label="Cobrado neto" value={formatMoney(net)} hint={filter.period?.label ?? "Todo el histórico"} />
-          <Kpi label="Movimientos" value={rows.length.toLocaleString("es-ES")} hint={`${rows.filter((p) => p.kind === "refund").length} devoluciones`} />
+          <Kpi label="Movimientos" value={rows.length.toLocaleString("es-ES", NUM)} hint={`${rows.filter((p) => p.kind === "refund").length} devoluciones`} />
         </div>
         <div className="rounded-lg border border-line bg-surface p-5 shadow-xs lg:col-span-2">
           <p className="mb-3 text-sm font-semibold">Por método de pago</p>

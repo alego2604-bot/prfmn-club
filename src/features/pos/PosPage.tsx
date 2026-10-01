@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowLeftRight, Banknote, Building2, Check, ChevronUp, CreditCard, Globe, Landmark, Minus, MoreHorizontal, Package, Plus, Search,
-  Smartphone, Split, Trash2, UserRound, Wallet, X, type LucideIcon,
+  ShoppingBasket, Smartphone, Split, Trash2, UserRound, Wallet, X, type LucideIcon,
 } from "lucide-react";
 import { useCtx, useLocationScope, useSession, useWorkspace } from "@/app/session";
-import { Badge, Button, Callout, EmptyState, Field, IconButton, Input, Modal, MoneyInput, useToast } from "@/design-system/components";
+import { Button, Callout, EmptyState, Field, IconButton, Input, Modal, MoneyInput, useToast } from "@/design-system/components";
 import { createSale, openSessionFor } from "@/data/repos/sales";
 import { openCashSession } from "@/data/repos/cash";
 import { customerName } from "@/data/repos/customers";
@@ -156,30 +156,46 @@ export default function PosPage() {
     );
   }
 
+  const primaryMethods = methods.filter((m) => ["cash", "card", "bizum"].includes(m.kind)).slice(0, 3);
+  const otherMethods = methods.filter((m) => !primaryMethods.includes(m) && m.kind !== "unknown" && m.kind !== "direct_debit");
+  const customer = customerId ? ws.customers.find((c) => c.id === customerId) : undefined;
+
   const cartPanel = (
     <div className="flex h-full w-full min-w-0 flex-col">
-      <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
+      <div className="flex items-center justify-between gap-2 px-5 pb-3 pt-4">
         <div>
-          <p className="text-md font-semibold">Venta actual</p>
+          <p className="text-[15px] font-semibold tracking-[-0.01em]">Venta actual</p>
           <p className="text-xs text-fg-3 num">{itemCount ? `${itemCount} ${itemCount === 1 ? "artículo" : "artículos"}` : "Toca un producto para añadirlo"}</p>
         </div>
         {lines.length > 0 && <Button variant="ghost" size="sm" icon={Trash2} onClick={reset}>Vaciar</Button>}
       </div>
 
-      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 py-2">
+      <div className="scrollbar-thin relative min-h-0 flex-1 overflow-y-auto px-3">
         {done && !lines.length && (
-          <div className="mx-2 my-3 animate-pop-in rounded-xl border border-success/30 bg-success-soft p-5 text-center">
-            <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-success text-white"><Check className="h-5 w-5" /></div>
-            <p className="text-sm font-medium text-success-fg">Venta #{done.number} registrada</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight num">{formatMoney(done.total)}</p>
-            {done.change > 0 && <p className="mt-2 text-md font-semibold text-success-fg num">Cambio: {formatMoney(done.change)}</p>}
+          <div className="flex h-full min-h-[220px] flex-col items-center justify-center px-6 text-center" data-testid="sale-done">
+            <div className="flex h-14 w-14 animate-check-pop items-center justify-center rounded-full bg-success text-white shadow-md"><Check className="h-7 w-7" strokeWidth={2.5} /></div>
+            <p className="mt-4 text-sm font-medium text-fg-2">Venta #{done.number} registrada</p>
+            <p className="figure mt-1 text-4xl">{formatMoney(done.total)}</p>
+            {done.change > 0 && (
+              <div className="mt-4 rounded-xl bg-success-soft px-5 py-3">
+                <p className="text-xs font-medium uppercase tracking-wider text-success-fg">Cambio</p>
+                <p className="figure text-3xl text-success-fg">{formatMoney(done.change)}</p>
+              </div>
+            )}
+            <p className="mt-4 text-xs text-fg-3">Toca un producto para empezar la siguiente venta</p>
           </div>
         )}
-        {!lines.length && !done && <p className="px-4 py-10 text-center text-sm text-fg-3">El carrito está vacío.</p>}
+        {!lines.length && !done && (
+          <div className="flex h-full min-h-[200px] flex-col items-center justify-center px-8 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-dashed border-line-strong text-fg-3"><ShoppingBasket className="h-5 w-5" /></div>
+            <p className="mt-3 text-sm font-medium">Carrito vacío</p>
+            <p className="mt-1 text-xs text-fg-3">Toca los productos de la izquierda. Pulsa una línea para cambiar cantidad, precio o descuento.</p>
+          </div>
+        )}
         {lines.map((l, i) => {
           const a = computeLine({ unitPrice: l.unitPrice, quantity: l.quantity, discount: l.discount, taxRateBp: l.product.taxRateBp });
           return (
-            <div key={`${l.productId}-${i}`} className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-surface-2">
+            <div key={`${l.productId}-${i}`} className="flex animate-rise items-center gap-2 rounded-xl px-2 py-2 transition-colors hover:bg-surface-2">
               <button className="min-w-0 flex-1 text-left" onClick={() => setEditing(i)}>
                 <p className="truncate text-sm font-medium">{l.product.name}</p>
                 <p className="text-xs text-fg-3 num">
@@ -188,57 +204,77 @@ export default function PosPage() {
                   {l.discount > 0 && <span className="ml-1 text-accent-fg">· −{formatMoney(l.discount)}</span>}
                 </p>
               </button>
-              <div className="flex items-center rounded-md border border-line bg-surface">
-                <button className="flex h-9 w-9 items-center justify-center text-fg-2 hover:text-fg" onClick={() => setQty(i, l.quantity - 1)} aria-label="Restar"><Minus className="h-4 w-4" /></button>
+              <div className="flex items-center rounded-lg bg-surface-sunken">
+                <button className="flex h-10 w-10 items-center justify-center rounded-lg text-fg-2 transition-colors hover:bg-surface hover:text-fg active:scale-90" onClick={() => setQty(i, l.quantity - 1)} aria-label="Restar"><Minus className="h-4 w-4" /></button>
                 <span className="w-7 text-center text-sm font-semibold num">{l.quantity}</span>
-                <button className="flex h-9 w-9 items-center justify-center text-fg-2 hover:text-fg" onClick={() => setQty(i, l.quantity + 1)} aria-label="Sumar"><Plus className="h-4 w-4" /></button>
+                <button className="flex h-10 w-10 items-center justify-center rounded-lg text-fg-2 transition-colors hover:bg-surface hover:text-fg active:scale-90" onClick={() => setQty(i, l.quantity + 1)} aria-label="Sumar"><Plus className="h-4 w-4" /></button>
               </div>
-              <span className="w-20 text-right text-sm font-semibold num">{formatMoney(a.total)}</span>
+              <span className="w-[76px] text-right text-sm font-semibold num">{formatMoney(a.total)}</span>
             </div>
           );
         })}
       </div>
 
-      <div className="border-t border-line bg-surface-2 px-4 pb-4 pt-3 safe-bottom">
-        <button onClick={() => setPickCustomer(true)} className="mb-3 flex w-full items-center gap-2 rounded-md border border-dashed border-line-strong px-3 py-2 text-left text-sm text-fg-2 hover:bg-surface">
-          <UserRound className="h-4 w-4 text-fg-3" />
-          <span className="flex-1 truncate">{customerId ? customerName(ws.customers.find((c) => c.id === customerId)!) : "Cliente (opcional)"}</span>
-          {customerId && <X className="h-4 w-4 text-fg-3" onClick={(e) => { e.stopPropagation(); setCustomerId(undefined); }} />}
-        </button>
+      <div className="border-t border-line px-5 pb-4 pt-3 safe-bottom">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setPickCustomer(true)} className={cn("flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 text-left text-sm transition-colors", customer ? "bg-accent-soft text-accent-fg" : "border border-dashed border-line-strong text-fg-3 hover:bg-surface-2 hover:text-fg-2")}>
+            <UserRound className="h-4 w-4 shrink-0" />
+            <span className="flex-1 truncate">{customer ? customerName(customer) : "Cliente (opcional)"}</span>
+            {customer && <X className="h-4 w-4 shrink-0" onClick={(e) => { e.stopPropagation(); setCustomerId(undefined); }} />}
+          </button>
+        </div>
 
-        <div className="mb-3 flex items-end justify-between">
-          <div className="text-xs text-fg-3 num">
-            {totals.byRate.map((r) => <div key={r.rateBp}>Base {formatMoney(r.base)} · IVA {formatRate(r.rateBp)} {formatMoney(r.tax)}</div>)}
-          </div>
+        <div className="mt-3 flex items-end justify-between gap-3">
+          <p className="text-xs text-fg-3 num" title={totals.byRate.map((r) => `IVA ${formatRate(r.rateBp)}: base ${formatMoney(r.base)}, cuota ${formatMoney(r.tax)}`).join("\n")}>
+            {totals.byRate.length ? `IVA incluido · ${formatMoney(totals.byRate.reduce((s, r) => s + r.tax, 0))}` : "IVA incluido"}
+          </p>
           <div className="text-right">
-            <p className="text-xs font-medium uppercase tracking-wider text-fg-3">Total</p>
-            <p className="text-4xl font-semibold tracking-tight num">{formatMoney(totals.total)}</p>
+            <p className="text-2xs font-semibold uppercase tracking-[0.08em] text-fg-3">Total</p>
+            <p className="figure text-5xl leading-none" data-testid="pos-total">{formatMoney(totals.total)}</p>
           </div>
         </div>
 
         {!split ? (
-          <div className="grid grid-cols-3 gap-2">
-            {methods.filter((m) => m.kind !== "unknown" && m.kind !== "direct_debit").map((m) => {
-              const Icon = METHOD_ICON[m.kind];
-              const active = method === m.key;
-              return (
-                <button
-                  key={m.id}
-                  disabled={!lines.length || needsSession}
-                  onClick={() => { setMethod(m.key); setReceived(null); }}
-                  className={cn(
-                    "flex h-12 flex-col items-center justify-center gap-0.5 rounded-lg border text-xs font-medium transition-all disabled:opacity-40",
-                    active ? "border-ink bg-ink text-fg-inverse shadow-sm" : "border-line bg-surface hover:border-line-strong",
-                  )}
-                >
-                  <Icon className="h-[18px] w-[18px]" />
-                  {m.name}
-                </button>
-              );
-            })}
-          </div>
+          <>
+            <div className="mt-4 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Método de pago">
+              {primaryMethods.map((m) => {
+                const Icon = METHOD_ICON[m.kind];
+                const active = method === m.key;
+                return (
+                  <button
+                    key={m.id}
+                    role="radio"
+                    aria-checked={active}
+                    disabled={!lines.length || needsSession}
+                    onClick={() => { setMethod(m.key); setReceived(null); }}
+                    className={cn(
+                      "flex h-14 flex-col items-center justify-center gap-1 rounded-xl border text-[13px] font-semibold transition-all active:scale-[0.97] disabled:opacity-40",
+                      active ? "border-ink bg-ink text-fg-inverse shadow-md" : "border-line bg-surface hover:border-line-strong hover:bg-surface-2",
+                    )}
+                  >
+                    <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} />
+                    {m.name}
+                  </button>
+                );
+              })}
+            </div>
+            {otherMethods.length > 0 && (
+              <div className="no-scrollbar mt-2 flex gap-1.5 overflow-x-auto">
+                {otherMethods.map((m) => (
+                  <button
+                    key={m.id}
+                    disabled={!lines.length || needsSession}
+                    onClick={() => { setMethod(m.key); setReceived(null); }}
+                    className={cn("h-8 shrink-0 rounded-lg border px-3 text-xs font-medium transition-colors disabled:opacity-40", method === m.key ? "border-ink bg-ink text-fg-inverse" : "border-line text-fg-2 hover:bg-surface-2")}
+                  >
+                    {m.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="mt-4 flex flex-col gap-2">
             {methods.filter((m) => m.kind !== "unknown" && m.kind !== "direct_debit").map((m) => (
               <div key={m.id} className="flex items-center gap-2">
                 <span className="w-28 text-sm">{m.name}</span>
@@ -252,24 +288,24 @@ export default function PosPage() {
         )}
 
         {selectedMethod?.kind === "cash" && !split && lines.length > 0 && (
-          <div className="mt-3 animate-fade-in rounded-lg border border-line bg-surface p-3">
-            <p className="mb-2 text-xs font-medium text-fg-3">Entregado</p>
-            <div className="flex flex-wrap gap-1.5">
+          <div className="mt-3 animate-fade-in">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-xs font-medium text-fg-3">Entregado</span>
               {[totals.total, ...[500, 1000, 2000, 5000].filter((v) => v > totals.total)].slice(0, 4).map((v, i) => (
-                <button key={v} onClick={() => setReceived(v)} className={cn("h-9 rounded-md border px-3 text-sm font-medium num", received === v ? "border-ink bg-ink text-fg-inverse" : "border-line hover:bg-surface-2")}>
+                <button key={v} onClick={() => setReceived(v)} className={cn("h-9 rounded-lg border px-3 text-sm font-medium transition-colors num", received === v ? "border-ink bg-ink text-fg-inverse" : "border-line hover:bg-surface-2")}>
                   {i === 0 ? "Exacto" : formatMoney(v, { compact: true })}
                 </button>
               ))}
-              <MoneyInput value={received} onChange={setReceived} className="w-28" placeholder="Otro" />
+              <MoneyInput value={received} onChange={setReceived} className="w-24" placeholder="Otro" />
             </div>
-            {received !== null && received >= totals.total && <p className="mt-2 text-md font-semibold text-success-fg num">Cambio: {formatMoney(received - totals.total)}</p>}
+            {received !== null && received >= totals.total && <p className="mt-2 text-sm font-semibold text-success-fg num">Cambio: {formatMoney(received - totals.total)}</p>}
             {received !== null && received < totals.total && <p className="mt-2 text-sm text-danger-fg num">Faltan {formatMoney(totals.total - received)}</p>}
           </div>
         )}
 
         <div className="mt-3 flex items-center gap-2">
-          <IconButton icon={Split} label={split ? "Pago único" : "Dividir pago"} size="lg" className={cn("border border-line", split && "bg-ink text-fg-inverse hover:bg-ink hover:text-fg-inverse")} onClick={() => { setSplit(!split); setMethod(null); setSplitAmounts({}); }} />
-          <Button variant="accent" size="xl" className="flex-1" disabled={!canCharge} loading={busy} onClick={charge}>
+          <IconButton icon={Split} label={split ? "Pago único" : "Dividir pago"} size="lg" className={cn("h-14 w-14 rounded-xl border border-line", split && "bg-ink text-fg-inverse hover:bg-ink hover:text-fg-inverse")} onClick={() => { setSplit(!split); setMethod(null); setSplitAmounts({}); }} />
+          <Button variant="accent" size="xl" className="h-14 flex-1" disabled={!canCharge} loading={busy} onClick={charge}>
             {lines.length ? `Cobrar ${formatMoney(totals.total)}` : "Cobrar"}
           </Button>
         </div>
@@ -278,84 +314,88 @@ export default function PosPage() {
   );
 
   return (
-    <div className="flex h-[calc(100dvh-56px)] flex-col md:flex-row">
+    <div className="flex h-full flex-col md:flex-row">
       {/* Productos */}
       <section className="flex min-h-0 flex-1 flex-col">
-        <div className="flex flex-col gap-3 border-b border-line bg-surface px-4 py-3 sm:px-5">
+        <div className="flex flex-col gap-3 px-4 pb-3 pt-4 sm:px-5">
           <div className="flex items-center gap-2">
-            <Input ref={searchRef} leading={<Search className="h-4 w-4" />} placeholder="Buscar producto o SKU  ( / )" value={query} onChange={(e) => setQuery(e.target.value)} className="flex-1" />
+            <Input ref={searchRef} leading={<Search className="h-4 w-4" />} placeholder="Buscar producto o SKU" value={query} onChange={(e) => setQuery(e.target.value)} className="h-11 flex-1 text-[15px]" />
             {locations.length > 1 && (
-              <select value={locationId ?? ""} onChange={(e) => setLocationId(e.target.value || undefined)} className="h-9 rounded border border-line bg-surface px-2 text-sm">
+              <select value={locationId ?? ""} onChange={(e) => setLocationId(e.target.value || undefined)} className="h-11 rounded-lg border border-line bg-surface px-3 text-sm">
                 <option value="">Centro…</option>
                 {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             )}
-            {session ? (
-              <Badge tone="success" dot className="hidden sm:inline-flex">Caja abierta</Badge>
-            ) : (
-              <Badge tone="warning" dot className="hidden sm:inline-flex">Caja cerrada</Badge>
-            )}
+            <span className={cn("hidden h-11 items-center gap-2 rounded-lg px-3 text-xs font-semibold sm:inline-flex", session ? "bg-success-soft text-success-fg" : "bg-warning-soft text-warning-fg")}>
+              <span className={cn("h-1.5 w-1.5 rounded-full", session ? "bg-success" : "bg-warning")} />
+              {session ? `Caja abierta · ${new Date(session.openedAt).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}` : "Caja cerrada"}
+            </span>
           </div>
-          <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1">
-            {[{ id: "all", name: "Todo", color: "var(--text)" }, ...categories].map((c) => (
+          <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1" role="tablist">
+            {[{ id: "all", name: "Todo", color: "" }, ...categories].map((c) => (
               <button
                 key={c.id}
+                role="tab"
+                aria-selected={category === c.id}
                 onClick={() => setCategory(c.id)}
                 className={cn(
-                  "flex h-9 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors",
-                  category === c.id ? "border-ink bg-ink text-fg-inverse" : "border-line bg-surface text-fg-2 hover:text-fg",
+                  "flex h-10 shrink-0 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors",
+                  category === c.id ? "bg-ink text-fg-inverse" : "bg-surface text-fg-2 shadow-xs ring-1 ring-line hover:text-fg",
                 )}
               >
-                {c.id !== "all" && <span className="h-2 w-2 rounded-full" style={{ background: c.color }} />}
                 {c.name}
+                <span className={cn("text-xs num", category === c.id ? "text-fg-inverse/60" : "text-fg-3")}>{c.id === "all" ? products.length : products.filter((p) => p.categoryId === c.id).length}</span>
               </button>
             ))}
           </div>
         </div>
 
         {needsSession && locationId && <OpenSessionBar locationId={locationId} />}
-        {!locationId && <div className="p-4"><Callout tone="warning" icon={Building2}>Elige el centro en el que estás vendiendo.</Callout></div>}
+        {!locationId && <div className="px-4 pb-3 sm:px-5"><Callout tone="warning" icon={Building2}>Elige el centro en el que estás vendiendo.</Callout></div>}
 
-        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-3 pb-28 sm:p-4 lg:pb-4">
+        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-28 pt-1 sm:px-5 md:pb-5">
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {visibleProducts.map((p) => {
               const q = qtyOf(p.id);
               const low = p.trackStock && p.minStock !== undefined && (p.stockQuantity ?? 0) <= p.minStock;
+              const cat = ws.categories.find((c) => c.id === p.categoryId);
               return (
                 <button
                   key={p.id}
                   onClick={() => add(p)}
                   disabled={needsSession || !locationId}
                   className={cn(
-                    "group relative flex h-[104px] flex-col justify-between overflow-hidden rounded-xl border bg-surface p-3.5 text-left shadow-xs transition-all hover:border-line-strong hover:shadow-sm active:scale-[0.97] disabled:opacity-50",
-                    q ? "border-ink ring-1 ring-ink" : "border-line",
+                    "group relative flex h-[112px] flex-col justify-between rounded-2xl bg-surface p-4 text-left shadow-xs ring-1 transition-all duration-150 hover:shadow-sm active:scale-[0.97] disabled:opacity-45",
+                    q ? "ring-2 ring-accent" : "ring-line hover:ring-line-strong",
                     bumped === p.id && "animate-bump",
                   )}
                 >
-                  <span className="absolute inset-x-0 top-0 h-1" style={{ background: catColor.get(p.categoryId ?? "") ?? "var(--border)" }} />
-                  <span className="line-clamp-2 pr-6 text-[15px] font-semibold leading-snug">{p.name}</span>
-                  <span className="flex items-end justify-between">
-                    <span className="text-md font-medium text-fg-2 num">{formatMoney(p.price)}</span>
-                    {low && <span className="text-2xs font-medium text-warning-fg">Stock {p.stockQuantity}</span>}
+                  <span className="min-w-0">
+                    <span className="line-clamp-2 pr-7 text-[15px] font-semibold leading-snug tracking-[-0.01em]">{p.name}</span>
+                    {category === "all" && cat && <span className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-fg-3"><span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: catColor.get(cat.id) }} />{cat.name}</span>}
                   </span>
-                  {q > 0 && <span className="absolute right-2.5 top-3 flex h-6 min-w-6 animate-pop-in items-center justify-center rounded-full bg-ink px-1.5 text-xs font-bold text-fg-inverse num">{q}</span>}
+                  <span className="flex items-end justify-between gap-2">
+                    <span className="text-lg font-semibold tracking-[-0.02em] num">{formatMoney(p.price)}</span>
+                    {low && <span className="rounded-md bg-warning-soft px-1.5 py-0.5 text-2xs font-semibold text-warning-fg">Quedan {Math.max(0, p.stockQuantity ?? 0)}</span>}
+                  </span>
+                  {q > 0 && <span className="absolute right-3 top-3 flex h-6 min-w-6 animate-pop-in items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-white num">{q}</span>}
                 </button>
               );
             })}
           </div>
-          {!visibleProducts.length && <p className="py-16 text-center text-sm text-fg-3">Ningún producto coincide.</p>}
+          {!visibleProducts.length && <p className="py-16 text-center text-sm text-fg-3">Ningún producto coincide con «{query}».</p>}
         </div>
       </section>
 
       {/* Carrito: lateral en tablet/desktop */}
-      <aside className="hidden w-[340px] shrink-0 border-l border-line bg-surface md:flex lg:w-[380px] 2xl:w-[420px]">{cartPanel}</aside>
+      <aside className="hidden w-[360px] shrink-0 border-l border-line bg-surface md:flex lg:w-[400px] 2xl:w-[440px]">{cartPanel}</aside>
 
       {/* Carrito: hoja inferior en móvil */}
       <div className="md:hidden">
         {!sheetOpen && (
           <button
             onClick={() => setSheetOpen(true)}
-            className="fixed inset-x-3 bottom-3 z-30 flex h-14 items-center justify-between rounded-xl bg-ink px-4 text-fg-inverse shadow-lg safe-bottom"
+            className="fixed inset-x-3 bottom-3 z-30 flex h-14 items-center justify-between rounded-2xl bg-ink px-4 text-fg-inverse shadow-lg safe-bottom"
           >
             <span className="flex items-center gap-2 text-sm font-medium"><ChevronUp className="h-4 w-4" />{itemCount ? `${itemCount} artículos` : done ? `Venta #${done.number} ✓` : "Carrito vacío"}</span>
             <span className="text-lg font-semibold num">{formatMoney(totals.total)}</span>
@@ -363,8 +403,8 @@ export default function PosPage() {
         )}
         {sheetOpen && (
           <div className="fixed inset-0 z-40">
-            <div className="absolute inset-0 bg-[var(--overlay)]" onClick={() => setSheetOpen(false)} />
-            <div className="absolute inset-x-0 bottom-0 flex h-[88dvh] animate-slide-up flex-col overflow-hidden rounded-t-2xl bg-surface">
+            <div className="absolute inset-0 animate-fade-in bg-[var(--overlay)]" onClick={() => setSheetOpen(false)} />
+            <div className="absolute inset-x-0 bottom-0 flex h-[90dvh] animate-slide-up flex-col overflow-hidden rounded-t-3xl bg-surface shadow-lg">
               <div className="flex justify-center pt-2"><button className="h-1.5 w-10 rounded-full bg-line-strong" onClick={() => setSheetOpen(false)} aria-label="Cerrar" /></div>
               {cartPanel}
             </div>
@@ -391,7 +431,7 @@ function OpenSessionBar({ locationId }: { locationId: string }) {
   const [float, setFloat] = useState<number | null>(0);
   const last = [...ws.cashClosings].filter((c) => !c.supersededAt && ws.cashSessions.find((s) => s.id === c.cashSessionId)?.locationId === locationId).sort((a, b) => b.closedAt.localeCompare(a.closedAt))[0];
   return (
-    <div className="border-b border-line bg-warning-soft px-4 py-3 sm:px-5">
+    <div className="mx-4 mb-3 rounded-xl bg-warning-soft px-4 py-3 sm:mx-5">
       <div className="flex flex-wrap items-center gap-3">
         <Wallet className="h-5 w-5 text-warning-fg" />
         <div className="min-w-0 flex-1">

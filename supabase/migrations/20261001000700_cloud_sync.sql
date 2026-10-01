@@ -100,8 +100,10 @@ language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_loc uuid;
 begin
   if new.product_id is null then return new; end if;
-  update public.products set stock_quantity = coalesce(stock_quantity, 0) - new.quantity
-   where id = new.product_id and organization_id = new.organization_id and track_stock;
+  -- El stock se controla desde el alta del producto: las ventas históricas (importadas o anteriores) no lo mueven
+  update public.products p set stock_quantity = coalesce(p.stock_quantity, 0) - new.quantity
+   where p.id = new.product_id and p.organization_id = new.organization_id and p.track_stock
+     and (select s.occurred_at from public.sales s where s.id = new.sale_id) >= p.created_at;
   if found then
     select location_id into v_loc from public.sales where id = new.sale_id;
     insert into public.stock_movements (organization_id, product_id, location_id, delta, reason, sale_item_id, created_by)
@@ -119,7 +121,7 @@ declare it record;
 begin
   if new.status = 'voided' and old.status <> 'voided' then
     for it in select si.* from public.sale_items si join public.products p on p.id = si.product_id and p.track_stock
-              where si.sale_id = new.id loop
+              where si.sale_id = new.id and new.occurred_at >= p.created_at loop
       update public.products set stock_quantity = coalesce(stock_quantity, 0) + it.quantity where id = it.product_id;
       insert into public.stock_movements (organization_id, product_id, location_id, delta, reason, sale_item_id, created_by)
       values (new.organization_id, it.product_id, new.location_id, it.quantity, 'sale_void', it.id, auth.uid());

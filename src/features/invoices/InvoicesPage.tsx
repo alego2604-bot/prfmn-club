@@ -2,11 +2,11 @@ import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Ban, CheckCircle2, Info, Receipt, Upload } from "lucide-react";
 import { useCtx, useLocationScope, useSession, useWorkspace } from "@/app/session";
-import { Badge, Button, Callout, DataTable, DescriptionList, Drawer, Field, Kpi, Modal, Mono, Page, PageHeader, ReasonDialog, Select, useToast, type Column } from "@/design-system/components";
+import { Badge, Button, Callout, DataTable, DescriptionList, Drawer, Field, Kpi, KpiStrip, Modal, Mono, Page, PageHeader, ReasonDialog, Select, useToast, type Column } from "@/design-system/components";
 import { markInvoicePaid, voidInvoice } from "@/data/repos/invoices";
 import type { Invoice } from "@/domain/types";
 import { formatDate, formatDateTime, inPeriod, makePeriod } from "@/lib/dates";
-import { formatMoney, formatRate } from "@/lib/money";
+import { formatMoney, formatRate, NUM } from "@/lib/money";
 import { usePeriodFilter } from "../shared/PeriodPicker";
 import { INVOICE_STATUS } from "./status";
 
@@ -65,17 +65,15 @@ export default function InvoicesPage() {
         description="Por fecha de emisión (criterio del IVA). El periodo de servicio se guarda aparte."
         actions={<Link to="/importaciones/nueva"><Button icon={Upload}>Importar facturas</Button></Link>}
       />
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <KpiStrip className="mb-5">
         <Kpi label="Facturación del mes" value={formatMoney(sumIn("month"))} />
         <Kpi label="Trimestre" value={formatMoney(sumIn("quarter"))} />
         <Kpi label="Año" value={formatMoney(sumIn("year"))} />
         <Kpi label="Pendiente de cobro" value={formatMoney(pending.reduce((s, i) => s + i.total - i.amountPaid, 0))} hint={`${pending.length} facturas`} />
-      </div>
-      <div className="mb-5 grid grid-cols-3 gap-3">
         <Kpi label={`IVA repercutido · ${filter.period?.label ?? "selección"}`} value={formatMoney(valid.reduce((s, i) => s + i.taxTotal, 0))} />
-        <Kpi label="Nº facturas" value={valid.length.toLocaleString("es-ES")} />
+        <Kpi label="Nº facturas" value={valid.length.toLocaleString("es-ES", NUM)} />
         <Kpi label="Importe medio" value={valid.length ? formatMoney(Math.round(valid.reduce((s, i) => s + i.total, 0) / valid.length)) : "—"} />
-      </div>
+      </KpiStrip>
       <Callout className="mb-4" icon={Info}>
         La <strong>emisión de facturas propias</strong> (series y numeración legal, rectificativas, Verifactu) se activará tras validarla con tu gestoría. Hoy puedes importar, consultar, registrar cobros y anular.
       </Callout>

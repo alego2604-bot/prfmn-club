@@ -31,7 +31,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           {toasts.map((t) => {
             const Icon = icon[t.tone];
             return (
-              <div key={t.id} className="pointer-events-auto flex animate-slide-up items-start gap-3 rounded-lg border border-line bg-surface p-3.5 shadow-md" role="status">
+              <div key={t.id} className="pointer-events-auto flex animate-slide-up items-start gap-3 rounded-xl border border-line bg-surface p-3.5 shadow-lg" role="status" aria-live="polite">
                 <Icon className={cn("mt-0.5 h-[18px] w-[18px] shrink-0", color[t.tone])} />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{t.title}</p>
@@ -67,15 +67,37 @@ export function useToast() {
   };
 }
 
-export function EmptyState({ icon: Icon, title, description, action, className, compact }: { icon: LucideIcon; title: string; description?: ReactNode; action?: ReactNode; className?: string; compact?: boolean }) {
+/** Estado vacío con contexto y siguiente paso: nunca "No data". */
+export function EmptyState({ icon: Icon, title, description, action, secondary, className, compact }: { icon: LucideIcon; title: string; description?: ReactNode; action?: ReactNode; secondary?: ReactNode; className?: string; compact?: boolean }) {
   return (
     <div className={cn("flex flex-col items-center justify-center text-center", compact ? "px-4 py-8" : "px-6 py-16", className)}>
-      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-surface-2 shadow-xs">
-        <Icon className="h-5 w-5 text-fg-3" />
+      <div className="relative mb-4">
+        <div className="absolute inset-0 -m-3 rounded-2xl bg-[radial-gradient(closest-side,var(--accent-soft),transparent)] opacity-80" aria-hidden />
+        <div className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-surface shadow-sm">
+          <Icon className="h-5 w-5 text-fg-2" strokeWidth={1.75} />
+        </div>
       </div>
-      <h3 className="text-md font-semibold">{title}</h3>
+      <h3 className="text-[15px] font-semibold tracking-[-0.01em]">{title}</h3>
       {description && <p className="mt-1 max-w-sm text-sm text-fg-3">{description}</p>}
-      {action && <div className="mt-5">{action}</div>}
+      {(action || secondary) && <div className="mt-5 flex flex-wrap items-center justify-center gap-2">{action}{secondary}</div>}
+    </div>
+  );
+}
+
+/** Error recuperable: qué ha pasado en lenguaje claro, reintentar y detalle técnico opcional. */
+export function ErrorState({ title = "No hemos podido cargar estos datos", description = "Puede ser un problema de conexión. Tus datos no se han perdido.", error, onRetry, className }: { title?: string; description?: string; error?: unknown; onRetry?: () => void; className?: string }) {
+  return (
+    <div className={cn("flex flex-col items-center justify-center px-6 py-12 text-center", className)} role="alert">
+      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-warning-soft text-warning-fg"><AlertTriangle className="h-5 w-5" /></div>
+      <h3 className="text-[15px] font-semibold">{title}</h3>
+      <p className="mt-1 max-w-sm text-sm text-fg-3">{description}</p>
+      {onRetry && <button onClick={onRetry} className="mt-5 h-9 rounded-md bg-ink px-3.5 text-sm font-medium text-fg-inverse transition-colors hover:bg-ink-hover">Reintentar</button>}
+      {error !== undefined && (
+        <details className="mt-4 max-w-md text-left text-xs text-fg-3">
+          <summary className="cursor-pointer select-none text-center">Detalles técnicos</summary>
+          <p className="mt-2 break-words rounded-md bg-surface-sunken p-2 font-mono">{error instanceof Error ? error.message : String(error)}</p>
+        </details>
+      )}
     </div>
   );
 }
@@ -89,7 +111,7 @@ export function Callout({ tone = "info", icon: Icon = Info, title, children, cla
     success: "bg-success-soft border-transparent text-success-fg",
   }[tone];
   return (
-    <div className={cn("flex items-start gap-3 rounded-md border px-3.5 py-3 text-sm", styles, className)}>
+    <div className={cn("flex items-start gap-3 rounded-lg border px-3.5 py-3 text-sm", styles, className)}>
       <Icon className="mt-0.5 h-4 w-4 shrink-0" />
       <div className="min-w-0 flex-1">
         {title && <p className="font-medium">{title}</p>}

@@ -7,34 +7,36 @@ import type { Vertical } from "@/domain/types";
 import { cn } from "@/lib/cn";
 
 function AuthLayout({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
+  const { mode } = useSession();
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
-      <div className="relative hidden overflow-hidden bg-[#0b0d12] p-12 text-white lg:flex lg:flex-col">
-        <div className="pointer-events-none absolute -right-40 -top-40 h-[520px] w-[520px] rounded-full bg-[#3b5bfd] opacity-25 blur-[120px]" />
-        <div className="pointer-events-none absolute -bottom-48 -left-24 h-[420px] w-[420px] rounded-full bg-[#12a150] opacity-10 blur-[120px]" />
+      <div className="relative hidden overflow-hidden bg-[#0e0e0d] p-12 text-white lg:flex lg:flex-col">
+        <div className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:linear-gradient(rgba(255,255,255,.6)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.6)_1px,transparent_1px)] [background-size:56px_56px] [mask-image:radial-gradient(ellipse_at_30%_40%,black,transparent_70%)]" />
+        <div className="pointer-events-none absolute -right-48 top-1/3 h-[480px] w-[480px] rounded-full bg-[#3646f5] opacity-20 blur-[140px]" />
         <div className="relative flex items-center gap-2.5">
           <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden>
-            <rect width="32" height="32" rx="8" fill="#fff" />
-            <circle cx="14" cy="18" r="6.5" fill="none" stroke="#0b0d12" strokeWidth="2.6" />
-            <circle cx="23" cy="9" r="3" fill="#3b5bfd" />
+            <rect width="32" height="32" rx="9" fill="#fff" />
+            <rect x="8" y="8.5" width="9.5" height="6.5" rx="2" fill="#0e0e0d" />
+            <rect x="19.5" y="8.5" width="4.5" height="6.5" rx="2" fill="#3646f5" />
+            <rect x="8" y="17" width="16" height="6.5" rx="2" fill="#0e0e0d" opacity="0.92" />
           </svg>
-          <span className="text-[15px] font-semibold tracking-tight">Business<span className="text-white/50"> OS</span></span>
+          <span className="text-[15px] font-semibold tracking-[-0.02em]">Business<span className="font-medium text-white/50"> OS</span></span>
         </div>
         <div className="relative mt-auto max-w-lg">
           {aside ?? (
             <>
-              <p className="text-4xl font-semibold leading-[1.1] tracking-tight">El sistema operativo de tu negocio.</p>
-              <p className="mt-4 text-[15px] leading-relaxed text-white/60">
-                Caja, ventas, clientes, facturación e informes en una única fuente de verdad. Importa tus Excel, valida y deja de trabajar por pestañas.
+              <p className="text-[44px] font-semibold leading-[1.05] tracking-[-0.035em]">El sistema operativo de tu negocio.</p>
+              <p className="mt-5 text-[15px] leading-relaxed text-white/60">
+                Caja, ventas, clientes, facturación e informes en una única fuente de verdad. Importa tus Excel, valida cada registro y decide con datos reales.
               </p>
-              <div className="mt-10 grid grid-cols-3 gap-3">
+              <div className="mt-10 grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-white/10 bg-white/10">
                 {[
-                  ["< 5 s", "por venta"],
-                  ["1 clic", "informe gestoría"],
+                  ["< 5 s", "por venta en caja"],
+                  ["1 clic", "informe para la gestoría"],
                   ["0", "hojas por mes"],
                 ].map(([a, b]) => (
-                  <div key={b} className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                    <p className="text-xl font-semibold num">{a}</p>
+                  <div key={b} className="bg-[#0e0e0d] p-4">
+                    <p className="text-2xl font-semibold tracking-[-0.03em]">{a}</p>
                     <p className="mt-0.5 text-xs text-white/50">{b}</p>
                   </div>
                 ))}
@@ -42,10 +44,12 @@ function AuthLayout({ children, aside }: { children: ReactNode; aside?: ReactNod
             </>
           )}
         </div>
-        <p className="relative mt-10 text-xs text-white/35">Modo local · Los datos se guardan en este navegador y dispositivo hasta conectar el servidor (Supabase).</p>
+        <p className="relative mt-10 text-xs text-white/35">
+          {mode === "cloud" ? "Tus datos se guardan en el espacio de tu empresa, aislados de cualquier otra." : "Modo local · los datos se guardan en este navegador."}
+        </p>
       </div>
-      <div className="flex items-center justify-center bg-surface px-5 py-10">
-        <div className="w-full max-w-[400px]">
+      <div className="flex items-center justify-center bg-canvas px-5 py-10">
+        <div className="w-full max-w-[400px] animate-rise">
           <div className="mb-8 lg:hidden"><Logo /></div>
           {children}
         </div>
@@ -85,7 +89,7 @@ export function AuthPage() {
 
   return (
     <AuthLayout>
-      <h1 className="text-2xl font-semibold tracking-tight">{mode === "login" ? "Inicia sesión" : "Crea tu cuenta"}</h1>
+      <h1 className="text-3xl font-semibold tracking-[-0.03em]">{mode === "login" ? "Inicia sesión" : "Crea tu cuenta"}</h1>
       <p className="mt-1.5 text-sm text-fg-3">{mode === "login" ? "Accede a tu espacio de trabajo." : "Empieza en menos de un minuto. Sin tarjeta."}</p>
       <form onSubmit={submit} className="mt-8 flex flex-col gap-4">
         {mode === "register" && (

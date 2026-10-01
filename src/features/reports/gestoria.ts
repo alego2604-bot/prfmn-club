@@ -5,7 +5,7 @@
 import type { Workspace } from "@/data/store";
 import { customerName } from "@/data/repos/customers";
 import { addDays, inPeriod, quarterOf, toISODate, type Period } from "@/lib/dates";
-import { formatRate } from "@/lib/money";
+import { formatRate, NUM } from "@/lib/money";
 import { euros, slugFile, type ExportSheet } from "@/lib/export";
 
 export interface GestoriaReport {
@@ -87,7 +87,7 @@ export function buildGestoriaReport(ws: Workspace, p: Period, locationId?: strin
   warnings.push("Gastos y facturas recibidas: módulo aún no activo; no se incluyen en este paquete.");
 
   const title = `${ws.organization.name} · ${p.label}`;
-  const sub = `Periodo ${p.start.toLocaleDateString("es-ES")} – ${addDays(p.end, -1).toLocaleDateString("es-ES")}${locationId ? ` · ${locName.get(locationId)}` : ""} · generado ${new Date().toLocaleString("es-ES")}`;
+  const sub = `Periodo ${p.start.toLocaleDateString("es-ES")} – ${addDays(p.end, -1).toLocaleDateString("es-ES")}${locationId ? ` · ${locName.get(locationId)}` : ""} · generado ${new Date().toLocaleString("es-ES", NUM)}`;
 
   // Caja diaria
   const methodKeys = [...new Set([...ws.paymentMethods.filter((m) => m.status === "active").map((m) => m.key), "unknown"])];

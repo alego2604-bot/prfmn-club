@@ -2,12 +2,12 @@ import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Ban, Clock, Plus, ShoppingBag, Upload } from "lucide-react";
 import { useCtx, useLocationScope, useSession, useWorkspace } from "@/app/session";
-import { Badge, Button, DataTable, DescriptionList, Drawer, Kpi, Mono, Page, PageHeader, ReasonDialog, Select, useToast, type Column } from "@/design-system/components";
+import { Badge, Button, DataTable, DescriptionList, Drawer, Kpi, KpiStrip, Mono, Page, PageHeader, ReasonDialog, Select, useToast, type Column } from "@/design-system/components";
 import { voidSale } from "@/data/repos/sales";
 import { customerName } from "@/data/repos/customers";
 import type { Payment, Sale, SaleItem } from "@/domain/types";
 import { formatDate, formatDateTime } from "@/lib/dates";
-import { formatMoney, formatRate } from "@/lib/money";
+import { formatMoney, formatRate, NUM } from "@/lib/money";
 import { usePeriodFilter } from "../shared/PeriodPicker";
 
 const SOURCE_LABEL: Record<Sale["source"], string> = { pos: "Caja", manual: "Manual", import: "Importada", membership: "Cuota", online: "Online" };
@@ -87,12 +87,12 @@ export default function SalesPage() {
         description="Cada operación con su fecha, líneas y pagos. Nada se borra: las anulaciones quedan registradas con motivo."
         actions={<Link to="/caja"><Button variant="primary" icon={Plus}>Nueva venta</Button></Link>}
       />
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <KpiStrip className="mb-5">
         <Kpi label="Facturación" value={formatMoney(total)} hint={filter.period?.label ?? "Todo el histórico"} />
-        <Kpi label="Operaciones" value={tx.length.toLocaleString("es-ES")} hint={active.length > tx.length ? `+${active.length - tx.length} resúmenes importados` : undefined} />
+        <Kpi label="Operaciones" value={tx.length.toLocaleString("es-ES", NUM)} hint={active.length > tx.length ? `+${active.length - tx.length} resúmenes importados` : undefined} />
         <Kpi label="Ticket medio" value={tx.length ? formatMoney(Math.round(tx.reduce((a, s) => a + s.total, 0) / tx.length)) : "—"} />
-        <Kpi label="Anuladas" value={rows.filter((s) => s.status === "voided").length.toLocaleString("es-ES")} hint={formatMoney(rows.filter((s) => s.status === "voided").reduce((a, s) => a + s.total, 0))} />
-      </div>
+        <Kpi label="Anuladas" value={rows.filter((s) => s.status === "voided").length.toLocaleString("es-ES", NUM)} hint={formatMoney(rows.filter((s) => s.status === "voided").reduce((a, s) => a + s.total, 0))} />
+      </KpiStrip>
       <DataTable
         rows={rows}
         columns={columns}

@@ -12,7 +12,7 @@ import { unitMargin } from "@/domain/pricing";
 import { productKindsFor } from "@/domain/modules";
 import type { CatalogStatus, Product, ProductCategory, ProductKind } from "@/domain/types";
 import { formatDate, formatDateTime } from "@/lib/dates";
-import { formatMoney, formatRate, splitGross } from "@/lib/money";
+import { formatMoney, formatRate, splitGross, NUM } from "@/lib/money";
 import { cn } from "@/lib/cn";
 
 export const KIND_LABEL: Record<ProductKind, string> = { physical: "Producto físico", service: "Servicio", membership: "Membresía", pack: "Bono", drop_in: "Drop-In" };
@@ -75,7 +75,7 @@ export default function CatalogPage() {
       id: "stock", header: "Stock", align: "right", sortValue: (p) => (p.trackStock ? p.stockQuantity ?? 0 : -1), exportValue: (p) => (p.trackStock ? p.stockQuantity ?? 0 : null), exportFormat: "integer",
       cell: (p) => (p.trackStock ? <span className={cn((p.stockQuantity ?? 0) <= (p.minStock ?? -1) && "font-medium text-danger-fg")}>{p.stockQuantity ?? 0}</span> : <span className="text-fg-3">—</span>),
     },
-    { id: "usage", header: "Vendidas", align: "right", cell: (p) => (usage.get(p.id)?.units ?? 0).toLocaleString("es-ES"), sortValue: (p) => usage.get(p.id)?.units ?? 0, exportValue: (p) => usage.get(p.id)?.units ?? 0, exportFormat: "integer" },
+    { id: "usage", header: "Vendidas", align: "right", cell: (p) => (usage.get(p.id)?.units ?? 0).toLocaleString("es-ES", NUM), sortValue: (p) => usage.get(p.id)?.units ?? 0, exportValue: (p) => usage.get(p.id)?.units ?? 0, exportFormat: "integer" },
     { id: "status", header: "Estado", cell: (p) => <Badge tone={p.status === "active" ? "success" : p.status === "inactive" ? "warning" : "neutral"} dot>{STATUS_LABEL[p.status]}</Badge>, sortValue: (p) => p.status, exportValue: (p) => STATUS_LABEL[p.status] },
     {
       id: "actions", header: "", hideable: false, align: "right",
@@ -386,7 +386,7 @@ function ProductDrawer({ productId, onClose }: { productId?: string; onClose: ()
               </div>
             ))}
           </div>
-          <p className="mt-3 text-xs text-fg-3">Vendido {usage?.units.toLocaleString("es-ES")} uds en {usage?.sales.toLocaleString("es-ES")} ventas. Un producto con ventas no se borra: se desactiva o archiva.</p>
+          <p className="mt-3 text-xs text-fg-3">Vendido {usage?.units.toLocaleString("es-ES", NUM)} uds en {usage?.sales.toLocaleString("es-ES", NUM)} ventas. Un producto con ventas no se borra: se desactiva o archiva.</p>
         </div>
       )}
     </Drawer>

@@ -4,3 +4,4 @@ export * from "./overlay";
 export * from "./feedback";
 export * from "./layout";
 export * from "./DataTable";
+export * from "./metrics";

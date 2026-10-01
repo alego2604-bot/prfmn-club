@@ -2,14 +2,14 @@ import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AlertCircle, Plus, Users } from "lucide-react";
 import { useSession, useWorkspace } from "@/app/session";
-import { Avatar, Badge, Button, DataTable, Kpi, Page, PageHeader, Segmented, type Column } from "@/design-system/components";
+import { Avatar, Badge, Button, DataTable, Page, PageHeader, Segmented, StatStrip, type Column } from "@/design-system/components";
 import { customerName } from "@/data/repos/customers";
 import type { Customer } from "@/domain/types";
-import { formatDate, relativeDays } from "@/lib/dates";
-import { formatMoney } from "@/lib/money";
+import { formatDate, relativeDays, toISODate } from "@/lib/dates";
+import { formatMoney, formatNumber } from "@/lib/money";
 import { CustomerForm, CUSTOMER_STATUS } from "./CustomerForm";
 
-type Filter = "all" | "active" | "lead" | "cancelled" | "fiscal";
+type Filter = "all" | "active" | "lead" | "cancelled" | "fiscal" | "riesgo";
 
 export default function CustomersPage() {
   const ws = useWorkspace();
@@ -19,12 +19,13 @@ export default function CustomersPage() {
   const [filter, setFilter] = useState<Filter>((params.get("filtro") as Filter) || "all");
 
   const stats = useMemo(() => {
-    const m = new Map<string, { invoices: number; billed: number; purchases: number; spent: number; last?: string }>();
-    const get = (id: string) => m.get(id) ?? (m.set(id, { invoices: 0, billed: 0, purchases: 0, spent: 0 }), m.get(id)!);
+    const m = new Map<string, { invoices: number; billed: number; purchases: number; spent: number; last?: string; events: number }>();
+    const get = (id: string) => m.get(id) ?? (m.set(id, { invoices: 0, billed: 0, purchases: 0, spent: 0, events: 0 }), m.get(id)!);
     for (const i of ws.invoices) {
       if (!i.customerId || i.status === "void") continue;
       const s = get(i.customerId);
       s.invoices++;
+      s.events++;
       s.billed += i.total;
       if (!s.last || (i.issueDate ?? "") > s.last) s.last = i.issueDate;
     }
@@ -32,6 +33,7 @@ export default function CustomersPage() {
       if (!sale.customerId || sale.status === "voided") continue;
       const s = get(sale.customerId);
       s.purchases++;
+      s.events++;
       s.spent += sale.total;
       const d = sale.occurredAt.slice(0, 10);
       if (!s.last || d > s.last) s.last = d;
@@ -40,9 +42,16 @@ export default function CustomersPage() {
   }, [ws.invoices, ws.sales]);
 
   const all = ws.customers.filter((c) => !c.deletedAt);
+  // Mismo criterio que la alerta "clientes habituales sin actividad en 30 días" (domain/alerts.ts)
+  const monthAgo = toISODate(new Date(Date.now() - 30 * 86_400_000));
+  const atRisk = (c: Customer) => c.status === "active" && (stats.get(c.id)?.events ?? 0) >= 2 && (stats.get(c.id)?.last ?? "9") < monthAgo;
   const rows = all.filter((c) =>
-    filter === "all" ? true : filter === "fiscal" ? c.taxIdValid === false || (!c.taxId && (stats.get(c.id)?.invoices ?? 0) > 0) : c.status === filter,
+    filter === "all" ? true
+    : filter === "fiscal" ? c.taxIdValid === false || (!c.taxId && (stats.get(c.id)?.invoices ?? 0) > 0)
+    : filter === "riesgo" ? atRisk(c)
+    : c.status === filter,
   );
+  const riskCount = all.filter(atRisk).length;
 
   const columns: Column<Customer>[] = [
     {
@@ -85,12 +94,16 @@ export default function CustomersPage() {
         description="Una ficha por persona, con todo su historial: compras, facturas y notas."
         actions={can("customers.manage") && <Button variant="primary" icon={Plus} onClick={() => setParams({ nuevo: "1" })}>Nuevo cliente</Button>}
       />
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="Clientes" value={all.length.toLocaleString("es-ES")} />
-        <Kpi label="Activos" value={all.filter((c) => c.status === "active").length.toLocaleString("es-ES")} />
-        <Kpi label="Leads" value={all.filter((c) => c.status === "lead").length.toLocaleString("es-ES")} />
-        <Kpi label="Datos fiscales a revisar" value={fiscalIssues.toLocaleString("es-ES")} hint="NIF no válido o facturado sin NIF" />
-      </div>
+      <StatStrip
+        className="mb-5"
+        items={[
+          { key: "all", label: "Clientes", value: formatNumber(all.filter((c) => c.status !== "lead").length), hint: "sin contar leads", onClick: () => setFilter("all") },
+          { key: "active", label: "Activos", value: formatNumber(all.filter((c) => c.status === "active").length), onClick: () => setFilter("active") },
+          { key: "risk", label: "En riesgo", value: formatNumber(riskCount), hint: "habituales sin actividad en 30 días", tooltip: "Al menos 2 compras o facturas y ninguna en los últimos 30 días", onClick: () => setFilter("riesgo") },
+          { key: "lead", label: "Leads", value: formatNumber(all.filter((c) => c.status === "lead").length), onClick: () => setFilter("lead") },
+          { key: "fiscal", label: "Datos fiscales a revisar", value: formatNumber(fiscalIssues), hint: "NIF no válido o facturado sin NIF", onClick: () => setFilter("fiscal") },
+        ]}
+      />
       <DataTable
         rows={rows}
         columns={columns}
@@ -109,6 +122,7 @@ export default function CustomersPage() {
             items={[
               { value: "all", label: "Todos" },
               { value: "active", label: "Activos" },
+              { value: "riesgo", label: `En riesgo${riskCount ? ` (${riskCount})` : ""}` },
               { value: "lead", label: "Leads" },
               { value: "cancelled", label: "Bajas" },
               { value: "fiscal", label: `Revisar NIF${fiscalIssues ? ` (${fiscalIssues})` : ""}` },

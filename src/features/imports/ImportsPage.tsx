@@ -4,7 +4,7 @@ import { useWorkspace, usePersonName } from "@/app/session";
 import { Badge, Button, DataTable, Page, PageHeader, type Column } from "@/design-system/components";
 import type { ImportJob } from "@/domain/types";
 import { formatDateTime } from "@/lib/dates";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, NUM } from "@/lib/money";
 
 export const KIND_LABEL: Record<ImportJob["kind"], string> = { sales: "Ventas / caja", invoices: "Facturas emitidas", customers: "Clientes", catalog: "Catálogo", attendance: "Asistencia", expenses: "Gastos", bank: "Extracto bancario" };
 
@@ -22,8 +22,8 @@ export default function ImportsPage() {
     { id: "date", header: "Fecha", sortValue: (j) => j.createdAt, exportValue: (j) => new Date(j.createdAt), exportFormat: "datetime", cell: (j) => formatDateTime(j.createdAt) },
     { id: "file", header: "Archivo", exportValue: (j) => j.fileName, cell: (j) => <span className="flex items-center gap-2 font-medium"><FileSpreadsheet className="h-4 w-4 text-success" />{j.fileName}</span> },
     { id: "kind", header: "Tipo", exportValue: (j) => KIND_LABEL[j.kind], cell: (j) => KIND_LABEL[j.kind] },
-    { id: "found", header: "Registros", align: "right", exportValue: (j) => j.summary.found, exportFormat: "integer", cell: (j) => j.summary.found.toLocaleString("es-ES") },
-    { id: "created", header: "Creados", exportValue: (j) => Object.entries(j.summary.created).map(([k, v]) => `${v} ${k}`).join(", "), cell: (j) => <span className="text-fg-2">{Object.entries(j.summary.created).map(([k, v]) => `${v.toLocaleString("es-ES")} ${k}`).join(" · ") || "—"}</span> },
+    { id: "found", header: "Registros", align: "right", exportValue: (j) => j.summary.found, exportFormat: "integer", cell: (j) => j.summary.found.toLocaleString("es-ES", NUM) },
+    { id: "created", header: "Creados", exportValue: (j) => Object.entries(j.summary.created).map(([k, v]) => `${v} ${k}`).join(", "), cell: (j) => <span className="text-fg-2">{Object.entries(j.summary.created).map(([k, v]) => `${v.toLocaleString("es-ES", NUM)} ${k}`).join(" · ") || "—"}</span> },
     { id: "dups", header: "Duplicados", align: "right", exportValue: (j) => j.summary.duplicates, exportFormat: "integer", cell: (j) => j.summary.duplicates },
     { id: "ignored", header: "Ignorados", align: "right", exportValue: (j) => j.summary.ignored, exportFormat: "integer", cell: (j) => j.summary.ignored, defaultHidden: true },
     { id: "amount", header: "Importe", align: "right", exportValue: (j) => (j.summary.totalAmount ?? 0) / 100, exportFormat: "money", cell: (j) => formatMoney(j.summary.totalAmount ?? 0) },

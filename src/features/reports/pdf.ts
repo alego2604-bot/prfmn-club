@@ -1,5 +1,5 @@
 import type { GestoriaReport } from "./gestoria";
-import { formatMoney, formatRate } from "@/lib/money";
+import { formatMoney, formatRate, NUM } from "@/lib/money";
 
 /** PDF ejecutivo del paquete (resumen, IVA, facturación, categorías, cobros). Generado en el navegador. */
 export async function buildGestoriaPdf(r: GestoriaReport, company: { name: string; legalName?: string; taxId?: string }): Promise<Blob> {
@@ -46,7 +46,7 @@ export async function buildGestoriaPdf(r: GestoriaReport, company: { name: strin
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(...ink);
-    doc.text(k.format === "money" ? formatMoney(k.value) : k.value.toLocaleString("es-ES"), x + 8, yy + 40);
+    doc.text(k.format === "money" ? formatMoney(k.value) : k.value.toLocaleString("es-ES", NUM), x + 8, yy + 40);
   });
   y += 2 * 62 + 16;
 
@@ -110,7 +110,7 @@ export async function buildGestoriaPdf(r: GestoriaReport, company: { name: strin
     doc.setPage(i);
     doc.setFontSize(8);
     doc.setTextColor(...muted);
-    doc.text(`${company.name} · Generado con Business OS · ${new Date().toLocaleString("es-ES")}`, 40, 820);
+    doc.text(`${company.name} · Generado con Business OS · ${new Date().toLocaleString("es-ES", NUM)}`, 40, 820);
     doc.text(`${i} / ${pages}`, W - 40, 820, { align: "right" });
   }
   return doc.output("blob");

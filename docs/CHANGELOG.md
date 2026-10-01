@@ -2,6 +2,19 @@
 
 Formato: fecha, fase, resumen. Más reciente arriba.
 
+## 2026-10-01 — Supabase + Design System V2
+
+### HECHO
+- **Persistencia en Supabase** (`src/data/cloud`): Auth real, organizaciones/centros/miembros/roles desde el servidor, sincronización transaccional (`sync_push`), cola offline, caché IndexedDB, indicador «Guardado / Guardando / Sin conexión».
+- **Migración 0700**: `sync_push`, auditoría con contexto de la app, stock en servidor, perfiles al registrarse, gestión de equipo por RPC, columnas que faltaban.
+- **Stack local equivalente a Supabase** (`npm run supabase:local`) y script de staging (`scripts/staging/apply.mjs`).
+- **Tests**: 4 unitarios del motor de diferencias, 3 de integración contra Supabase Auth + PostgREST (dos dispositivos, aislamiento, permisos, importación/reversión), 5 SQL nuevos de `sync_push` (32 en total), E2E de persistencia en Chromium 22/22, 3 de la lectura automática.
+- **Design System V2** y rediseño de Resumen, Resumen financiero (nuevo), Caja, Customer 360, Clientes, tablas, Importaciones, Informes, navegación, ⌘K y acceso. Revisión visual en desktop / tablet / móvil, claro y oscuro (`e2e/screens.mjs`).
+
+### PENDIENTE
+- Aplicar las migraciones y repetir `test:cloud` + `e2e` **contra business-os-staging** (esta sesión no tenía red a Supabase; ver DEPLOYMENT).
+- Desactivar «Confirm email» en staging para los tests automáticos (decisión del propietario).
+
 ## 2026-10-01 — Privacidad del repositorio: secretos, historial y datos de clientes
 
 ### HECHO

@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, Download, FileSpreadsheet, FileText, Package, Sheet } from "lucide-react";
+import { AlertTriangle, Download, FileSpreadsheet, FileText, Sheet } from "lucide-react";
 import { useLocationScope, useSession, useWorkspace } from "@/app/session";
-import { Button, Callout, Card, CardHeader, Field, Input, Kpi, Page, PageHeader, Segmented, Select, useToast } from "@/design-system/components";
+import { Badge, Button, Card, Checkbox, Field, Input, Page, PageHeader, Segmented, Select, useToast } from "@/design-system/components";
+import { cn } from "@/lib/cn";
 import { addDays, makePeriod, quarterPeriod, toISODate, type Period } from "@/lib/dates";
 import { downloadCsv, downloadXlsx, triggerDownload } from "@/lib/export";
-import { formatMoney, formatRate } from "@/lib/money";
+import { formatMoney, NUM } from "@/lib/money";
 import { buildGestoriaReport } from "./gestoria";
 import { buildGestoriaPdf } from "./pdf";
 
@@ -24,7 +25,6 @@ export default function ReportsPage() {
   const [custom, setCustom] = useState({ start: toISODate(addDays(now, -30)), end: toISODate(now) });
   const [locationId, setLocationId] = useState<string>(current?.id ?? "");
   const [busy, setBusy] = useState<string | null>(null);
-  const [csvSheet, setCsvSheet] = useState("Facturación");
 
   const years = useMemo(() => {
     const ys = new Set<number>([now.getFullYear()]);
@@ -46,129 +46,172 @@ export default function ReportsPage() {
   const report = useMemo(() => buildGestoriaReport(ws, period, locationId || undefined), [ws, period, locationId]);
   const empty = report.kpis[0]!.value === 0;
   const companyMeta = { company: ws.organization.name };
+  const [include, setInclude] = useState<Record<SectionKey, boolean>>({ sales: true, invoices: true, tax: true, cash: true, customers: true });
+  const [format, setFormat] = useState<"xlsx" | "pdf" | "csv">("xlsx");
+  const sheetNames = new Set(["Resumen", ...SECTIONS.filter((x) => include[x.key]).flatMap((x) => x.sheets)]);
+  const sheets = report.sheets.filter((x) => sheetNames.has(x.name));
+  const rowsOf = (names: string[]) => report.sheets.filter((x) => names.includes(x.name)).reduce((n, x) => n + x.rows.length, 0);
 
-  const run = async (kind: string, fn: () => Promise<void> | void) => {
-    setBusy(kind);
+  const generate = async () => {
+    setBusy(format);
     try {
-      await fn();
-      toast.success("Archivo generado", "Revisa tu carpeta de descargas.");
+      if (format === "xlsx") await downloadXlsx(`${report.fileBase}.xlsx`, sheets, companyMeta);
+      else if (format === "pdf") triggerDownload(await buildGestoriaPdf(report, ws.organization), `${report.fileBase}.pdf`);
+      else for (const sh of sheets) downloadCsv(`${report.fileBase}_${sh.name.replace(/\s+/g, "_")}.csv`, sh);
+      toast.success("Informe generado", format === "csv" ? `${sheets.length} archivos CSV en tu carpeta de descargas.` : "Revisa tu carpeta de descargas.");
     } catch (e) {
-      toast.fromError(e, "No se pudo generar el archivo");
+      toast.fromError(e, "No se pudo generar el informe");
     } finally {
       setBusy(null);
     }
   };
 
+  const kpi = (label: string) => report.kpis.find((k) => k.label.toLowerCase().startsWith(label))?.value ?? 0;
+  const vatTotal = report.vat.reduce((x, v) => x + v.tax, 0);
+
   return (
-    <Page>
-      <PageHeader title="Informes" description="El paquete para la gestoría en un clic: Excel completo, PDF ejecutivo y CSV. Siempre a partir de los registros, para cualquier periodo." />
-      <Card className="mb-5">
-        <div className="flex flex-wrap items-end gap-4">
-          <Field label="Periodo">
-            <Segmented value={mode} onChange={setMode} items={[{ value: "quarter", label: "Trimestre" }, { value: "month", label: "Mes" }, { value: "year", label: "Año" }, { value: "custom", label: "Personalizado" }]} />
-          </Field>
-          {mode !== "custom" && (
-            <Field label="Año">
-              <Select value={year} onChange={(e) => setYear(Number(e.target.value))} className="w-28">{years.map((y) => <option key={y} value={y}>{y}</option>)}</Select>
-            </Field>
-          )}
-          {mode === "quarter" && (
-            <Field label="Trimestre">
-              <Segmented value={String(q)} onChange={(v) => setQ(Number(v))} items={[1, 2, 3, 4].map((n) => ({ value: String(n), label: `Q${n}` }))} />
-            </Field>
-          )}
-          {mode === "month" && (
-            <Field label="Mes">
-              <Select value={month} onChange={(e) => setMonth(Number(e.target.value))} className="w-40">
-                {Array.from({ length: 12 }, (_, m) => <option key={m} value={m}>{new Date(2000, m, 1).toLocaleDateString("es-ES", { month: "long" })}</option>)}
-              </Select>
-            </Field>
-          )}
-          {mode === "custom" && (
-            <>
-              <Field label="Desde"><Input type="date" value={custom.start} onChange={(e) => setCustom({ ...custom, start: e.target.value })} /></Field>
-              <Field label="Hasta"><Input type="date" value={custom.end} min={custom.start} onChange={(e) => setCustom({ ...custom, end: e.target.value })} /></Field>
-            </>
-          )}
-          {locations.length > 1 && (
-            <Field label="Centro">
-              <Select value={locationId} onChange={(e) => setLocationId(e.target.value)} className="w-44">
-                <option value="">Todos (consolidado)</option>
-                {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </Select>
-            </Field>
-          )}
-        </div>
-      </Card>
-
-      <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+    <Page wide>
+      <PageHeader title="Informes" description="Genera el paquete para tu gestoría a partir de los registros: cualquier periodo, en Excel, PDF o CSV." />
+      <div className="grid items-start gap-5 lg:grid-cols-[1.35fr_1fr] [&>*]:min-w-0">
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3">
-            {report.kpis.slice(0, 6).map((k) => (
-              <Kpi key={k.label} label={k.label} value={k.format === "money" ? formatMoney(k.value) : k.value.toLocaleString("es-ES")} />
-            ))}
-          </div>
-          <Card padded={false}>
-            <div className="p-5 pb-3"><CardHeader className="mb-0" title="IVA repercutido por tipo" description="Facturas por fecha de emisión · ventas de caja por fecha de operación" /></div>
-            <table className="w-full text-sm">
-              <thead><tr className="border-y border-line bg-surface-2 text-xs text-fg-3"><th className="px-5 py-2 text-left font-medium">Origen</th><th className="px-3 py-2 text-right font-medium">Tipo</th><th className="px-3 py-2 text-right font-medium">Base</th><th className="px-3 py-2 text-right font-medium">Cuota</th><th className="px-5 py-2 text-right font-medium">Total</th></tr></thead>
-              <tbody>
-                {report.vat.map((v) => (
-                  <tr key={`${v.source}${v.rateBp}`} className="border-b border-line">
-                    <td className="px-5 py-2.5">{v.source}</td><td className="px-3 py-2.5 text-right num">{formatRate(v.rateBp)}</td><td className="px-3 py-2.5 text-right num">{formatMoney(v.base)}</td><td className="px-3 py-2.5 text-right font-medium num">{formatMoney(v.tax)}</td><td className="px-5 py-2.5 text-right num">{formatMoney(v.total)}</td>
-                  </tr>
-                ))}
-                {!report.vat.length && <tr><td colSpan={5} className="px-5 py-6 text-center text-fg-3">Sin operaciones en el periodo.</td></tr>}
-              </tbody>
-              {report.vat.length > 0 && (
-                <tfoot><tr className="bg-surface-2 font-semibold"><td className="px-5 py-2.5">Total</td><td /><td className="px-3 py-2.5 text-right num">{formatMoney(report.vat.reduce((s, v) => s + v.base, 0))}</td><td className="px-3 py-2.5 text-right num">{formatMoney(report.vat.reduce((s, v) => s + v.tax, 0))}</td><td className="px-5 py-2.5 text-right num">{formatMoney(report.vat.reduce((s, v) => s + v.total, 0))}</td></tr></tfoot>
+          <Card>
+            <StepTitle n={1} title="Periodo" />
+            <div className="flex flex-wrap items-end gap-3">
+              <Segmented value={mode} onChange={setMode} items={[{ value: "quarter", label: "Trimestre" }, { value: "month", label: "Mes" }, { value: "year", label: "Año" }, { value: "custom", label: "Personalizado" }]} />
+              {mode !== "custom" && (
+                <Select value={year} onChange={(e) => setYear(Number(e.target.value))} className="w-28" aria-label="Año">{years.map((y) => <option key={y} value={y}>{y}</option>)}</Select>
               )}
-            </table>
+              {mode === "quarter" && <Segmented value={String(q)} onChange={(v) => setQ(Number(v))} items={[1, 2, 3, 4].map((n) => ({ value: String(n), label: `Q${n}` }))} />}
+              {mode === "month" && (
+                <Select value={month} onChange={(e) => setMonth(Number(e.target.value))} className="w-40" aria-label="Mes">
+                  {Array.from({ length: 12 }, (_, m) => <option key={m} value={m}>{new Date(2000, m, 1).toLocaleDateString("es-ES", { month: "long" })}</option>)}
+                </Select>
+              )}
+              {mode === "custom" && (
+                <>
+                  <Field label="Desde"><Input type="date" value={custom.start} onChange={(e) => setCustom({ ...custom, start: e.target.value })} /></Field>
+                  <Field label="Hasta"><Input type="date" value={custom.end} min={custom.start} onChange={(e) => setCustom({ ...custom, end: e.target.value })} /></Field>
+                </>
+              )}
+              {locations.length > 1 && (
+                <Select value={locationId} onChange={(e) => setLocationId(e.target.value)} className="w-44" aria-label="Centro">
+                  <option value="">Todos (consolidado)</option>
+                  {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </Select>
+              )}
+            </div>
           </Card>
-          {report.warnings.length > 0 && (
-            <Callout tone="warning" icon={AlertTriangle} title="Notas que acompañan al informe">
-              <ul className="mt-1 list-disc pl-4">{report.warnings.map((w) => <li key={w}>{w}</li>)}</ul>
-            </Callout>
-          )}
-        </div>
 
-        <div className="flex flex-col gap-4">
-          <Card>
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-soft"><Package className="h-5 w-5 text-accent-fg" /></div>
-              <div>
-                <p className="font-semibold">Paquete gestoría · {report.periodLabel}</p>
-                <p className="text-xs text-fg-3">{report.sheets.length} hojas: {report.sheets.map((s) => s.name).join(", ")}</p>
-              </div>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Button variant="primary" size="lg" icon={FileSpreadsheet} disabled={!can("reports.export") || empty} loading={busy === "xlsx"} onClick={() => run("xlsx", () => downloadXlsx(`${report.fileBase}.xlsx`, report.sheets, companyMeta))}>
-                Descargar Excel
-              </Button>
-              <Button size="lg" icon={FileText} disabled={!can("reports.export") || empty} loading={busy === "pdf"} onClick={() => run("pdf", async () => triggerDownload(await buildGestoriaPdf(report, ws.organization), `${report.fileBase}.pdf`))}>
-                Descargar PDF
-              </Button>
-              <div className="flex gap-2">
-                <Select value={csvSheet} onChange={(e) => setCsvSheet(e.target.value)} className="flex-1">{report.sheets.map((s) => <option key={s.name}>{s.name}</option>)}</Select>
-                <Button icon={Download} disabled={!can("reports.export") || empty} onClick={() => run("csv", () => downloadCsv(`${report.fileBase}_${csvSheet.replace(/\s+/g, "_")}.csv`, report.sheets.find((s) => s.name === csvSheet)!))}>CSV</Button>
-              </div>
-            </div>
-            <p className="mt-4 rounded-md bg-surface-2 px-3 py-2 font-mono text-xs text-fg-3">{report.fileBase}.xlsx</p>
-            {!can("reports.export") && <p className="mt-3 text-xs text-fg-3">Tu rol no permite exportar informes.</p>}
-          </Card>
-          <Card>
-            <CardHeader title="Qué contiene" />
-            <ul className="flex flex-col gap-2 text-sm text-fg-2">
-              {report.sheets.map((s) => (
-                <li key={s.name} className="flex items-center justify-between gap-3">
-                  <span className="flex items-center gap-2"><Sheet className="h-3.5 w-3.5 text-fg-3" />{s.name}</span>
-                  <span className="text-xs text-fg-3 num">{s.rows.length.toLocaleString("es-ES")} filas</span>
+          <Card padded={false}>
+            <div className="p-5 pb-2"><StepTitle n={2} title="Qué incluir" /></div>
+            <ul>
+              <li className="flex items-center gap-3 border-t border-line px-5 py-3">
+                <Checkbox checked onChange={() => undefined} label="Resumen" />
+                <span className="flex-1"><span className="block text-sm font-medium">Resumen</span><span className="block text-xs text-fg-3">Cifras clave del periodo · siempre incluido</span></span>
+              </li>
+              {SECTIONS.map((sec) => (
+                <li key={sec.key} className="border-t border-line">
+                  <label className="flex cursor-pointer items-center gap-3 px-5 py-3 transition-colors hover:bg-surface-2">
+                    <Checkbox checked={include[sec.key]} onChange={(v) => setInclude({ ...include, [sec.key]: v })} label={sec.label} />
+                    <span className="min-w-0 flex-1"><span className="block text-sm font-medium">{sec.label}</span><span className="block truncate text-xs text-fg-3">{sec.description}</span></span>
+                    <span className="text-xs text-fg-3 num">{rowsOf(sec.sheets).toLocaleString("es-ES", NUM)} filas</span>
+                  </label>
                 </li>
               ))}
+              <li className="flex items-center gap-3 border-t border-line px-5 py-3 opacity-60">
+                <Checkbox checked={false} onChange={() => undefined} label="Gastos" />
+                <span className="flex-1"><span className="block text-sm font-medium">Gastos y facturas recibidas</span><span className="block text-xs text-fg-3">Disponible cuando se active el módulo de Gastos</span></span>
+                <Badge>Próximamente</Badge>
+              </li>
             </ul>
+          </Card>
+
+          <Card>
+            <StepTitle n={3} title="Formato" />
+            <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Formato">
+              {([
+                ["xlsx", FileSpreadsheet, "Excel", "Un libro con una hoja por sección"],
+                ["pdf", FileText, "PDF", "Resumen ejecutivo para enviar o imprimir"],
+                ["csv", Sheet, "CSV", "Un archivo por sección (separador ;)"],
+              ] as const).map(([v, Icon, label, desc]) => (
+                <button
+                  key={v}
+                  role="radio"
+                  aria-checked={format === v}
+                  onClick={() => setFormat(v)}
+                  className={cn("flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-all", format === v ? "border-ink bg-surface shadow-sm ring-1 ring-ink" : "border-line hover:border-line-strong hover:bg-surface-2")}
+                >
+                  <Icon className={cn("h-5 w-5", format === v ? "text-fg" : "text-fg-3")} strokeWidth={1.75} />
+                  <span><span className="block text-sm font-semibold">{label}</span><span className="mt-0.5 block text-xs text-fg-3">{desc}</span></span>
+                </button>
+              ))}
+            </div>
+          </Card>
+        </div>
+
+        <div className="lg:sticky lg:top-20">
+          <Card padded={false} className="overflow-hidden">
+            <div className="border-b border-line bg-surface-2 px-5 py-4">
+              <p className="text-xs font-medium uppercase tracking-[0.08em] text-fg-3">Vista previa</p>
+              <p className="mt-1 text-lg font-semibold tracking-[-0.02em]">Paquete gestoría · {report.periodLabel}</p>
+              <p className="text-sm text-fg-3">{ws.organization.name}{locationId ? ` · ${locations.find((l) => l.id === locationId)?.name}` : ""}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-px bg-line">
+              {[
+                ["Ingresos (IVA incl.)", formatMoney(kpi("ingresos"))],
+                ["IVA repercutido", formatMoney(vatTotal)],
+                ["Ventas de caja", formatMoney(kpi("ventas de caja"))],
+                ["Facturas emitidas", formatMoney(kpi("facturas emitidas"))],
+              ].map(([l, v]) => (
+                <div key={l} className="bg-surface px-5 py-4">
+                  <p className="text-xs text-fg-3">{l}</p>
+                  <p className="mt-1 text-xl font-semibold tracking-[-0.02em] num">{v}</p>
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-line px-5 py-4">
+              <p className="mb-2 text-xs font-medium text-fg-3">{format === "pdf" ? "El PDF incluye el resumen ejecutivo y el IVA por tipo" : `${sheets.length} ${format === "csv" ? "archivos" : "hojas"}`}</p>
+              {format !== "pdf" && (
+                <div className="flex flex-wrap gap-1.5">
+                  {sheets.map((x) => <span key={x.name} className="rounded-md bg-surface-sunken px-2 py-1 text-xs text-fg-2">{x.name} <span className="text-fg-3 num">{x.rows.length.toLocaleString("es-ES", NUM)}</span></span>)}
+                </div>
+              )}
+            </div>
+            {report.warnings.length > 0 && (
+              <div className="border-t border-line px-5 py-4">
+                <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-warning-fg"><AlertTriangle className="h-3.5 w-3.5" />Notas para la gestoría</p>
+                <ul className="list-disc pl-4 text-xs text-fg-2">{report.warnings.map((w) => <li key={w} className="py-0.5">{w}</li>)}</ul>
+              </div>
+            )}
+            <div className="border-t border-line p-5">
+              <Button variant="primary" size="lg" className="w-full" icon={Download} disabled={!can("reports.export") || empty || (format !== "pdf" && !sheets.length)} loading={!!busy} onClick={generate}>
+                Generar {format === "xlsx" ? "Excel" : format === "pdf" ? "PDF" : "CSV"}
+              </Button>
+              <p className="mt-2.5 truncate text-center font-mono text-xs text-fg-3">{report.fileBase}.{format}</p>
+              {empty && <p className="mt-2 text-center text-xs text-fg-3">No hay operaciones en este periodo.</p>}
+              {!can("reports.export") && <p className="mt-2 text-center text-xs text-fg-3">Tu rol no permite exportar informes.</p>}
+            </div>
           </Card>
         </div>
       </div>
     </Page>
+  );
+}
+
+type SectionKey = "sales" | "invoices" | "tax" | "cash" | "customers";
+const SECTIONS: { key: SectionKey; label: string; description: string; sheets: string[] }[] = [
+  { key: "sales", label: "Ventas", description: "Caja diaria, líneas de venta, categorías, productos y métodos de pago", sheets: ["Caja diaria", "Ventas", "Categorías", "Productos", "Métodos de pago"] },
+  { key: "invoices", label: "Facturas", description: "Facturas emitidas por fecha de emisión", sheets: ["Facturación"] },
+  { key: "tax", label: "Impuestos", description: "IVA repercutido por tipo y origen", sheets: ["IVA"] },
+  { key: "cash", label: "Caja", description: "Cierres de caja con arqueo y descuadres", sheets: ["Cierres"] },
+  { key: "customers", label: "Clientes", description: "Clientes facturados con base, IVA y total", sheets: ["Clientes"] },
+];
+
+function StepTitle({ n, title }: { n: number; title: string }) {
+  return (
+    <div className="mb-3 flex items-center gap-2.5">
+      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-xs font-semibold text-fg-inverse num">{n}</span>
+      <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{title}</h2>
+    </div>
   );
 }

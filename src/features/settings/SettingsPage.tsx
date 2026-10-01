@@ -9,7 +9,7 @@ import { ROLE_LABELS } from "@/domain/permissions";
 import { hasModule, MODULE_INFO } from "@/domain/modules";
 import type { ActivityRule, AuditLog, PaymentKind, RoleKey, Vertical } from "@/domain/types";
 import { formatDateTime } from "@/lib/dates";
-import { formatRate } from "@/lib/money";
+import { formatRate, NUM } from "@/lib/money";
 import { triggerDownload } from "@/lib/export";
 
 type Tab = "company" | "locations" | "team" | "payments" | "taxes" | "rules" | "audit" | "data";
@@ -55,7 +55,7 @@ function CompanyTab() {
     r.readAsDataURL(file);
   };
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
+    <div className="grid items-start gap-5 lg:grid-cols-[1fr_300px]">
       <Card>
         <CardHeader title="Datos de la empresa" description="Aparecen en informes y, en el futuro, en las facturas emitidas." />
         <div className="grid gap-4 sm:grid-cols-2">
@@ -64,7 +64,7 @@ function CompanyTab() {
           <Field label="CIF / NIF"><Input value={f.taxId} onChange={set("taxId")} /></Field>
           <Field label="Tipo de negocio">
             <Select value={f.vertical} onChange={(e) => setF({ ...f, vertical: e.target.value as Vertical })}>
-              {(["fitness", "gym", "functional_training", "restaurant", "retail", "services", "beauty", "clinic", "other"] as Vertical[]).map((v) => <option key={v} value={v}>{v}</option>)}
+              {(Object.keys(VERTICAL_LABEL) as Vertical[]).map((v) => <option key={v} value={v}>{VERTICAL_LABEL[v]}</option>)}
             </Select>
           </Field>
           <Field label="Dirección" className="sm:col-span-2"><Input value={f.address} onChange={set("address")} /></Field>
@@ -120,7 +120,7 @@ function LocationsTab() {
         {ws.locations.map((l) => (
           <div key={l.id} className="flex items-center gap-4 border-b border-line px-5 py-3.5 last:border-0">
             <Building2 className="h-4 w-4 text-fg-3" />
-            <div className="flex-1"><p className="text-sm font-medium">{l.name}</p><p className="text-xs text-fg-3">{l.city ?? "—"} · {ws.sales.filter((s) => s.locationId === l.id).length.toLocaleString("es-ES")} ventas</p></div>
+            <div className="flex-1"><p className="text-sm font-medium">{l.name}</p><p className="text-xs text-fg-3">{l.city ?? "—"} · {ws.sales.filter((s) => s.locationId === l.id).length.toLocaleString("es-ES", NUM)} ventas</p></div>
             <Switch checked={l.status === "active"} onChange={(v) => { try { setLocationStatus(ctx, l.id, v ? "active" : "inactive"); } catch (e) { toast.fromError(e); } }} label={l.status === "active" ? "Activo" : "Inactivo"} />
           </div>
         ))}
@@ -373,7 +373,7 @@ function DataTab() {
       <Card>
         <CardHeader title="Almacenamiento" description="Modo local: los datos viven en este navegador (IndexedDB), aislados por empresa." />
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-          {counts.map(([k, v]) => <div key={k} className="flex justify-between"><span className="text-fg-3">{k}</span><span className="font-medium num">{v.toLocaleString("es-ES")}</span></div>)}
+          {counts.map(([k, v]) => <div key={k} className="flex justify-between"><span className="text-fg-3">{k}</span><span className="font-medium num">{v.toLocaleString("es-ES", NUM)}</span></div>)}
         </div>
         <Callout className="mt-5" tone="warning" icon={Database} title="Haz copias de seguridad">
           Hasta conectar el servidor (Supabase), borrar los datos del navegador borraría la empresa. Descarga una copia periódicamente.
@@ -389,3 +389,8 @@ function DataTab() {
     </div>
   );
 }
+
+const VERTICAL_LABEL: Record<Vertical, string> = {
+  fitness: "Fitness / Box", gym: "Gimnasio", functional_training: "Entrenamiento funcional / híbrido", restaurant: "Restauración",
+  retail: "Comercio / retail", services: "Servicios", beauty: "Estética", clinic: "Clínica", other: "Otro",
+};

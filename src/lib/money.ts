@@ -19,8 +19,10 @@ export function splitGross(gross: Cents, rateBp: BasisPoints): { base: Cents; ta
   return { base, tax: gross - base };
 }
 
-const eur = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
-const eurCompact = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+// useGrouping "always": en es-ES Intl no separa los miles de 4 cifras (4177,90 €); en finanzas se espera 4.177,90 €
+const GROUP = { useGrouping: "always" } as unknown as Intl.NumberFormatOptions;
+const eur = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", ...GROUP });
+const eurCompact = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0, ...GROUP });
 const eurShort = new Intl.NumberFormat("es-ES", {
   style: "currency",
   currency: "EUR",
@@ -59,3 +61,12 @@ export function parseMoneyInput(raw: string | number | null | undefined): Cents 
   if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
   return toCents(Number(s));
 }
+
+const intFmt = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0, ...GROUP });
+/** Recuentos con separador de miles siempre (1.369). */
+export function formatNumber(n: number): string {
+  return intFmt.format(n);
+}
+
+/** Opciones de toLocaleString para enteros con separador de miles siempre. */
+export const NUM = GROUP;

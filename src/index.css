@@ -1,4 +1,4 @@
-@import "@fontsource-variable/inter";
+@import "@fontsource-variable/inter/opsz.css";
 @import "@fontsource/jetbrains-mono/400.css";
 @import "./design-system/tokens.css";
 
@@ -13,8 +13,13 @@
   }
   body {
     @apply bg-canvas text-fg antialiased font-sans text-base;
-    font-feature-settings: "cv11", "ss01", "ss03";
+    /* Inter con tamaño óptico: los titulares y las cifras grandes usan automáticamente el corte "Display" */
+    font-feature-settings: "cv11", "ss01", "ss03", "cv05";
+    font-optical-sizing: auto;
     text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3 {
+    text-wrap: balance;
   }
   ::selection {
     background: var(--accent-soft);
@@ -33,9 +38,33 @@
 }
 
 @layer utilities {
+  /* Columnas de cifras alineadas (tablas, ejes, importes en lista) */
   .num {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1, "cv11";
+  }
+  /* Cifra protagonista: proporcional, tracking cerrado, corte display */
+  .figure {
+    font-variant-numeric: proportional-nums;
+    font-feature-settings: "cv11", "ss01";
+    letter-spacing: -0.035em;
+    font-weight: 600;
+  }
+  .surface-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-xs), var(--highlight);
+  }
+  .stagger > * {
+    animation: bos-rise 320ms var(--ease-out) both;
+  }
+  .stagger > *:nth-child(2) { animation-delay: 30ms; }
+  .stagger > *:nth-child(3) { animation-delay: 60ms; }
+  .stagger > *:nth-child(4) { animation-delay: 90ms; }
+  .stagger > *:nth-child(5) { animation-delay: 120ms; }
+  .stagger > *:nth-child(n + 6) { animation-delay: 150ms; }
+  @media (prefers-reduced-motion: reduce) {
+    .stagger > *, .animate-rise, .animate-pop-in, .animate-slide-in, .animate-slide-up, .animate-check-pop { animation: none !important; }
   }
   .scrollbar-thin {
     scrollbar-width: thin;
@@ -59,4 +88,10 @@
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
+}
+
+/* Entrada sutil de bloques (fuera de @layer: Tailwind no purga estos keyframes) */
+@keyframes bos-rise {
+  from { transform: translateY(6px); opacity: 0; }
+  to { transform: none; opacity: 1; }
 }

@@ -6,7 +6,7 @@ import { Button, Card, Page, StatusPill } from "@/design-system/components";
 /** Qué existe ya de cada módulo (tablas, reglas). Honesto: nada de botones falsos. */
 const FOUNDATIONS: Record<string, string[]> = {
   "/seguimiento": ["Reglas de actividad configurables (Ajustes → Reglas)", "Tablas customer_notes (con «silenciar avisos hasta») y tasks", "Alertas siempre con motivo explicado"],
-  "/membresias": ["Tablas membership_plans + membership_plan_versions (precio con vigencia)", "customer_memberships apunta a la versión → el histórico nunca cambia", "15 tarifas reales detectadas al importar las facturas"],
+  "/membresias": ["Tablas membership_plans + membership_plan_versions (precio con vigencia)", "customer_memberships apunta a la versión → el histórico nunca cambia", "Tarifas detectadas automáticamente al importar las facturas"],
   "/asistencia": ["Tabla attendance con deduplicación por cliente + hora + clase", "Fuente: importación (BeMadBox), check-in o integración"],
   "/leads": ["customers.pipeline_stage (lead → member / lost) y lost_reason", "Auditoría de cada cambio de etapa"],
   "/inbox": ["Tabla communications (canal, dirección, estado, resultado, autor)", "Solo WhatsApp Business Platform oficial, sin automatizaciones no oficiales"],

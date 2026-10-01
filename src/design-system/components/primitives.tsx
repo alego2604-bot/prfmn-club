@@ -8,18 +8,18 @@ type Variant = "primary" | "accent" | "secondary" | "ghost" | "danger" | "subtle
 type Size = "sm" | "md" | "lg" | "xl";
 
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-ink text-fg-inverse hover:bg-ink-hover shadow-xs",
-  accent: "bg-accent text-white hover:bg-accent-hover shadow-xs",
+  primary: "bg-ink text-fg-inverse hover:bg-ink-hover shadow-sm [box-shadow:var(--shadow-sm),inset_0_1px_0_rgba(255,255,255,0.12)]",
+  accent: "bg-accent text-white hover:bg-accent-hover shadow-sm [box-shadow:var(--shadow-sm),inset_0_1px_0_rgba(255,255,255,0.18)]",
   secondary: "bg-surface text-fg border border-line hover:border-line-strong hover:bg-surface-2 shadow-xs",
   ghost: "text-fg-2 hover:text-fg hover:bg-surface-sunken",
   subtle: "bg-surface-sunken text-fg hover:bg-line/70",
   danger: "bg-danger text-white hover:brightness-95 shadow-xs",
 };
 const SIZES: Record<Size, string> = {
-  sm: "h-8 px-2.5 text-sm gap-1.5 rounded",
-  md: "h-9 px-3.5 text-sm gap-2 rounded",
-  lg: "h-11 px-4 text-md gap-2 rounded-md",
-  xl: "h-14 px-6 text-lg gap-2.5 rounded-lg font-semibold",
+  sm: "h-8 px-2.5 text-sm gap-1.5 rounded-md",
+  md: "h-9 px-3.5 text-sm gap-2 rounded-md",
+  lg: "h-11 px-4 text-md gap-2 rounded-lg",
+  xl: "h-14 px-6 text-lg gap-2.5 rounded-xl font-semibold",
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -40,7 +40,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       type={type}
       disabled={disabled || loading}
       className={cn(
-        "inline-flex select-none items-center justify-center whitespace-nowrap font-medium transition-[background,border,color,box-shadow,transform] duration-150 active:scale-[0.985] disabled:pointer-events-none disabled:opacity-50",
+        "inline-flex select-none items-center justify-center whitespace-nowrap font-medium tracking-[-0.005em] transition-[background,border,color,box-shadow,transform] duration-150 ease-out active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45",
         VARIANTS[variant],
         SIZES[size],
         className,
@@ -61,7 +61,7 @@ export function IconButton({ icon: Icon, label, className, size = "md", ...rest 
       aria-label={label}
       title={label}
       className={cn(
-        "inline-flex items-center justify-center rounded text-fg-2 transition-colors hover:bg-surface-sunken hover:text-fg disabled:opacity-40",
+        "inline-flex items-center justify-center rounded-md text-fg-2 transition-[background,color,transform] duration-150 hover:bg-surface-sunken hover:text-fg active:scale-95 disabled:opacity-40",
         size === "sm" ? "h-7 w-7" : size === "lg" ? "h-11 w-11" : "h-9 w-9",
         className,
       )}
@@ -75,7 +75,7 @@ export function IconButton({ icon: Icon, label, className, size = "md", ...rest 
 // ------------------------------------------------------------------ Badge
 export type Tone = "neutral" | "accent" | "success" | "warning" | "danger" | "info";
 const TONES: Record<Tone, string> = {
-  neutral: "bg-surface-sunken text-fg-2 border-line",
+  neutral: "bg-surface-sunken text-fg-2 border-transparent",
   accent: "bg-accent-soft text-accent-fg border-transparent",
   success: "bg-success-soft text-success-fg border-transparent",
   warning: "bg-warning-soft text-warning-fg border-transparent",
@@ -88,7 +88,7 @@ const DOTS: Record<Tone, string> = {
 
 export function Badge({ tone = "neutral", dot, children, className }: { tone?: Tone; dot?: boolean; children: ReactNode; className?: string }) {
   return (
-    <span className={cn("inline-flex h-[22px] items-center gap-1.5 whitespace-nowrap rounded-full border px-2 text-xs font-medium", TONES[tone], className)}>
+    <span className={cn("inline-flex h-[22px] items-center gap-1.5 whitespace-nowrap rounded-md border px-1.5 text-xs font-medium", TONES[tone], className)}>
       {dot && <span className={cn("h-1.5 w-1.5 rounded-full", DOTS[tone])} />}
       {children}
     </span>
@@ -102,7 +102,7 @@ export function Dot({ tone = "neutral", className }: { tone?: Tone; className?: 
 // ------------------------------------------------------------------ Card
 export function Card({ className, children, padded = true, ...rest }: HTMLAttributes<HTMLDivElement> & { padded?: boolean }) {
   return (
-    <div className={cn("rounded-lg border border-line bg-surface shadow-xs", padded && "p-5", className)} {...rest}>
+    <div className={cn("surface-card rounded-xl", padded && "p-5", className)} {...rest}>
       {children}
     </div>
   );
@@ -112,7 +112,7 @@ export function CardHeader({ title, description, action, className }: { title: R
   return (
     <div className={cn("mb-4 flex items-start justify-between gap-3", className)}>
       <div className="min-w-0">
-        <h3 className="text-md font-semibold tracking-tight">{title}</h3>
+        <h3 className="text-[15px] font-semibold tracking-[-0.01em]">{title}</h3>
         {description && <p className="mt-0.5 text-sm text-fg-3">{description}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
@@ -133,13 +133,12 @@ export function Skeleton({ className }: { className?: string }) {
   return <div className={cn("skeleton h-4", className)} />;
 }
 
-const AVATAR_COLORS = ["#3b5bfd", "#12a150", "#d97706", "#8e4ec6", "#0ea5b7", "#d6409f", "#e5484d", "#64748b"];
+/** Avatar sobrio: iniciales sobre una superficie neutra (sin arcoíris); la identidad la da el nombre. */
 export function Avatar({ name, size = 32, className }: { name: string; size?: number; className?: string }) {
-  const color = AVATAR_COLORS[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
   return (
     <span
-      className={cn("inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white", className)}
-      style={{ width: size, height: size, fontSize: Math.max(10, size * 0.38), background: color }}
+      className={cn("inline-flex shrink-0 items-center justify-center rounded-full bg-surface-sunken font-semibold tracking-[-0.02em] text-fg-2 ring-1 ring-inset ring-line", className)}
+      style={{ width: size, height: size, fontSize: Math.max(10, size * 0.36) }}
       aria-hidden
     >
       {initials(name) || "·"}

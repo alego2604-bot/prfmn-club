@@ -14,8 +14,8 @@ Primera empresa cliente (tenant): The Gravity Room. El software funciona igual p
 | | |
 |---|---|
 | Base de datos | Esquema SQL multi-tenant con RLS, auditoría e inmutabilidad financiera — **probado** en PostgreSQL 16 (`npm run db:test`) |
-| App | Funcional en **modo local** (IndexedDB): login, empresa, caja, ventas, cierres, catálogo, clientes, facturas, pagos, importación, informes, ajustes, auditoría |
-| Servidor | Supabase **aún no conectado** (Fase 5). Ver estado por módulo en `PROJECT_MASTER.md §16` |
+| App | Login, empresa, caja, ventas, cierres, catálogo, clientes, facturas, pagos, importación, informes, ajustes y auditoría persistidos en Supabase; IndexedDB solo como caché/offline. Sin variables de Supabase funciona en modo local (demo/desarrollo) |
+| Servidor | **Supabase como fuente de verdad** (Auth + PostgreSQL + RLS, sincronización transaccional). Validado contra un stack local equivalente; pendiente de validar en `business-os-staging`. Ver `PROJECT_MASTER.md §16` |
 
 ## Arranque rápido
 
@@ -37,6 +37,9 @@ Crea una cuenta → crea tu empresa → **Importaciones → Nueva** y sube tus E
 | `npm test` | Tests unitarios y de integración (Vitest) |
 | `npm run db:test` | Aplica las migraciones en un Postgres efímero y ejecuta los tests de RLS/aislamiento |
 | `npm run check:privacy` | Bloquea datos personales y secretos en los ficheros versionados |
+| `npm run supabase:local` | Stack local equivalente a Supabase (Postgres + Auth + PostgREST) |
+| `npm run test:cloud` | Integración contra Supabase (`BOS_CLOUD_URL`, `BOS_CLOUD_ANON_KEY`) |
+| `npm run e2e` | E2E de persistencia en navegador (logout, reentrada, segundo dispositivo) |
 
 Tests con tus Excel reales (solo en local, nunca se suben al repo):
 ```bash

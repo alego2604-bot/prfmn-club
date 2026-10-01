@@ -23,6 +23,7 @@ const ImportWizardPage = lazy(() => import("@/features/imports/ImportWizardPage"
 const ImportDetailPage = lazy(() => import("@/features/imports/ImportDetailPage"));
 const ReportsPage = lazy(() => import("@/features/reports/ReportsPage"));
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
+const FinancePage = lazy(() => import("@/features/finance/FinancePage"));
 
 function PageFallback() {
   return (
@@ -92,6 +93,7 @@ const router = createBrowserRouter([
       { path: "catalogo", element: <Guard perm="catalog.view"><CatalogPage /></Guard> },
       { path: "clientes", element: <Guard perm="customers.view"><CustomersPage /></Guard> },
       { path: "clientes/:id", element: <Guard perm="customers.view"><CustomerDetailPage /></Guard> },
+      { path: "finanzas", element: <Guard perm="finance.view"><FinancePage /></Guard> },
       { path: "facturas", element: <Guard perm="finance.view"><InvoicesPage /></Guard> },
       { path: "pagos", element: <Guard perm="finance.view"><PaymentsPage /></Guard> },
       { path: "importaciones", element: <Guard perm="imports.run"><ImportsPage /></Guard> },

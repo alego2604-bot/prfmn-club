@@ -1,3 +1,4 @@
+import { NUM } from "@/lib/money";
 /** Normaliza para comparar: minúsculas, sin acentos, sin signos, espacios simples. */
 export function normalizeKey(s: string | null | undefined): string {
   return (s ?? "")
@@ -43,5 +44,5 @@ export function initials(name: string): string {
 }
 
 export function plural(n: number, one: string, many: string): string {
-  return `${n.toLocaleString("es-ES")} ${n === 1 ? one : many}`;
+  return `${n.toLocaleString("es-ES", NUM)} ${n === 1 ? one : many}`;
 }

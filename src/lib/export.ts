@@ -1,3 +1,4 @@
+import { NUM } from "@/lib/money";
 /** Exportaciones en el navegador. XLSX con ExcelJS (carga diferida), CSV compatible con Excel español (; y BOM). */
 
 export type ExportValue = string | number | Date | null | undefined;
@@ -32,7 +33,7 @@ export function triggerDownload(blob: Blob, fileName: string) {
 function csvCell(v: ExportValue, format?: ExportColumn["format"]): string {
   if (v === null || v === undefined) return "";
   let s: string;
-  if (v instanceof Date) s = format === "datetime" ? v.toLocaleString("es-ES") : v.toLocaleDateString("es-ES");
+  if (v instanceof Date) s = format === "datetime" ? v.toLocaleString("es-ES", NUM) : v.toLocaleDateString("es-ES");
   else if (typeof v === "number") s = format === "integer" ? String(v) : v.toFixed(format === "percent" ? 4 : 2).replace(".", ",");
   else s = v;
   return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;

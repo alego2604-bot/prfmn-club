@@ -336,30 +336,34 @@ Orden recomendado para The Gravity Room:
 
 Escala: `PLANNED` → `DESIGNED` → `FRONTEND ONLY` → `FUNCTIONAL` (funciona y persiste en el adaptador local) → `TESTED` (tests automáticos de su lógica + verificación en navegador) → `PRODUCTION READY` (conectado a Supabase, con RLS probado y validado en uso real).
 
-**Nada está PRODUCTION READY hasta conectar Supabase.** Ver tabla viva en §16.1.
+**Nada está PRODUCTION READY hasta validarlo en business-os-staging y después en producción.** Ver tabla viva en §16.1.
 
 ### 16.1 Tabla de estado
 
 | Módulo | Estado | Notas |
 |---|---|---|
-| Esquema SQL + RLS | TESTED | Migraciones aplicadas en Postgres 16 local + 27 comprobaciones de aislamiento, permisos e integridad |
+| Esquema SQL + RLS | TESTED | 7 migraciones aplicadas sobre Postgres 16 + **Supabase Auth real** (stack local); 32 comprobaciones SQL de aislamiento, permisos, integridad y `sync_push`. **Pendiente: aplicar en business-os-staging** (`scripts/staging/apply.mjs`) |
+| Persistencia en Supabase (sync transaccional, caché/offline IndexedDB) | TESTED | `data/cloud`: diferencias → `sync_push` (1 transacción por acción, RLS), cola offline persistente, descarga completa por empresa. Tests de integración (2 dispositivos) + E2E navegador 22/22 contra stack local. **Pendiente: validar contra staging** |
+| Auth Supabase (registro, login, sesión, logout con borrado de caché) | TESTED | Email + contraseña. Confirmación de email depende de la config del proyecto |
+| Organizaciones, centros, miembros, roles | TESTED | Alta por RPC; equipo por email con `add_member_by_email` / `update_member` (sin claves de servicio) |
+| Auditoría en servidor | TESTED | Trigger append-only con etiqueta/acción/contexto declarados por la app |
+| Stock en servidor | TESTED | Trigger en líneas de venta y anulación; ventas anteriores al alta del producto no mueven stock |
 | Capa de integraciones (conexiones, identidades externas, eventos) | DESIGNED | Tablas + RLS probadas; conectores aún no implementados |
-| Módulos verticales (core / fitness) | FUNCTIONAL | Activables por empresa en Ajustes; el core no contiene reglas de sector |
-| Acceso (login local, crear empresa, workspace demo) | FUNCTIONAL | Auth real Supabase en Fase 5 |
-| Shell, navegación, ⌘K, selector de centro, tema | FUNCTIONAL | |
-| Catálogo (productos, categorías, precios con vigencia) | TESTED | |
-| Caja (TPV táctil, multi-pago) | TESTED | |
+| Módulos verticales (core / fitness) | TESTED | Activables por empresa (persistido en `organization_modules`) |
+| Shell, navegación V2, ⌘K, selector de centro, tema | FUNCTIONAL | Grupos plegables, «Próximamente», estado de guardado visible |
+| Design System V2 | FUNCTIONAL | Tokens, tipografía, componentes de métricas y gráficas; ver DESIGN_SYSTEM.md |
+| Resumen (dashboard ejecutivo) | TESTED | Periodo 7D/30D/90D/YTD/1A/personalizado, tendencia comparada, lectura automática (tests), clientes, recurrente |
+| Resumen financiero | FUNCTIONAL | Ingresos, cobros, IVA por tipo, pendientes; gastos/neto cuando exista el módulo |
+| Catálogo (productos, categorías, precios con vigencia) | TESTED | Histórico de precios en servidor |
+| Caja (TPV táctil, multi-pago) | TESTED | Rediseñada para iPad; E2E en navegador |
 | Ventas (listado, filtros, anulación, export) | TESTED | |
 | Cierres de caja | TESTED | |
-| Dashboard Hoy/Mes/Año | TESTED | |
-| Importación caja XLSX/CSV | TESTED | Probado con el Excel real |
-| Importación facturas XLSX/CSV | TESTED | Probado con el Excel real |
-| Historial y reversión de importaciones | TESTED | |
-| Facturas emitidas (listado, KPIs, filtros, export) | FUNCTIONAL | Emisión manual: PLANNED |
-| Clientes (listado, ficha, notas, timeline) | FUNCTIONAL | |
-| Informe gestoría XLSX/CSV/PDF | TESTED | |
-| Ajustes (empresa, centros, métodos de pago, IVA, categorías, equipo) | FUNCTIONAL | |
-| Auditoría | FUNCTIONAL | |
+| Importación caja / facturas XLSX/CSV | TESTED | Persistida en servidor (≈4.000 filas en ~1 s) |
+| Historial y reversión de importaciones | TESTED | Reversión persistida (test de integración) |
+| Facturas emitidas (listado, KPIs, filtros, export, cobro, anulación) | FUNCTIONAL | Emisión manual: PLANNED |
+| Clientes y ficha 360 (notas, timeline, saldo, renovación) | FUNCTIONAL | |
+| Informes (generación gestoría XLSX/CSV/PDF) | TESTED | Flujo periodo → secciones → formato → vista previa |
+| Ajustes (empresa, centros, métodos de pago, IVA, equipo, módulos) | FUNCTIONAL | |
 | Gastos | PLANNED | |
 | Membresías de clientes | DESIGNED | Tablas listas; UI pendiente |
 | Asistencia / Seguimiento / Tareas | DESIGNED | Tablas listas; UI pendiente |
@@ -375,7 +379,7 @@ Ver [`CHANGELOG.md`](CHANGELOG.md) (última entrada) para el informe de fase: HE
 
 Preguntas abiertas para el propietario:
 1. ¿Confirmas Vite SPA (recomendado) o prefieres migrar a Next.js?
-2. ¿Creamos ya los proyectos Supabase (staging + production, plan gratuito para empezar)?
+2. ~~Proyectos Supabase~~ → `business-os-staging` creado; falta aplicar migraciones y validar (sesión con red a Supabase).
 3. Tipos de IVA por categoría (bebidas, suplementación, merchandising, drop-in): validar con la gestoría.
 4. Series de factura propias (¿continuar la numeración de BeMadBox o serie nueva?).
 5. ¿Las tarifas *Fundador* siguen abiertas a nuevas altas o están cerradas?

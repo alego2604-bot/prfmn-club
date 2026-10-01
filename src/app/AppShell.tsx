@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-  Bell, Building2, Check, ChevronsUpDown, FlaskConical, LogOut, Menu as MenuIcon, Monitor, Moon, MoreHorizontal, Search, Sun, X,
+  Bell, Building2, Check, ChevronDown, ChevronsUpDown, Layers, FlaskConical, LogOut, Menu as MenuIcon, Monitor, Moon, MoreHorizontal, Search, Sun, X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button, Drawer, EmptyState, IconButton, Kbd, Menu, MenuItem, MenuLabel, useToast } from "@/design-system/components";
 import { computeAlerts } from "@/domain/alerts";
 import { ROLE_LABELS } from "@/domain/permissions";
 import { hasModule } from "@/domain/modules";
-import { ALL_ITEMS, MOBILE_TABS, NAV, SETTINGS_ITEM, type NavItem } from "./nav";
+import { ALL_ITEMS, isPlanned, MOBILE_TABS, NAV, SETTINGS_ITEM, type NavItem } from "./nav";
+import { getPref, setPref } from "@/lib/localPrefs";
 import { useLocationScope, useSession, useWorkspace } from "./session";
 import { Logo, LogoMark } from "./Logo";
 import { CommandPalette } from "./CommandPalette";
@@ -17,11 +18,22 @@ import { applyTheme, getThemePref, type ThemePref } from "./theme";
 function useVisibleNav() {
   const { can } = useSession();
   const ws = useWorkspace();
-  return NAV.map((g) => ({ ...g, items: g.items.filter((i) => (!i.perm || can(i.perm)) && (!i.module || hasModule(ws.organization, i.module))) })).filter((g) => g.items.length);
+  const visible = (i: NavItem) => (!i.perm || can(i.perm)) && (!i.module || hasModule(ws.organization, i.module));
+  const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => visible(i) && !isPlanned(i)) })).filter((g) => g.items.length);
+  const planned = NAV.flatMap((g) => g.items).filter((i) => visible(i) && isPlanned(i));
+  return { groups, planned };
+}
+
+function readCollapsed(): string[] {
+  try {
+    return JSON.parse(getPref("nav.collapsed") ?? "[]") as string[];
+  } catch {
+    return [];
+  }
 }
 
 function NavRow({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
-  const soon = item.status === "PLANNED" || item.status === "DESIGNED";
+  const soon = isPlanned(item);
   return (
     <NavLink
       to={item.to}
@@ -29,15 +41,60 @@ function NavRow({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          "group flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm transition-colors",
+          "group relative flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13.5px] transition-colors duration-100",
           isActive ? "bg-surface font-medium text-fg shadow-xs ring-1 ring-line" : soon ? "text-fg-3 hover:bg-surface-sunken hover:text-fg-2" : "text-fg-2 hover:bg-surface-sunken hover:text-fg",
         )
       }
     >
-      <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.8} />
-      <span className="flex-1 truncate">{item.label}</span>
-      {soon && <span className="rounded border border-line px-1 text-[10px] font-medium uppercase tracking-wide text-fg-3">Pronto</span>}
+      {({ isActive }) => (
+        <>
+          <item.icon className={cn("h-4 w-4 shrink-0", isActive ? "text-fg" : "text-fg-3 group-hover:text-fg-2")} strokeWidth={1.75} />
+          <span className="flex-1 truncate">{item.label}</span>
+          {soon && <span className="text-[10px] font-medium uppercase tracking-wider text-fg-3">{item.status === "PLANNED" ? "Plan" : "Diseño"}</span>}
+        </>
+      )}
     </NavLink>
+  );
+}
+
+function NavTree({ onNavigate }: { onNavigate?: () => void }) {
+  const { groups, planned } = useVisibleNav();
+  const location = useLocation();
+  const [collapsed, setCollapsed] = useState<string[]>(readCollapsed);
+  const [soonOpen, setSoonOpen] = useState(() => planned.some((p) => location.pathname.startsWith(p.to)));
+  const toggle = (label: string) => {
+    const next = collapsed.includes(label) ? collapsed.filter((x) => x !== label) : [...collapsed, label];
+    setCollapsed(next);
+    setPref("nav.collapsed", JSON.stringify(next));
+  };
+  return (
+    <>
+      {groups.map((g, i) => {
+        const isCollapsed = !!g.label && collapsed.includes(g.label) && !g.items.some((it) => location.pathname.startsWith(it.to) && it.to !== "/");
+        return (
+          <div key={i} className={cn(g.label && "mt-4")}>
+            {g.label && (
+              <button onClick={() => toggle(g.label!)} className="group mb-0.5 flex h-6 w-full items-center gap-1 px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-3 hover:text-fg-2" aria-expanded={!isCollapsed}>
+                {g.label}
+                <ChevronDown className={cn("h-3 w-3 opacity-0 transition-all group-hover:opacity-100", isCollapsed && "-rotate-90 opacity-100")} />
+              </button>
+            )}
+            {!isCollapsed && <div className="flex flex-col gap-px">{g.items.map((it) => <NavRow key={it.to} item={it} onNavigate={onNavigate} />)}</div>}
+          </div>
+        );
+      })}
+      {planned.length > 0 && (
+        <div className="mt-4">
+          <button onClick={() => setSoonOpen((o) => !o)} className="flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-[13px] text-fg-3 transition-colors hover:bg-surface-sunken hover:text-fg-2" aria-expanded={soonOpen}>
+            <Layers className="h-4 w-4" strokeWidth={1.75} />
+            <span className="flex-1 text-left">Próximamente</span>
+            <span className="rounded-md bg-surface-sunken px-1.5 text-[11px] font-medium num">{planned.length}</span>
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", !soonOpen && "-rotate-90")} />
+          </button>
+          {soonOpen && <div className="mt-0.5 flex flex-col gap-px border-l border-line pl-1.5 ml-[18px]">{planned.map((it) => <NavRow key={it.to} item={it} onNavigate={onNavigate} />)}</div>}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -82,20 +139,14 @@ function OrgSwitcher() {
 }
 
 function Sidebar({ compact }: { compact?: boolean }) {
-  const groups = useVisibleNav();
   return (
-    <aside className={cn("fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-line bg-surface-2", compact ? "xl:flex" : "lg:flex")}>
+    <aside className={cn("fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-line bg-canvas", compact ? "xl:flex" : "lg:flex")}>
       <div className="flex h-14 items-center px-4">
-        <Link to="/"><Logo /></Link>
+        <Link to="/" aria-label="Resumen"><Logo /></Link>
       </div>
-      <div className="px-3 pb-2"><OrgSwitcher /></div>
-      <nav className="scrollbar-thin flex-1 overflow-y-auto px-3 pb-4">
-        {groups.map((g, i) => (
-          <div key={i} className={cn(g.label && "mt-5")}>
-            {g.label && <div className="mb-1 px-2.5 text-2xs font-semibold uppercase tracking-wider text-fg-3">{g.label}</div>}
-            <div className="flex flex-col gap-0.5">{g.items.map((it) => <NavRow key={it.to} item={it} />)}</div>
-          </div>
-        ))}
+      <div className="px-3 pb-3"><OrgSwitcher /></div>
+      <nav className="scrollbar-thin flex-1 overflow-y-auto px-3 pb-4" aria-label="Principal">
+        <NavTree />
       </nav>
       <div className="border-t border-line px-3 py-3">
         <NavRow item={SETTINGS_ITEM} />
@@ -155,7 +206,7 @@ function UserMenu() {
     <Menu
       width={240}
       trigger={(_, toggle) => (
-        <button onClick={toggle} className="flex h-9 w-9 items-center justify-center rounded-full bg-ink text-xs font-semibold text-fg-inverse" aria-label="Cuenta">
+        <button onClick={toggle} className="ml-1 flex h-8 w-8 items-center justify-center rounded-full bg-ink text-[11px] font-semibold text-fg-inverse ring-2 ring-canvas transition-transform active:scale-95" aria-label="Cuenta">
           {s.user?.fullName.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()}
         </button>
       )}
@@ -211,7 +262,6 @@ function Notifications() {
 }
 
 function MobileMenu({ open, onClose, compact }: { open: boolean; onClose: () => void; compact?: boolean }) {
-  const groups = useVisibleNav();
   if (!open) return null;
   return (
     <div className={cn("fixed inset-0 z-50", compact ? "xl:hidden" : "lg:hidden")}>
@@ -223,12 +273,7 @@ function MobileMenu({ open, onClose, compact }: { open: boolean; onClose: () => 
         </div>
         <div className="px-3 pb-2"><OrgSwitcher /></div>
         <nav className="scrollbar-thin flex-1 overflow-y-auto px-3 pb-6">
-          {groups.map((g, i) => (
-            <div key={i} className={cn(g.label && "mt-5")}>
-              {g.label && <div className="mb-1 px-2.5 text-2xs font-semibold uppercase tracking-wider text-fg-3">{g.label}</div>}
-              <div className="flex flex-col gap-0.5">{g.items.map((it) => <NavRow key={it.to} item={it} onNavigate={onClose} />)}</div>
-            </div>
-          ))}
+          <NavTree onNavigate={onClose} />
           <div className="mt-5 border-t border-line pt-3"><NavRow item={SETTINGS_ITEM} onNavigate={onClose} /></div>
         </nav>
       </div>
@@ -305,14 +350,15 @@ export function AppShell() {
   return (
     <div className="min-h-screen">
       <Sidebar compact={isPos} />
-      <div className={isPos ? "xl:pl-[248px]" : "lg:pl-[248px]"}>
+      <div className={isPos ? "flex h-[100dvh] flex-col xl:pl-[248px]" : "lg:pl-[248px]"}>
         {ws.organization.isDemo && (
-          <div className="flex items-center justify-center gap-2 bg-ink px-4 py-1.5 text-center text-xs font-medium text-fg-inverse">
+          <div className="flex items-center justify-center gap-2 border-b border-accent/15 bg-accent-soft px-4 py-1.5 text-center text-xs font-medium text-accent-fg" data-testid="demo-banner">
             <FlaskConical className="h-3.5 w-3.5" />
-            Estás en la empresa DEMO · datos ficticios, separados de tus datos reales
+            <span className="sm:hidden">Empresa demo · datos ficticios</span>
+            <span className="hidden sm:inline">Empresa de demostración · datos ficticios, separados de tus datos reales</span>
           </div>
         )}
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-line bg-canvas/85 px-3 backdrop-blur-md sm:px-5">
+        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-line bg-canvas/80 px-3 backdrop-blur-xl backdrop-saturate-150 sm:px-5">
           <IconButton icon={MenuIcon} label="Menú" className={isPos ? "xl:hidden" : "lg:hidden"} onClick={() => setMobileOpen(true)} />
           <Link to="/" className={isPos ? "xl:hidden" : "lg:hidden"}><LogoMark size={26} /></Link>
           <div className={cn("hidden items-center gap-2 text-sm", isPos ? "xl:flex" : "lg:flex")}>
@@ -322,10 +368,10 @@ export function AppShell() {
           <div className="ml-auto flex items-center gap-1">
             <button
               onClick={() => setPaletteOpen(true)}
-              className="hidden h-9 w-64 items-center gap-2 rounded-md border border-line bg-surface px-3 text-sm text-fg-3 shadow-xs transition-colors hover:border-line-strong md:flex"
+              className="hidden h-9 w-72 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm text-fg-3 shadow-xs transition-colors hover:border-line-strong hover:text-fg-2 md:flex"
             >
               <Search className="h-4 w-4" />
-              <span className="flex-1 text-left">Buscar o ir a…</span>
+              <span className="flex-1 text-left">Buscar, crear o ir a…</span>
               <Kbd>⌘</Kbd><Kbd>K</Kbd>
             </button>
             <IconButton icon={Search} label="Buscar" className="md:hidden" onClick={() => setPaletteOpen(true)} />
@@ -335,7 +381,7 @@ export function AppShell() {
             <UserMenu />
           </div>
         </header>
-        <main className={cn(isPos && "lg:h-[calc(100vh-56px)]")}>
+        <main className={cn(isPos && "min-h-0 flex-1")}>
           <Outlet />
         </main>
       </div>

@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
 import { parseMoneyInput } from "@/lib/money";
 
 const control =
-  "w-full rounded border border-line bg-surface px-3 text-base text-fg shadow-xs outline-none transition-[border,box-shadow] placeholder:text-fg-3 hover:border-line-strong focus:border-accent focus:ring-[3px] focus:ring-accent/15 disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:text-fg-3";
+  "w-full rounded-lg border border-line bg-surface px-3 text-[14px] text-fg shadow-xs outline-none transition-[border,box-shadow] placeholder:text-fg-3 hover:border-line-strong focus:border-accent focus:ring-[3px] focus:ring-accent/15 disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:text-fg-3";
 
 export function Field({ label, hint, error, children, className, required, htmlFor }: { label?: ReactNode; hint?: ReactNode; error?: string | null; children: ReactNode; className?: string; required?: boolean; htmlFor?: string }) {
   const autoId = useId();
@@ -16,7 +16,7 @@ export function Field({ label, hint, error, children, className, required, htmlF
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
       {label && (
-        <label htmlFor={htmlFor} className="text-sm font-medium text-fg">
+        <label htmlFor={htmlFor} className="text-[13px] font-medium text-fg-2">
           {label}
           {required && <span className="ml-0.5 text-danger">*</span>}
         </label>

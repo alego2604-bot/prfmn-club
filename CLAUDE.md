@@ -52,11 +52,11 @@ No añadir abstracciones para casos hipotéticos futuros. Tres líneas parecidas
 
 ## Estado actual (ver docs/CHANGELOG.md para detalle)
 
-MVP funcional en **modo local** (IndexedDB, mismo modelo que el SQL) + esquema Supabase escrito y probado en Postgres. Supabase/Stripe **no** están conectados todavía. Estado por módulo (PLANNED → PRODUCTION READY) en `docs/PROJECT_MASTER.md §16`: nunca marcar como terminado algo que solo tiene UI.
+Supabase es la fuente de verdad (Auth + PostgreSQL + RLS) mediante sincronización transaccional (`src/data/cloud`, `sync_push`); IndexedDB solo como caché/cola offline. Validado contra un stack local equivalente (`npm run supabase:local`); pendiente de validar en `business-os-staging`. Stripe **no** está conectado. Estado por módulo (PLANNED → PRODUCTION READY) en `docs/PROJECT_MASTER.md §16`: nunca marcar como terminado algo que solo tiene UI.
 
 ## Verificación obligatoria
 
-`npm run check:privacy && npm run lint && npm run typecheck && npm test && npm run build` y, si se tocan migraciones, `npm run db:test`. Los cálculos de dinero viven en `src/domain` (con tests); las escrituras pasan por `src/data/repos` (permisos + auditoría). Datos demo solo en la empresa demo (`isDemo`), nunca mezclados con datos reales. Nunca subir los Excel reales del cliente al repositorio (`.gitignore` los bloquea).
+`npm run check:privacy && npm run lint && npm run typecheck && npm test && npm run build` y, si se tocan migraciones, `npm run db:test`. Si se toca persistencia: `npm run test:cloud` y `npm run e2e` contra el stack local o staging. Los cálculos de dinero viven en `src/domain` (con tests); las escrituras pasan por `src/data/repos` (permisos + auditoría). Datos demo solo en la empresa demo (`isDemo`), nunca mezclados con datos reales. Nunca subir los Excel reales del cliente al repositorio (`.gitignore` los bloquea).
 
 ## Convenciones de trabajo autónomo
 

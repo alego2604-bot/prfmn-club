@@ -116,7 +116,7 @@ await step(page, "registrar venta (2 × producto, cliente, efectivo)", async () 
   await page.getByText("Cliente (opcional)").click();
   await page.getByPlaceholder("Nombre, NIF, teléfono…").fill("Cliente");
   await page.getByRole("button", { name: /Cliente Uno/ }).first().click();
-  await page.getByRole("button", { name: "Efectivo", exact: true }).click();
+  await page.getByRole("radio", { name: "Efectivo" }).click();
   await page.getByRole("button", { name: /^Cobrar/ }).click();
   await page.getByText(/registrada/i).first().waitFor();
   await saved(page);
@@ -167,7 +167,7 @@ await step(pageB, "B registra otra venta → A la verá", async () => {
   await pageB.getByRole("button", { name: "Abrir caja" }).click();
   await saved(pageB);
   await pageB.getByRole("button", { name: new RegExp(`^${PRODUCT}`) }).first().click();
-  await pageB.getByRole("button", { name: "Tarjeta", exact: true }).click();
+  await pageB.getByRole("radio", { name: "Tarjeta" }).click();
   await pageB.getByRole("button", { name: /^Cobrar/ }).click();
   await pageB.getByText(/registrada/i).first().waitFor();
   await saved(pageB);

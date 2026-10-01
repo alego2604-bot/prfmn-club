@@ -7,9 +7,9 @@ export function PageHeader({ title, description, actions, eyebrow, className }: 
   return (
     <div className={cn("mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between", className)}>
       <div className="min-w-0">
-        {eyebrow && <div className="mb-1 text-xs font-medium uppercase tracking-wider text-fg-3">{eyebrow}</div>}
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        {description && <p className="mt-1 max-w-2xl text-sm text-fg-3">{description}</p>}
+        {eyebrow && <div className="mb-1 text-sm text-fg-3">{eyebrow}</div>}
+        <h1 className="text-3xl font-semibold tracking-[-0.03em]">{title}</h1>
+        {description && <p className="mt-1.5 max-w-2xl text-sm text-fg-3">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -17,7 +17,7 @@ export function PageHeader({ title, description, actions, eyebrow, className }: 
 }
 
 export function Page({ children, className, wide }: { children: ReactNode; className?: string; wide?: boolean }) {
-  return <div className={cn("mx-auto w-full px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8", wide ? "max-w-[1600px]" : "max-w-[1280px]", className)}>{children}</div>;
+  return <div className={cn("mx-auto w-full animate-fade-in px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-14 lg:pt-8", wide ? "max-w-[1560px]" : "max-w-[1280px]", className)}>{children}</div>;
 }
 
 export function Tabs<T extends string>({ value, onChange, items, className }: { value: T; onChange: (v: T) => void; items: { value: T; label: ReactNode; count?: number }[]; className?: string }) {
@@ -32,12 +32,12 @@ export function Tabs<T extends string>({ value, onChange, items, className }: { 
             aria-selected={active}
             onClick={() => onChange(it.value)}
             className={cn(
-              "relative -mb-px flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-2.5 text-sm font-medium transition-colors",
-              active ? "border-ink text-fg" : "border-transparent text-fg-3 hover:text-fg",
+              "relative -mb-px flex h-10 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 text-sm font-medium transition-colors",
+              active ? "border-ink text-fg" : "border-transparent text-fg-3 hover:text-fg-2",
             )}
           >
             {it.label}
-            {it.count !== undefined && <span className={cn("rounded-full px-1.5 text-2xs num", active ? "bg-ink text-fg-inverse" : "bg-surface-sunken text-fg-3")}>{it.count}</span>}
+            {it.count !== undefined && <span className={cn("rounded-md px-1.5 text-2xs font-semibold num", active ? "bg-surface-sunken text-fg" : "bg-surface-sunken text-fg-3")}>{it.count}</span>}
           </button>
         );
       })}
@@ -47,15 +47,15 @@ export function Tabs<T extends string>({ value, onChange, items, className }: { 
 
 export function Segmented<T extends string>({ value, onChange, items, size = "md", className }: { value: T; onChange: (v: T) => void; items: { value: T; label: ReactNode }[]; size?: "sm" | "md"; className?: string }) {
   return (
-    <div className={cn("no-scrollbar inline-flex max-w-full overflow-x-auto rounded-md border border-line bg-surface-sunken p-0.5", className)}>
+    <div className={cn("no-scrollbar inline-flex max-w-full overflow-x-auto rounded-lg bg-surface-sunken p-0.5", className)}>
       {items.map((it) => (
         <button
           key={it.value}
           onClick={() => onChange(it.value)}
           className={cn(
-            "shrink-0 whitespace-nowrap rounded font-medium transition-all",
+            "shrink-0 whitespace-nowrap rounded-md font-medium transition-all duration-150",
             size === "sm" ? "h-7 px-2.5 text-xs" : "h-8 px-3 text-sm",
-            it.value === value ? "bg-surface text-fg shadow-xs" : "text-fg-3 hover:text-fg",
+            it.value === value ? "bg-surface text-fg shadow-sm ring-1 ring-line" : "text-fg-3 hover:text-fg",
           )}
         >
           {it.label}
@@ -96,8 +96,8 @@ export function Kpi({ label, value, hint, delta, icon: Icon, className, tooltip,
   footer?: ReactNode;
 }) {
   return (
-    <div className={cn("flex min-w-0 flex-col rounded-lg border border-line bg-surface p-4 shadow-xs", className)}>
-      <div className="flex items-center gap-1.5 text-sm text-fg-3">
+    <div className={cn("surface-card flex min-w-0 flex-col rounded-xl p-5", className)}>
+      <div className="flex items-center gap-1.5 text-xs font-medium text-fg-3">
         {Icon && <Icon className="h-3.5 w-3.5" />}
         <span className="truncate">{label}</span>
         {tooltip && (
@@ -106,7 +106,7 @@ export function Kpi({ label, value, hint, delta, icon: Icon, className, tooltip,
           </span>
         )}
       </div>
-      <div className={cn("mt-1.5 truncate font-semibold tracking-tight num", emphasis ? "text-3xl" : "text-2xl")}>{value}</div>
+      <div className={cn("mt-1.5 truncate font-semibold tracking-[-0.025em]", emphasis ? "text-3xl" : "text-2xl")}>{value}</div>
       {(delta || hint) && (
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-3">
           {delta}
@@ -134,7 +134,7 @@ export function StatusPill({ status }: { status: ModuleStatus }) {
 export function SectionTitle({ children, action, className }: { children: ReactNode; action?: ReactNode; className?: string }) {
   return (
     <div className={cn("mb-3 flex items-center justify-between gap-3", className)}>
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-fg-3">{children}</h2>
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-3">{children}</h2>
       {action}
     </div>
   );
@@ -150,5 +150,20 @@ export function DescriptionList({ items, className }: { items: { label: ReactNod
         </div>
       ))}
     </dl>
+  );
+}
+
+/** Agrupa KPIs en una sola pieza con divisores (evita filas de tarjetas idénticas). */
+export function KpiStrip({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      className={cn(
+        "surface-card grid overflow-hidden rounded-xl [&>*]:-ml-px [&>*]:-mt-px [&>*]:rounded-none [&>*]:border-0 [&>*]:border-l [&>*]:border-t [&>*]:border-line [&>*]:bg-transparent [&>*]:shadow-none",
+        className,
+      )}
+      style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}
+    >
+      {children}
+    </div>
   );
 }

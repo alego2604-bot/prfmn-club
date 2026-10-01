@@ -3,7 +3,7 @@
  * que para el MVP coincide con la zona de la empresa (Europe/Madrid). Ver docs/DECISIONS.md.
  */
 
-export type PeriodPreset = "today" | "7d" | "30d" | "month" | "quarter" | "year" | "custom";
+export type PeriodPreset = "today" | "7d" | "30d" | "90d" | "month" | "quarter" | "ytd" | "1y" | "year" | "custom";
 
 export interface Period {
   preset: PeriodPreset;
@@ -58,6 +58,12 @@ export function makePeriod(preset: PeriodPreset, now = new Date(), custom?: { st
       return { preset, start: addDays(today, -6), end: addDays(today, 1), label: "Últimos 7 días" };
     case "30d":
       return { preset, start: addDays(today, -29), end: addDays(today, 1), label: "Últimos 30 días" };
+    case "90d":
+      return { preset, start: addDays(today, -89), end: addDays(today, 1), label: "Últimos 90 días" };
+    case "ytd":
+      return { preset, start: startOfYear(today), end: addDays(today, 1), label: `${today.getFullYear()} hasta hoy` };
+    case "1y":
+      return { preset, start: addMonths(today, -11), end: addDays(today, 1), label: "Últimos 12 meses" };
     case "month":
       return { preset, start: startOfMonth(today), end: addMonths(today, 1), label: capitalize(`${monthName(today.getMonth())} ${today.getFullYear()}`) };
     case "quarter": {
@@ -93,6 +99,15 @@ export function previousPeriod(p: Period): Period {
     const s = new Date(p.start.getFullYear() - 1, 0, 1);
     return { ...p, start: s, end: p.start, label: `${s.getFullYear()}` };
   }
+  if (p.preset === "ytd") {
+    // Mismo tramo del año anterior (1 ene → mismo día)
+    const s = new Date(p.start.getFullYear() - 1, 0, 1);
+    const e = new Date(p.end.getFullYear() - 1, p.end.getMonth(), p.end.getDate());
+    return { ...p, start: s, end: e, label: `${s.getFullYear()} hasta la misma fecha` };
+  }
+  if (p.preset === "1y") {
+    return { ...p, start: addMonths(p.start, -12), end: p.start, label: "12 meses anteriores" };
+  }
   const len = p.end.getTime() - p.start.getTime();
   return { ...p, start: new Date(p.start.getTime() - len), end: p.start, label: "Periodo anterior" };
 }
@@ -127,6 +142,11 @@ export function relativeDays(d: Date | string, now = new Date()): string {
   if (n > 1) return `hace ${n} días`;
   if (n === -1) return "mañana";
   return `en ${-n} días`;
+}
+
+export function startOfWeek(d: Date): Date {
+  const s = startOfDay(d);
+  return addDays(s, -((s.getDay() + 6) % 7)); // lunes
 }
 
 /** ISO date (yyyy-mm-dd) en hora local. */

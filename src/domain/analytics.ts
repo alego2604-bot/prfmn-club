@@ -5,7 +5,7 @@
  *          + facturas no ligadas a una venta (cuotas, por fecha de emisión), para no contar dos veces.
  */
 import type { Cents } from "@/lib/money";
-import { addDays, addMonths, startOfDay, startOfMonth, toISODate, type Period } from "@/lib/dates";
+import { addDays, addMonths, startOfDay, startOfMonth, startOfWeek, toISODate, type Period } from "@/lib/dates";
 import type { Invoice, Payment, PaymentMethod, ProductCategory, Sale, SaleItem } from "./types";
 
 export interface Dataset {
@@ -142,12 +142,16 @@ export interface SeriesPoint {
   operations: number;
 }
 
-/** Serie diaria (o mensual si granularity = 'month') del periodo. */
-export function revenueSeries(ds: Dataset, p: Period, granularity: "day" | "month", locationId?: string): SeriesPoint[] {
+export type Granularity = "day" | "week" | "month";
+
+/** Serie del periodo por día, semana (lunes) o mes. */
+export function revenueSeries(ds: Dataset, p: Period, granularity: Granularity, locationId?: string): SeriesPoint[] {
   const points: SeriesPoint[] = [];
   const index = new Map<string, SeriesPoint>();
-  const keyOf = (d: Date) => (granularity === "day" ? toISODate(d) : toISODate(d).slice(0, 7));
-  for (let d = granularity === "day" ? startOfDay(p.start) : startOfMonth(p.start); d < p.end; d = granularity === "day" ? addDays(d, 1) : addMonths(d, 1)) {
+  const keyOf = (d: Date) => (granularity === "day" ? toISODate(d) : granularity === "week" ? toISODate(startOfWeek(d)) : toISODate(d).slice(0, 7));
+  const first = granularity === "day" ? startOfDay(p.start) : granularity === "week" ? startOfWeek(p.start) : startOfMonth(p.start);
+  const next = (d: Date) => (granularity === "day" ? addDays(d, 1) : granularity === "week" ? addDays(d, 7) : addMonths(d, 1));
+  for (let d = first; d < p.end; d = next(d)) {
     const pt: SeriesPoint = { key: keyOf(d), date: d, sales: 0, txSales: 0, invoices: 0, total: 0, operations: 0 };
     points.push(pt);
     index.set(pt.key, pt);
@@ -236,4 +240,76 @@ export function membershipStats(ds: Dataset, monthStart: Date, now = new Date())
     churned: monthEnded && hasPrevData ? [...before].filter((c) => !active.has(c)).length : null,
     avgFee: active.size ? Math.round(mrr / active.size) : null,
   };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Clientes
+// ---------------------------------------------------------------------------------------------------------------------
+export interface CustomerLike {
+  id: string;
+  status: string;
+  joinedAt?: string;
+  createdAt: string;
+  deletedAt?: string;
+}
+
+/** Clientes con actividad económica (venta o factura) en el periodo. */
+export function activeCustomerIds(ds: Dataset, p: Period, locationId?: string): Set<string> {
+  const ids = new Set<string>();
+  for (const s of activeSales(ds, p, locationId)) if (s.customerId) ids.add(s.customerId);
+  for (const i of revenueInvoices(ds, p, locationId)) if (i.customerId) ids.add(i.customerId);
+  return ids;
+}
+
+export interface CustomerStats {
+  total: number;
+  active: number;
+  newInPeriod: number;
+  /** % de clientes activos en el periodo anterior que siguen activos en este (null sin base). */
+  retention: number | null;
+}
+
+export function customerStats(ds: Dataset, customers: CustomerLike[], p: Period, prev: Period, locationId?: string): CustomerStats {
+  const live = customers.filter((c) => !c.deletedAt);
+  const active = activeCustomerIds(ds, p, locationId);
+  const before = activeCustomerIds(ds, prev, locationId);
+  const kept = [...before].filter((id) => active.has(id)).length;
+  const joined = (c: CustomerLike) => new Date(c.joinedAt ? `${c.joinedAt}T00:00:00` : c.createdAt).getTime();
+  return {
+    total: live.filter((c) => c.status !== "lead").length,
+    active: active.size,
+    newInPeriod: live.filter((c) => c.status !== "lead" && joined(c) >= p.start.getTime() && joined(c) < p.end.getTime()).length,
+    retention: before.size ? kept / before.size : null,
+  };
+}
+
+/** Altas de clientes por mes (12 meses hasta `end`) y total acumulado al final de cada mes. */
+export function customerGrowth(customers: CustomerLike[], end: Date, months = 12): { date: Date; added: number; total: number }[] {
+  const live = customers.filter((c) => !c.deletedAt && c.status !== "lead");
+  const joined = live.map((c) => new Date(c.joinedAt ? `${c.joinedAt}T00:00:00` : c.createdAt).getTime());
+  const first = addMonths(startOfMonth(end), -(months - 1));
+  return Array.from({ length: months }, (_, i) => {
+    const s = addMonths(first, i);
+    const e = addMonths(s, 1);
+    return {
+      date: s,
+      added: joined.filter((t) => t >= s.getTime() && t < e.getTime()).length,
+      total: joined.filter((t) => t < e.getTime()).length,
+    };
+  });
+}
+
+/** Ingresos recurrentes (cuotas: facturas con periodo de servicio) por mes de servicio, base imponible. */
+export function recurringSeries(ds: Dataset, end: Date, months = 12): { date: Date; amount: Cents; members: number }[] {
+  const first = addMonths(startOfMonth(end), -(months - 1));
+  const rows = Array.from({ length: months }, (_, i) => ({ date: addMonths(first, i), amount: 0, members: new Set<string>() }));
+  const idx = new Map(rows.map((r) => [toISODate(r.date).slice(0, 7), r]));
+  for (const i of ds.invoices) {
+    if (i.status === "void" || i.status === "draft" || !i.servicePeriodStart) continue;
+    const r = idx.get(i.servicePeriodStart.slice(0, 7));
+    if (!r) continue;
+    r.amount += i.subtotal;
+    if (i.customerId) r.members.add(i.customerId);
+  }
+  return rows.map((r) => ({ date: r.date, amount: r.amount, members: r.members.size }));
 }

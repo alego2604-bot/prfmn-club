@@ -2,10 +2,10 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, FileX, RotateCcw, ShieldAlert } from "lucide-react";
 import { useCtx, useSession, useWorkspace, usePersonName } from "@/app/session";
-import { Badge, Button, Callout, DataTable, DescriptionList, EmptyState, Kpi, Page, PageHeader, ReasonDialog, Segmented, useToast, type Column } from "@/design-system/components";
+import { Badge, Button, Callout, DataTable, DescriptionList, EmptyState, Kpi, KpiStrip, Page, PageHeader, ReasonDialog, Segmented, useToast, type Column } from "@/design-system/components";
 import type { ImportRecordRow } from "@/domain/types";
 import { formatDateTime } from "@/lib/dates";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, NUM } from "@/lib/money";
 import { revertBlockers, revertImport } from "./engine/commit";
 import { ImportStatus, KIND_LABEL } from "./ImportsPage";
 
@@ -53,13 +53,13 @@ export default function ImportDetailPage() {
       />
       {job.status === "reverted" && <Callout className="mb-4" title="Importación revertida">{formatDateTime(job.revertedAt!)} · «{job.revertReason}». Sus registros siguen en el histórico como anulados.</Callout>}
       {job.status === "completed" && blockers.length > 0 && <Callout tone="warning" icon={ShieldAlert} className="mb-4" title="No se puede revertir de forma segura">{blockers.join(" · ")}</Callout>}
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <Kpi label="Registros" value={job.summary.found.toLocaleString("es-ES")} />
-        <Kpi label="Creados" value={Object.values(job.summary.created).reduce((a, b) => a + b, 0).toLocaleString("es-ES")} hint={Object.entries(job.summary.created).map(([k, v]) => `${v} ${k}`).join(" · ")} />
-        <Kpi label="Duplicados" value={job.summary.duplicates.toLocaleString("es-ES")} />
+      <KpiStrip className="mb-5">
+        <Kpi label="Registros" value={job.summary.found.toLocaleString("es-ES", NUM)} />
+        <Kpi label="Creados" value={Object.values(job.summary.created).reduce((a, b) => a + b, 0).toLocaleString("es-ES", NUM)} hint={Object.entries(job.summary.created).map(([k, v]) => `${v} ${k}`).join(" · ")} />
+        <Kpi label="Duplicados" value={job.summary.duplicates.toLocaleString("es-ES", NUM)} />
         <Kpi label="Ignorados / errores" value={`${job.summary.ignored} / ${job.summary.errors}`} />
         <Kpi label="Importe" value={formatMoney(job.summary.totalAmount ?? 0)} />
-      </div>
+      </KpiStrip>
       <DescriptionList
         className="mb-6 rounded-lg border border-line bg-surface px-5"
         items={[

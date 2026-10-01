@@ -1,101 +1,126 @@
 /*
- * Business OS · Design tokens
- * Identidad "instrumento de precisión": neutros fríos, tinta casi negra y un único acento eléctrico.
- * Light por defecto; dark se activa con [data-theme="dark"] o por preferencia del sistema ([data-theme="system"]).
+ * Business OS · Design tokens V2 — "Graphite & Cobalt"
+ *
+ * Identidad: un instrumento financiero de precisión. Neutros cálidos (off-white, piedra, grafito, negro),
+ * un único acento propio (cobalto) que solo marca lo importante —la serie principal, la acción primaria,
+ * la selección— y colores semánticos reservados para estados reales.
+ * Light por defecto. Dark diseñado aparte (no invertido): superficies grafito con elevación por luminosidad.
+ * Documentación: docs/DESIGN_SYSTEM.md
  */
 :root {
-  --canvas: #f5f6f8;
+  /* Superficies */
+  --canvas: #f6f6f3;
   --surface: #ffffff;
-  --surface-2: #fafbfc;
-  --surface-sunken: #f0f1f4;
-  --surface-inverse: #0e1116;
-  --border: #e6e8ec;
-  --border-strong: #d5d8de;
-  --ring: #3b5bfd;
+  --surface-2: #fafaf8;
+  --surface-sunken: #f0efeb;
+  --surface-inverse: #121211;
+  --border: #e7e6e1;
+  --border-strong: #d6d5cf;
+  --ring: #3646f5;
 
-  --text: #0e1116;
-  --text-2: #4f5561;
-  --text-3: #868c98;
+  /* Texto */
+  --text: #121211;
+  --text-2: #4f4e49;
+  --text-3: #8a8983;
   --text-inverse: #ffffff;
 
-  --ink: #0e1116;
-  --ink-hover: #262a33;
+  /* Tinta (acción primaria) */
+  --ink: #121211;
+  --ink-hover: #2b2b28;
 
-  --accent: #3b5bfd;
-  --accent-hover: #2d4bea;
-  --accent-soft: #eef1ff;
-  --accent-text: #2a44d9;
+  /* Acento de marca: cobalto */
+  --accent: #3646f5;
+  --accent-hover: #2a39e0;
+  --accent-soft: #eef0ff;
+  --accent-text: #2a37d4;
 
-  --success: #12a150;
-  --success-soft: #e7f6ee;
-  --success-text: #0b7a3b;
-  --warning: #f5a524;
-  --warning-soft: #fff5e3;
-  --warning-text: #9a5b00;
-  --danger: #e5484d;
-  --danger-soft: #fdecec;
-  --danger-text: #c3272d;
-  --info: #0ea5b7;
-  --info-soft: #e5f7f9;
-  --info-text: #0b7f8d;
+  /* Semánticos (solo estados) */
+  --success: #16884f;
+  --success-soft: #e9f5ee;
+  --success-text: #0f6b3d;
+  --warning: #d98a0a;
+  --warning-soft: #fdf4e3;
+  --warning-text: #8a5300;
+  --danger: #d93a3a;
+  --danger-soft: #fcecec;
+  --danger-text: #b02222;
+  --info: #3646f5;
+  --info-soft: #eef0ff;
+  --info-text: #2a37d4;
 
-  --chart-1: #3b5bfd;
-  --chart-2: #c9cdd6;
-  --chart-grid: #eceef2;
+  /* Gráficas: serie principal = acento; comparación = gris recesivo; rejilla casi invisible */
+  --chart-1: #3646f5;
+  --chart-1-soft: #c9cdfd;
+  --chart-2: #a9a8a1;
+  --chart-2-bar: #dcdbd5;
+  --chart-grid: #efeee9;
+  --chart-cursor: #c9c8c1;
 
-  --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
-  --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.06), 0 1px 2px rgba(16, 24, 40, 0.04);
-  --shadow-md: 0 8px 24px -6px rgba(16, 24, 40, 0.12), 0 2px 6px rgba(16, 24, 40, 0.05);
-  --shadow-lg: 0 24px 48px -12px rgba(16, 24, 40, 0.22), 0 4px 10px rgba(16, 24, 40, 0.06);
+  /* Elevación: sombras muy suaves, nunca duras */
+  --shadow-xs: 0 1px 1px rgba(18, 18, 17, 0.03);
+  --shadow-sm: 0 1px 2px rgba(18, 18, 17, 0.04), 0 1px 1px rgba(18, 18, 17, 0.02);
+  --shadow-md: 0 6px 20px -6px rgba(18, 18, 17, 0.1), 0 2px 4px rgba(18, 18, 17, 0.03);
+  --shadow-lg: 0 24px 48px -16px rgba(18, 18, 17, 0.2), 0 4px 10px rgba(18, 18, 17, 0.04);
+  --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 
-  --overlay: rgba(14, 17, 22, 0.42);
+  --overlay: rgba(18, 18, 17, 0.36);
+
+  /* Movimiento */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration: 180ms;
   color-scheme: light;
 }
 
+/* Dark: grafito profundo; la elevación se expresa con superficies más claras, no con sombras */
 :root[data-theme="dark"] {
-  --canvas: #0b0c0f;
-  --surface: #131418;
-  --surface-2: #16181c;
-  --surface-sunken: #0f1013;
-  --surface-inverse: #f3f4f6;
-  --border: #23262c;
-  --border-strong: #30343b;
-  --ring: #7d8fff;
+  --canvas: #0c0c0b;
+  --surface: #151514;
+  --surface-2: #1a1a19;
+  --surface-sunken: #10100f;
+  --surface-inverse: #f2f2ef;
+  --border: #252523;
+  --border-strong: #33332f;
+  --ring: #8390ff;
 
-  --text: #eceef1;
-  --text-2: #a3a8b2;
-  --text-3: #6d727d;
-  --text-inverse: #0e1116;
+  --text: #ededea;
+  --text-2: #a7a6a0;
+  --text-3: #73726c;
+  --text-inverse: #121211;
 
-  --ink: #eceef1;
+  --ink: #ededea;
   --ink-hover: #ffffff;
 
-  --accent: #6d84ff;
-  --accent-hover: #8697ff;
-  --accent-soft: #1a2036;
-  --accent-text: #9fb0ff;
+  --accent: #7c89ff;
+  --accent-hover: #929dff;
+  --accent-soft: #1b1e38;
+  --accent-text: #a9b2ff;
 
-  --success: #2fbf71;
-  --success-soft: #11251a;
-  --success-text: #5fd897;
-  --warning: #f5a524;
-  --warning-soft: #2a1f0c;
-  --warning-text: #f7bd5c;
-  --danger: #f2555a;
-  --danger-soft: #2b1213;
-  --danger-text: #ff8a8e;
-  --info: #22c3d6;
-  --info-soft: #0e2427;
-  --info-text: #63d8e6;
+  --success: #3cbf7b;
+  --success-soft: #10241a;
+  --success-text: #6ad69c;
+  --warning: #f0a830;
+  --warning-soft: #2a1f0b;
+  --warning-text: #f5c26a;
+  --danger: #f05a5a;
+  --danger-soft: #2c1313;
+  --danger-text: #ff8f8f;
+  --info: #7c89ff;
+  --info-soft: #1b1e38;
+  --info-text: #a9b2ff;
 
-  --chart-1: #6d84ff;
-  --chart-2: #3a3e47;
-  --chart-grid: #1f2228;
+  --chart-1: #7c89ff;
+  --chart-1-soft: #333a7a;
+  --chart-2: #5c5b55;
+  --chart-2-bar: #2e2e2b;
+  --chart-grid: #1f1f1d;
+  --chart-cursor: #3d3d39;
 
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
-  --shadow-md: 0 10px 28px -8px rgba(0, 0, 0, 0.6);
-  --shadow-lg: 0 28px 56px -12px rgba(0, 0, 0, 0.7);
-  --overlay: rgba(0, 0, 0, 0.6);
+  --shadow-xs: 0 1px 1px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 10px 28px -8px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-lg: 0 28px 56px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --overlay: rgba(0, 0, 0, 0.62);
   color-scheme: dark;
 }

@@ -30,6 +30,45 @@ export function computeAlerts(ws: Workspace, now = new Date(), locationId?: stri
     }
   }
 
+  // Cierres recientes con descuadre (últimos 7 días, vigentes)
+  const recentDiscrepancies = ws.cashClosings.filter((c) => {
+    if (c.supersededAt || c.status !== "discrepancy" || daysBetween(new Date(c.closedAt), now) > 7) return false;
+    const session = ws.cashSessions.find((x) => x.id === c.cashSessionId);
+    return !locationId || session?.locationId === locationId;
+  });
+  if (recentDiscrepancies.length) {
+    const last = recentDiscrepancies.reduce((a, c) => (c.closedAt > a.closedAt ? c : a));
+    out.push({
+      id: "cash-discrepancy", severity: "warning",
+      title: recentDiscrepancies.length === 1 ? "Descuadre en un cierre de caja" : `${recentDiscrepancies.length} cierres con descuadre esta semana`,
+      reason: `Último: ${formatDate(last.closedAt)}, diferencia de ${formatMoney(last.difference)}${last.notes ? ` · «${last.notes}»` : ""}.`,
+      to: "/cierres", cta: "Revisar cierres",
+    });
+  }
+
+  // Clientes en riesgo: compraban o pagaban con regularidad (≥ 2 veces) y llevan más de 30 días sin actividad
+  const lastActivity = new Map<string, { last: number; count: number }>();
+  const touch = (id: string | undefined, iso: string | undefined) => {
+    if (!id || !iso) return;
+    const t = new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).getTime();
+    const r = lastActivity.get(id) ?? { last: 0, count: 0 };
+    lastActivity.set(id, { last: Math.max(r.last, t), count: r.count + 1 });
+  };
+  for (const x of ws.sales) if (x.status !== "voided" && (!locationId || x.locationId === locationId)) touch(x.customerId, x.occurredAt);
+  for (const x of ws.invoices) if (x.status !== "void") touch(x.customerId, x.issueDate);
+  const atRisk = ws.customers.filter((c) => {
+    const r = lastActivity.get(c.id);
+    return !c.deletedAt && c.status === "active" && r && r.count >= 2 && daysBetween(new Date(r.last), now) > 30;
+  });
+  if (atRisk.length) {
+    out.push({
+      id: "customers-at-risk", severity: "info",
+      title: `${atRisk.length} ${atRisk.length === 1 ? "cliente habitual" : "clientes habituales"} sin actividad en 30 días`,
+      reason: "Compraban o pagaban con regularidad y no hay ventas ni facturas suyas en el último mes.",
+      to: "/clientes?filtro=riesgo", cta: "Ver clientes",
+    });
+  }
+
   const pending = ws.invoices.filter((i) => i.status === "issued" || i.status === "partially_paid");
   if (pending.length) {
     const amount = pending.reduce((s, i) => s + i.total - i.amountPaid, 0);

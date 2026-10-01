@@ -1,37 +1,47 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import {
-  AlertTriangle, ArrowRight, Banknote, CalendarRange, CreditCard, FileText, Info, Package, Plus, Receipt, ShoppingBag, Smartphone,
-  Store, Ticket, Upload, Users, Wallet,
-} from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, CircleDot, Package, Plus, Receipt, Store, Upload, Wallet } from "lucide-react";
 import { useLocationScope, useSession, useWorkspace } from "@/app/session";
-import { Badge, Button, Card, CardHeader, Delta, EmptyState, Input, Kpi, Page, Segmented, SectionTitle } from "@/design-system/components";
-import { BarList, CompareArea, CompareBars, Legend } from "@/design-system/components/charts";
-import { best, computeKpis, membershipStats, percentChange, revenueSeries, type Dataset } from "@/domain/analytics";
+import {
+  Badge, Button, Card, CardHeader, DeltaChip, HeroMetric, InsightList, Page, RangeSelector, Segmented, StatStrip, type StatItem,
+} from "@/design-system/components";
+import { BarList, ColumnChart, Legend, TrendChart, type TrendPoint } from "@/design-system/components/charts";
+import {
+  computeKpis, customerGrowth, customerStats, percentChange, recurringSeries, revenueSeries, type Dataset, type Granularity,
+} from "@/domain/analytics";
+import { buildInsights } from "@/domain/insights";
 import { computeAlerts } from "@/domain/alerts";
-import { hasModule } from "@/domain/modules";
 import { sessionSummary } from "@/data/repos/cash";
 import { openSessionFor } from "@/data/repos/sales";
 import {
-  addDays, capitalize, formatDate, formatDateLong, formatDateShort, makePeriod, monthName, monthShort, previousPeriod, toDateClamp, toISODate,
-  yearAgoPeriod, type PeriodPreset,
+  addDays, capitalize, formatDate, formatDateLong, makePeriod, monthName, monthShort, previousPeriod, toISODate, type Period, type PeriodPreset,
 } from "@/lib/dates";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, NUM } from "@/lib/money";
 import { cn } from "@/lib/cn";
 
-const PRESETS: { value: PeriodPreset; label: string }[] = [
-  { value: "today", label: "Hoy" },
-  { value: "7d", label: "7 días" },
-  { value: "30d", label: "30 días" },
-  { value: "month", label: "Mes" },
-  { value: "quarter", label: "Trimestre" },
-  { value: "year", label: "Año" },
-  { value: "custom", label: "Personalizado" },
+type Range = "7d" | "30d" | "90d" | "ytd" | "1y" | "custom";
+const RANGES: { value: Exclude<Range, "custom">; label: string; long: string }[] = [
+  { value: "7d", label: "7D", long: "Últimos 7 días" },
+  { value: "30d", label: "30D", long: "Últimos 30 días" },
+  { value: "90d", label: "90D", long: "Últimos 90 días" },
+  { value: "ytd", label: "YTD", long: "Año en curso hasta hoy" },
+  { value: "1y", label: "1A", long: "Últimos 12 meses" },
 ];
 
-function greeting(d = new Date()) {
-  const h = d.getHours();
-  return h < 13 ? "Buenos días" : h < 20 ? "Buenas tardes" : "Buenas noches";
+function defaultGranularity(p: Period): Granularity {
+  const days = (p.end.getTime() - p.start.getTime()) / 86_400_000;
+  return days <= 31 ? "day" : days <= 120 ? "week" : "month";
+}
+
+function pointLabel(d: Date, g: Granularity, short: boolean): string {
+  if (g === "month") return capitalize(monthShort(d.getMonth()));
+  if (g === "week") return `${d.getDate()} ${monthShort(d.getMonth())}`;
+  return short ? capitalize(d.toLocaleDateString("es-ES", { weekday: "short" }).replace(".", "")) : String(d.getDate());
+}
+function pointTitle(d: Date, g: Granularity): string {
+  if (g === "month") return capitalize(`${monthName(d.getMonth())} ${d.getFullYear()}`);
+  if (g === "week") return `Semana del ${d.getDate()} de ${monthName(d.getMonth())}`;
+  return capitalize(formatDateLong(d));
 }
 
 export default function DashboardPage() {
@@ -40,299 +50,331 @@ export default function DashboardPage() {
   const { filterId, current } = useLocationScope();
   const navigate = useNavigate();
   const now = useMemo(() => new Date(), []);
-  const [preset, setPreset] = useState<PeriodPreset>("month");
+  const [range, setRange] = useState<Range>("30d");
   const [custom, setCustom] = useState({ start: toISODate(addDays(now, -29)), end: toISODate(now) });
-
   const ds: Dataset = ws;
-  const period = useMemo(
-    () => makePeriod(preset, now, preset === "custom" ? { start: new Date(`${custom.start}T00:00`), end: new Date(`${custom.end}T00:00`) } : undefined),
-    [preset, now, custom],
-  );
-  const prev = useMemo(() => {
-    const p = previousPeriod(period);
-    // Comparación justa en periodos en curso: mismos días transcurridos
-    if (["month", "quarter", "year"].includes(preset) && period.end > now) {
-      const elapsed = toDateClamp(period, now).end.getTime() - period.start.getTime();
-      return { ...p, end: new Date(p.start.getTime() + elapsed) };
-    }
-    return p;
-  }, [period, preset, now]);
-  const yoy = useMemo(() => {
-    const y = yearAgoPeriod(period);
-    return period.end > now ? { ...y, end: yearAgoPeriod(toDateClamp(period, now)).end } : y;
-  }, [period, now]);
 
-  const today = useMemo(() => computeKpis(ds, makePeriod("today", now), filterId), [ds, now, filterId]);
-  const yesterday = useMemo(() => computeKpis(ds, makePeriod("today", addDays(now, -1)), filterId), [ds, now, filterId]);
+  const period = useMemo(
+    () => makePeriod(range as PeriodPreset, now, range === "custom" ? { start: new Date(`${custom.start}T00:00`), end: new Date(`${custom.end}T00:00`) } : undefined),
+    [range, now, custom],
+  );
+  const prev = useMemo(() => previousPeriod(period), [period]);
+  const [granOverride, setGranOverride] = useState<Granularity | null>(null);
+  const granularity = granOverride ?? defaultGranularity(period);
+  const granOptions = useMemo(() => {
+    const days = (period.end.getTime() - period.start.getTime()) / 86_400_000;
+    return ([["day", "Día"], ["week", "Semana"], ["month", "Mes"]] as const).filter(([g]) => (g === "day" ? days <= 120 : g === "week" ? days >= 14 : days >= 60));
+  }, [period]);
+
   const k = useMemo(() => computeKpis(ds, period, filterId), [ds, period, filterId]);
   const kPrev = useMemo(() => computeKpis(ds, prev, filterId), [ds, prev, filterId]);
-  const kYoy = useMemo(() => computeKpis(ds, yoy, filterId), [ds, yoy, filterId]);
-  const alerts = useMemo(() => computeAlerts(ws, now, filterId), [ws, now, filterId]);
+  const today = useMemo(() => computeKpis(ds, makePeriod("today", now), filterId), [ds, now, filterId]);
+  const yesterday = useMemo(() => computeKpis(ds, makePeriod("today", addDays(now, -1)), filterId), [ds, now, filterId]);
+  const cust = useMemo(() => customerStats(ds, ws.customers, period, prev, filterId), [ds, ws.customers, period, prev, filterId]);
+  const custPrev = useMemo(() => customerStats(ds, ws.customers, prev, previousPeriod(prev), filterId), [ds, ws.customers, prev, filterId]);
+  const alerts = useMemo(() => computeAlerts(ws, now, filterId).filter((a) => a.id !== "cash-closed"), [ws, now, filterId]);
 
-  const dayGranularity = period.end.getTime() - period.start.getTime() <= 93 * 86_400_000;
-  const series = useMemo(() => revenueSeries(ds, period, dayGranularity ? "day" : "month", filterId), [ds, period, dayGranularity, filterId]);
-  const prevSeries = useMemo(() => revenueSeries(ds, previousPeriod(period), dayGranularity ? "day" : "month", filterId), [ds, period, dayGranularity, filterId]);
-  const chartData = series.map((p, i) => ({
-    label: dayGranularity ? (series.length <= 8 ? capitalize(p.date.toLocaleDateString("es-ES", { weekday: "short" })) : String(p.date.getDate())) : capitalize(monthShort(p.date.getMonth())),
-    tooltipLabel: dayGranularity ? capitalize(formatDateLong(p.date)) : capitalize(`${monthName(p.date.getMonth())} ${p.date.getFullYear()}`),
-    current: p.date > now ? (null as unknown as number) : p.total,
+  const series = useMemo(() => revenueSeries(ds, period, granularity, filterId), [ds, period, granularity, filterId]);
+  const prevSeries = useMemo(() => revenueSeries(ds, prev, granularity, filterId), [ds, prev, granularity, filterId]);
+  const daily = useMemo(() => revenueSeries(ds, period, "day", filterId), [ds, period, filterId]);
+  const trend: TrendPoint[] = series.map((p, i) => ({
+    key: p.key,
+    label: pointLabel(p.date, granularity, series.length <= 8),
+    tooltipLabel: pointTitle(p.date, granularity),
+    current: p.date > now ? null : p.total,
     previous: prevSeries[i]?.total ?? null,
+    previousLabel: prevSeries[i] ? pointTitle(prevSeries[i]!.date, granularity).toLowerCase() : undefined,
   }));
+  const spark = (pick: (p: (typeof series)[number]) => number) => series.filter((p) => p.date <= now).map(pick);
 
-  // Año natural del periodo
-  const yearStart = new Date(period.start.getFullYear(), 0, 1);
-  const yearP = useMemo(() => ({ preset: "year" as const, start: yearStart, end: new Date(yearStart.getFullYear() + 1, 0, 1), label: String(yearStart.getFullYear()) }), [yearStart.getFullYear()]); // eslint-disable-line react-hooks/exhaustive-deps
-  const kYear = useMemo(() => computeKpis(ds, yearP, filterId), [ds, yearP, filterId]);
-  const months = useMemo(() => revenueSeries(ds, yearP, "month", filterId), [ds, yearP, filterId]);
-  const monthsPrev = useMemo(() => revenueSeries(ds, previousPeriod(yearP), "month", filterId), [ds, yearP, filterId]);
-  const days = useMemo(() => revenueSeries(ds, yearP, "day", filterId), [ds, yearP, filterId]);
-  const bestMonth = best(months, (m) => m.total);
-  const bestDay = best(days, (d) => d.txSales);
-  const ms = useMemo(() => membershipStats(ds, new Date(period.start.getFullYear(), period.start.getMonth(), 1), now), [ds, period, now]);
+  const insights = useMemo(() => buildInsights({ k, prev: kPrev, daily, customers: cust, prevLabel: prev.label === "Periodo anterior" ? undefined : prev.label }).slice(0, 4), [k, kPrev, daily, cust, prev.label]);
+  const growth = useMemo(() => customerGrowth(ws.customers, now), [ws.customers, now]);
+  const recurring = useMemo(() => recurringSeries(ds, now), [ds, now]);
+  const recurringNow = recurring.at(-1)?.amount ?? 0;
+  const recurringPrev = recurring.at(-2)?.amount ?? 0;
+  const hasRecurring = recurring.some((r) => r.amount > 0);
+
+  const yearMonths = useMemo(() => {
+    const y = makePeriod("year", now);
+    const cur = revenueSeries(ds, y, "month", filterId);
+    const before = revenueSeries(ds, previousPeriod(y), "month", filterId);
+    return cur.map((m, i) => ({
+      key: m.key,
+      label: capitalize(monthShort(m.date.getMonth())),
+      tooltipLabel: capitalize(`${monthName(m.date.getMonth())} ${m.date.getFullYear()}`),
+      current: m.date > now ? 0 : m.total,
+      previous: before[i]?.total ?? 0,
+      previousLabel: capitalize(`${monthName(m.date.getMonth())} ${m.date.getFullYear() - 1}`),
+    }));
+  }, [ds, now, filterId]);
 
   const session = current ? openSessionFor(ws, current.id) : ws.cashSessions.find((s) => s.status === "open" && (!filterId || s.locationId === filterId));
   const cash = session ? sessionSummary(ws, session) : null;
   const empty = ws.sales.length === 0 && ws.invoices.length === 0;
-  const method = (key: string) => today.byMethod.find((m) => m.key === key)?.amount ?? 0;
-  const fitness = hasModule(ws.organization, "fitness");
-  const topCategory = k.byCategory.find((c) => c.id !== "invoices");
+  const prevRange = `${formatDate(prev.start)} – ${formatDate(addDays(prev.end, -1))}`;
+  const productPrev = new Map(kPrev.byProduct.map((p) => [p.key, p.amount]));
+
+  const stats: StatItem[] = [
+    { key: "tx", label: "Transacciones", value: k.operations.toLocaleString("es-ES", NUM), delta: percentChange(k.operations, kPrev.operations), spark: spark((p) => p.operations), tooltip: "Ventas individuales de caja. Los resúmenes mensuales importados no cuentan.", onClick: () => navigate("/ventas") },
+    { key: "ticket", label: "Ticket medio", value: k.avgTicket !== null ? formatMoney(k.avgTicket) : "—", delta: k.avgTicket !== null && kPrev.avgTicket !== null ? percentChange(k.avgTicket, kPrev.avgTicket) : null },
+    { key: "customers", label: "Clientes activos", value: cust.active.toLocaleString("es-ES", NUM), delta: percentChange(cust.active, custPrev.active), hint: cust.retention !== null ? `${Math.round(cust.retention * 100)} % retención` : undefined, tooltip: "Clientes distintos con una venta o factura en el periodo. Retención: activos del periodo anterior que repiten.", onClick: () => navigate("/clientes") },
+    hasRecurring
+      ? { key: "mrr", label: "Ingresos recurrentes", value: formatMoney(recurringNow), delta: percentChange(recurringNow, recurringPrev), hint: "este mes · sin IVA", spark: recurring.map((r) => r.amount), tooltip: "Base imponible de las cuotas cuyo periodo de servicio cae en el mes en curso (MRR)." }
+      : { key: "units", label: "Unidades vendidas", value: k.units.toLocaleString("es-ES", NUM), delta: percentChange(k.units, kPrev.units) },
+    { key: "pending", label: "Pendiente de cobro", value: formatMoney(k.pendingInvoices.amount), hint: k.pendingInvoices.count ? `${k.pendingInvoices.count} factura${k.pendingInvoices.count === 1 ? "" : "s"}` : "Todo cobrado", onClick: () => navigate("/facturas?estado=pendiente") },
+  ];
 
   return (
-    <Page>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <Page wide>
+      {/* Cabecera */}
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-sm text-fg-3">{capitalize(formatDateLong(now))}{current ? ` · ${current.name}` : ws.locations.length > 1 ? " · Todos los centros" : ""}</p>
-          <h1 className="mt-0.5 text-2xl font-semibold tracking-tight">{greeting(now)}, {user?.fullName.split(" ")[0]}</h1>
+          <p className="text-sm text-fg-3">{capitalize(formatDateLong(now))} · {current ? current.name : ws.locations.length > 1 ? "Todos los centros" : ws.organization.name}</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-[-0.03em]">Hola, {user?.fullName.split(" ")[0]}</h1>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {can("imports.run") && <Link to="/importaciones/nueva"><Button icon={Upload}>Importar</Button></Link>}
-          {can("analytics.view") && <Link to="/informes"><Button icon={FileText}>Informe</Button></Link>}
+        <div className="flex flex-wrap items-center gap-2">
+          <RangeSelector value={range} onChange={(r) => { setRange(r); setGranOverride(null); }} options={RANGES} custom="custom" customValue={custom} onCustomChange={setCustom} />
           {can("pos.sell") && <Link to="/caja"><Button variant="primary" icon={Plus}>Nueva venta</Button></Link>}
         </div>
       </div>
 
-      {empty && (
-        <Card className="mb-8 overflow-hidden p-0">
-          <div className="grid gap-0 md:grid-cols-[1.4fr_1fr]">
-            <div className="p-6 sm:p-8">
-              <Badge tone="accent">Primeros pasos</Badge>
-              <h2 className="mt-3 text-xl font-semibold tracking-tight">Trae tu negocio a Business OS</h2>
-              <p className="mt-1.5 text-sm text-fg-3">Importa tus Excel actuales (caja anual y facturas trimestrales). El sistema detecta hojas, columnas, duplicados y errores, y te enseña todo antes de guardar.</p>
-              <div className="mt-5 flex flex-wrap gap-2">
-                <Link to="/importaciones/nueva"><Button variant="primary" icon={Upload}>Importar Excel o CSV</Button></Link>
-                <Link to="/catalogo?nuevo=1"><Button icon={Package}>Crear producto</Button></Link>
+      {empty && <Onboarding />}
+
+      <div className="stagger grid gap-4 xl:grid-cols-12 [&>*]:min-w-0">
+        {/* Facturación + tendencia */}
+        <Card className="xl:col-span-8" padded={false}>
+          <div className="flex flex-col gap-5 p-6 pb-2 sm:flex-row sm:items-start sm:justify-between">
+            <HeroMetric
+              label="Facturación"
+              tooltip="Ventas de caja no anuladas + facturas no ligadas a una venta (por fecha de emisión). IVA incluido."
+              value={formatMoney(k.revenue)}
+              delta={<DeltaChip size="md" value={percentChange(k.revenue, kPrev.revenue)} label={<span title={prevRange}>vs {prev.label === "Periodo anterior" ? "periodo anterior" : prev.label.toLowerCase()}</span>} />}
+              sub={<span className="text-sm text-fg-3">{period.label}</span>}
+            />
+            <dl className="grid shrink-0 grid-cols-2 gap-x-8 gap-y-1 text-sm sm:text-right">
+              <dt className="text-fg-3">Caja / TPV</dt><dd className="font-medium num sm:order-none">{formatMoney(k.salesRevenue)}</dd>
+              <dt className="text-fg-3">Cuotas y facturas</dt><dd className="font-medium num">{formatMoney(k.invoiceRevenue)}</dd>
+              <dt className="text-fg-3">IVA repercutido</dt><dd className="font-medium num">{formatMoney(k.vatCollected)}</dd>
+            </dl>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-3">
+            <Legend items={[{ label: period.label, color: "var(--chart-1)" }, { label: prev.label === "Periodo anterior" ? "Periodo anterior" : prev.label, color: "var(--chart-2)", dashed: true }]} />
+            {granOptions.length > 1 && (
+              <Segmented size="sm" value={granularity} onChange={(g) => setGranOverride(g)} items={granOptions.map(([value, label]) => ({ value, label }))} />
+            )}
+          </div>
+          <div className="px-3 pb-4 pt-2 sm:px-4">
+            {k.revenue || kPrev.revenue ? (
+              <TrendChart data={trend} currentLabel={period.label} previousLabel={prev.label} height={280} />
+            ) : (
+              <div className="flex h-[280px] flex-col items-center justify-center text-center">
+                <p className="text-sm font-medium">Sin facturación en este periodo</p>
+                <p className="mt-1 text-sm text-fg-3">Elige un periodo más amplio o registra tu primera venta.</p>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* Hoy + atención */}
+        <div className="flex flex-col gap-4 xl:col-span-4">
+          <Card>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-fg-2">Hoy</p>
+              {session ? <Badge tone="success" dot>Caja abierta</Badge> : <Badge dot>Caja cerrada</Badge>}
+            </div>
+            <div className="mt-3 flex items-end justify-between gap-3">
+              <div>
+                <p className="figure text-4xl leading-none">{formatMoney(today.revenue)}</p>
+                <div className="mt-2.5"><DeltaChip value={percentChange(today.revenue, yesterday.revenue)} label={`ayer ${formatMoney(yesterday.revenue)}`} /></div>
+              </div>
+              <div className="text-right text-sm">
+                <p className="font-semibold num">{today.operations}</p>
+                <p className="text-xs text-fg-3">ventas</p>
               </div>
             </div>
-            <div className="hidden border-l border-line bg-surface-2 p-6 md:block">
-              {["Catálogo y precios", "Ventas por día (sin hojas por mes)", "Facturas, clientes e IVA", "Informe para la gestoría"].map((t, i) => (
-                <div key={t} className="flex items-center gap-3 py-2 text-sm">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full border border-line bg-surface text-xs font-semibold num">{i + 1}</span>
-                  {t}
-                </div>
-              ))}
+            <div className="mt-5 flex items-center justify-between rounded-lg bg-surface-sunken px-3.5 py-3">
+              <span className="flex items-center gap-2 text-sm text-fg-2"><Wallet className="h-4 w-4 text-fg-3" />Efectivo en caja</span>
+              {cash ? <span className="text-sm font-semibold num">{formatMoney(cash.expectedCash)}</span> : <span className="text-sm text-fg-3">—</span>}
             </div>
-          </div>
-        </Card>
-      )}
+            {can("pos.sell") && (
+              <Link to="/caja" className="mt-3 flex h-10 items-center justify-center gap-2 rounded-lg border border-line text-sm font-medium transition-colors hover:border-line-strong hover:bg-surface-2">
+                <Store className="h-4 w-4" />{session ? "Ir a la caja" : "Abrir caja"}
+              </Link>
+            )}
+          </Card>
 
-      {/* ---------------------------------------------------------- HOY */}
-      <SectionTitle action={<span className="text-xs text-fg-3">vs ayer</span>}>Hoy</SectionTitle>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi
-          emphasis
-          label="Facturación hoy"
-          icon={Receipt}
-          value={formatMoney(today.revenue)}
-          delta={<Delta value={percentChange(today.revenue, yesterday.revenue)} label={`ayer ${formatMoney(yesterday.revenue, { compact: true })}`} />}
-        />
-        <Kpi label="Operaciones" icon={ShoppingBag} value={today.operations.toLocaleString("es-ES")} hint={`${today.units.toLocaleString("es-ES")} uds vendidas`} delta={<Delta value={percentChange(today.operations, yesterday.operations)} />} />
-        <Kpi label="Ticket medio" icon={Ticket} value={today.avgTicket !== null ? formatMoney(today.avgTicket) : "—"} hint={fitness ? (today.dropIns.units ? `${today.dropIns.units} drop-ins` : "Sin drop-ins") : `${today.units.toLocaleString("es-ES")} uds`} />
-        <div className="flex flex-col rounded-lg border border-line bg-surface p-4 shadow-xs">
-          <div className="flex items-center justify-between text-sm text-fg-3">
-            <span className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5" />Caja</span>
-            {session ? <Badge tone="success" dot>Abierta</Badge> : <Badge dot>Cerrada</Badge>}
-          </div>
-          {cash ? (
-            <>
-              <p className="mt-1.5 text-2xl font-semibold tracking-tight num">{formatMoney(cash.expectedCash)}</p>
-              <p className="mt-1.5 text-xs text-fg-3">efectivo esperado · {cash.salesCount} ventas en el turno</p>
-            </>
-          ) : (
-            <>
-              <p className="mt-1.5 text-2xl font-semibold tracking-tight text-fg-3">—</p>
-              {can("pos.sell") && <Link to="/caja" className="mt-1.5 text-xs font-medium text-accent-fg hover:underline">Abrir caja →</Link>}
-            </>
-          )}
-        </div>
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { label: "Tarjeta", icon: CreditCard, v: method("card") },
-          { label: "Efectivo", icon: Banknote, v: method("cash") },
-          { label: "Bizum", icon: Smartphone, v: method("bizum") },
-          { label: "TPV online", icon: Store, v: method("online") },
-        ].map((m) => (
-          <div key={m.label} className="flex items-center justify-between rounded-lg border border-line bg-surface px-4 py-3 shadow-xs">
-            <span className="flex items-center gap-2 text-sm text-fg-3"><m.icon className="h-4 w-4" />{m.label}</span>
-            <span className="text-md font-semibold num">{formatMoney(m.v)}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* ---------------------------------------------------------- ATENCIÓN */}
-      {alerts.filter((a) => a.id !== "cash-closed").length > 0 && (
-        <div className="mt-8">
-          <SectionTitle>Necesita tu atención</SectionTitle>
-          <div className="grid gap-2 md:grid-cols-2">
-            {alerts.filter((a) => a.id !== "cash-closed").slice(0, 4).map((a) => (
-              <button key={a.id} onClick={() => navigate(a.to)} className="group flex items-start gap-3 rounded-lg border border-line bg-surface p-4 text-left shadow-xs transition-colors hover:border-line-strong">
-                <span className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md", a.severity === "danger" ? "bg-danger-soft text-danger-fg" : a.severity === "warning" ? "bg-warning-soft text-warning-fg" : "bg-accent-soft text-accent-fg")}>
-                  {a.severity === "info" ? <Info className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium">{a.title}</span>
-                  <span className="mt-0.5 block text-sm text-fg-3">{a.reason}</span>
-                </span>
-                <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-fg-3 transition-transform group-hover:translate-x-0.5" />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ---------------------------------------------------------- PERIODO */}
-      <div className="mt-10 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h2 className="text-lg font-semibold tracking-tight">{period.label}</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <Segmented value={preset} onChange={setPreset} items={PRESETS} size="sm" />
-          {preset === "custom" && (
-            <div className="flex items-center gap-1.5">
-              <Input type="date" value={custom.start} onChange={(e) => setCustom({ ...custom, start: e.target.value })} className="w-[150px]" />
-              <span className="text-fg-3">–</span>
-              <Input type="date" value={custom.end} min={custom.start} onChange={(e) => setCustom({ ...custom, end: e.target.value })} className="w-[150px]" />
-            </div>
-          )}
-        </div>
-      </div>
-      <p className="mt-1 text-xs text-fg-3">
-        Comparado con {prev.label.toLowerCase()} ({formatDate(prev.start)} – {formatDate(addDays(prev.end, -1))}){period.end > now ? ", mismos días transcurridos" : ""} y con el mismo periodo del año anterior.
-      </p>
-
-      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi
-          emphasis
-          className="col-span-2"
-          label="Facturación"
-          tooltip="Ventas de caja (no anuladas) + facturas no ligadas a una venta, por fecha de emisión. IVA incluido."
-          value={formatMoney(k.revenue)}
-          delta={
-            <>
-              <Delta value={percentChange(k.revenue, kPrev.revenue)} label="vs anterior" />
-              <Delta value={percentChange(k.revenue, kYoy.revenue)} label="vs año anterior" />
-            </>
-          }
-          footer={
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div><p className="text-xs text-fg-3">Caja / TPV</p><p className="font-semibold num">{formatMoney(k.salesRevenue)}</p></div>
-              <div><p className="text-xs text-fg-3">Facturas emitidas</p><p className="font-semibold num">{formatMoney(k.invoiceRevenue)}</p></div>
-            </div>
-          }
-        />
-        <Kpi label="Nº de ventas" value={k.operations.toLocaleString("es-ES")} delta={<Delta value={percentChange(k.operations, kPrev.operations)} />} tooltip="Operaciones individuales. Los resúmenes mensuales importados no cuentan." hint={k.hasAggregates ? "excluye resúmenes" : undefined} />
-        <Kpi label="Ticket medio" value={k.avgTicket !== null ? formatMoney(k.avgTicket) : "—"} delta={<Delta value={k.avgTicket !== null && kPrev.avgTicket !== null ? percentChange(k.avgTicket, kPrev.avgTicket) : null} />} />
-        {fitness ? (
-          <Kpi label="Drop-ins" value={k.dropIns.units.toLocaleString("es-ES")} hint={formatMoney(k.dropIns.amount)} delta={<Delta value={percentChange(k.dropIns.units, kPrev.dropIns.units)} />} />
-        ) : (
-          <Kpi label="Unidades vendidas" value={k.units.toLocaleString("es-ES")} delta={<Delta value={percentChange(k.units, kPrev.units)} />} />
-        )}
-        <Kpi
-          label="Categoría principal"
-          value={<span className="text-lg">{topCategory?.name ?? "—"}</span>}
-          hint={topCategory ? formatMoney(topCategory.amount) : undefined}
-          tooltip="Categoría de producto con más facturación en caja durante el periodo (configurable en Catálogo)"
-        />
-        <Kpi label="Clientes con compra" value={new Set(ws.sales.filter((s) => s.customerId && s.status !== "voided" && new Date(s.occurredAt) >= period.start && new Date(s.occurredAt) < period.end).map((s) => s.customerId)).size.toLocaleString("es-ES")} tooltip="Clientes distintos asociados a ventas de caja en el periodo" />
-        <Kpi label="IVA repercutido" value={formatMoney(k.vatCollected)} tooltip="Cuota de IVA de ventas y facturas del periodo" />
-      </div>
-
-      {fitness && ms.available && ["month", "today", "7d", "30d"].includes(preset) && (
-        <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Kpi label="Membresías activas" icon={Users} value={ms.activeMembers.toLocaleString("es-ES")} tooltip="Clientes con una cuota cuyo periodo de servicio empieza este mes" />
-          <Kpi label="MRR (sin IVA)" value={formatMoney(ms.mrr)} hint={ms.avgFee ? `ARPU ${formatMoney(ms.avgFee)}` : undefined} tooltip="Suma de la base imponible de las cuotas del mes" />
-          <Kpi label="Nuevas altas" value={ms.newMembers.toLocaleString("es-ES")} tooltip="Primera cuota registrada en este mes" />
-          <Kpi label="Bajas" value={ms.churned === null ? "—" : ms.churned.toLocaleString("es-ES")} tooltip="Clientes con cuota el mes anterior y sin cuota este mes. Se calcula al terminar el mes." hint={ms.churned === null ? "al cerrar el mes" : undefined} />
-        </div>
-      )}
-
-      <div className="mt-3 grid gap-3 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader
-            title="Evolución"
-            description={dayGranularity ? "Facturación diaria" : "Facturación mensual"}
-            action={<Legend items={[{ label: period.label, color: "var(--chart-1)" }, { label: "Periodo anterior", color: "var(--text-3)", dashed: true }]} />}
-          />
-          {k.revenue || kPrev.revenue ? <CompareArea data={chartData} currentLabel={period.label} previousLabel="Periodo anterior" /> : <EmptyState compact icon={CalendarRange} title="Sin actividad en este periodo" description="Elige otro periodo o importa tus datos históricos." />}
-          {k.hasUnknownTime && <p className="mt-3 text-xs text-fg-3">Incluye ventas importadas sin hora real (solo fecha).</p>}
-        </Card>
-        <Card>
-          <CardHeader title="Mix por categoría" description="Facturación del periodo" />
-          <BarList rows={k.byCategory.map((c) => ({ key: c.id, label: c.name, value: c.amount }))} max={6} />
-        </Card>
-      </div>
-
-      <div className="mt-3 grid gap-3 lg:grid-cols-3">
-        <Card className="lg:col-span-2" padded={false}>
-          <div className="p-5 pb-3"><CardHeader className="mb-0" title="Productos más vendidos" description="Por facturación en el periodo" /></div>
-          {k.byProduct.length ? (
-            <table className="w-full text-sm">
-              <thead><tr className="border-y border-line bg-surface-2 text-xs text-fg-3"><th className="px-5 py-2 text-left font-medium">Producto</th><th className="px-3 py-2 text-right font-medium">Uds</th><th className="px-5 py-2 text-right font-medium">Importe</th></tr></thead>
-              <tbody>
-                {k.byProduct.slice(0, 7).map((p, i) => (
-                  <tr key={p.key} className="border-b border-line last:border-0">
-                    <td className="px-5 py-2.5"><span className="mr-2 inline-block w-4 text-xs text-fg-3 num">{i + 1}</span>{p.name}</td>
-                    <td className="px-3 py-2.5 text-right text-fg-2 num">{p.units.toLocaleString("es-ES")}</td>
-                    <td className="px-5 py-2.5 text-right font-medium num">{formatMoney(p.amount)}</td>
-                  </tr>
+          <Card className="flex-1">
+            <CardHeader className="mb-2" title="Requiere atención" action={alerts.length ? <span className="text-xs font-medium text-fg-3 num">{alerts.length}</span> : undefined} />
+            {alerts.length === 0 ? (
+              <div className="flex items-center gap-3 rounded-lg bg-success-soft px-3.5 py-3 text-sm text-success-fg"><CheckCircle2 className="h-4 w-4 shrink-0" />Todo en orden. Nada pendiente ahora mismo.</div>
+            ) : (
+              <ul className="-mx-2">
+                {alerts.slice(0, 4).map((a) => (
+                  <li key={a.id}>
+                    <button onClick={() => navigate(a.to)} className="group flex w-full items-start gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-surface-2">
+                      <span className={cn("mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md", a.severity === "danger" ? "bg-danger-soft text-danger-fg" : a.severity === "warning" ? "bg-warning-soft text-warning-fg" : "bg-surface-sunken text-fg-2")}>
+                        {a.severity === "info" ? <CircleDot className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium leading-snug">{a.title}</span>
+                        <span className="mt-0.5 line-clamp-2 block text-xs text-fg-3">{a.reason}</span>
+                      </span>
+                      <ArrowRight className="mt-1 h-3.5 w-3.5 shrink-0 text-fg-3 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
+                    </button>
+                  </li>
                 ))}
-              </tbody>
-            </table>
-          ) : <p className="px-5 pb-6 text-sm text-fg-3">Sin ventas en este periodo.</p>}
+              </ul>
+            )}
+          </Card>
+        </div>
+
+        {/* Indicadores secundarios */}
+        <StatStrip className="xl:col-span-12" items={stats} />
+
+        {/* Lectura + mix */}
+        <Card className="xl:col-span-5">
+          <CardHeader title="Lo que dicen tus datos" description={`${period.label} frente a ${prev.label === "Periodo anterior" ? "el periodo anterior" : prev.label.toLowerCase()}`} />
+          <InsightList items={insights} />
         </Card>
-        <Card>
+        <Card className="xl:col-span-4">
+          <CardHeader title="Ingresos por categoría" description="Ventas de caja del periodo" />
+          <BarList rows={k.byCategory.filter((c) => c.id !== "invoices").map((c) => ({ key: c.id, label: c.name, value: c.amount }))} max={6} emptyText="Sin ventas de caja en este periodo" />
+        </Card>
+        <Card className="xl:col-span-3">
           <CardHeader title="Métodos de pago" description="Cobrado en el periodo" />
-          <BarList rows={k.byMethod.map((m) => ({ key: m.key, label: m.name, value: m.amount }))} />
-          {k.pendingInvoices.count > 0 && (
-            <Link to="/facturas?estado=pendiente" className="mt-4 flex items-center justify-between rounded-md bg-warning-soft px-3 py-2 text-sm text-warning-fg">
-              <span>{k.pendingInvoices.count} pendientes de cobro</span>
-              <span className="font-semibold num">{formatMoney(k.pendingInvoices.amount)}</span>
-            </Link>
+          <BarList rows={k.byMethod.filter((m) => m.amount > 0).map((m) => ({ key: m.key, label: m.key === "pending" ? "Pendiente" : m.name, value: m.amount }))} max={5} emptyText="Sin cobros en este periodo" />
+        </Card>
+
+        {/* Productos + clientes */}
+        <Card className="xl:col-span-8" padded={false}>
+          <div className="flex items-start justify-between gap-3 p-5 pb-3">
+            <CardHeader className="mb-0" title="Rendimiento de productos" description="Por facturación en el periodo, con variación frente al anterior" />
+            <Link to="/catalogo" className="shrink-0 text-sm font-medium text-fg-3 hover:text-fg">Catálogo →</Link>
+          </div>
+          {k.byProduct.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-y border-line text-xs text-fg-3">
+                    <th className="px-5 py-2 text-left font-medium">Producto</th>
+                    <th className="px-3 py-2 text-right font-medium">Uds</th>
+                    <th className="hidden w-[30%] px-3 py-2 text-left font-medium sm:table-cell">Peso</th>
+                    <th className="px-3 py-2 text-right font-medium">Variación</th>
+                    <th className="px-5 py-2 text-right font-medium">Importe</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {k.byProduct.slice(0, 6).map((p) => {
+                    const share = k.salesRevenue ? p.amount / k.salesRevenue : 0;
+                    const before = productPrev.get(p.key);
+                    return (
+                      <tr key={p.key} className="border-b border-line transition-colors last:border-0 hover:bg-surface-2">
+                        <td className="max-w-[140px] truncate px-5 py-3 font-medium sm:max-w-[220px]">{p.name}</td>
+                        <td className="px-3 py-3 text-right text-fg-2 num">{p.units.toLocaleString("es-ES", NUM)}</td>
+                        <td className="hidden px-3 py-3 sm:table-cell">
+                          <div className="flex items-center gap-2">
+                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-sunken"><div className="h-full rounded-full bg-[var(--chart-1)]" style={{ width: `${Math.max(2, share * 100)}%` }} /></div>
+                            <span className="w-9 text-right text-xs text-fg-3 num">{Math.round(share * 100)} %</span>
+                          </div>
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3 text-right">{before ? <DeltaChip value={percentChange(p.amount, before)} /> : <span className="text-xs text-fg-3">Nuevo</span>}</td>
+                        <td className="px-5 py-3 text-right font-semibold num">{formatMoney(p.amount)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="px-5 pb-8 pt-4 text-center">
+              <p className="text-sm font-medium">Sin ventas de productos en este periodo</p>
+              <p className="mt-1 text-sm text-fg-3">Cuando vendas desde Caja verás aquí qué funciona y qué no.</p>
+            </div>
           )}
         </Card>
-      </div>
+        <Card className="xl:col-span-4">
+          <CardHeader title="Crecimiento de clientes" description="Altas por mes · últimos 12 meses" />
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="figure text-3xl leading-none">{(growth.at(-1)?.total ?? 0).toLocaleString("es-ES", NUM)}</p>
+              <p className="mt-1.5 text-xs text-fg-3">clientes en total</p>
+            </div>
+            <div className="text-right">
+              <p className="text-lg font-semibold num">+{(growth.at(-1)?.added ?? 0).toLocaleString("es-ES", NUM)}</p>
+              <p className="text-xs text-fg-3">este mes</p>
+            </div>
+          </div>
+          <div className="mt-4">
+            <ColumnChart
+              height={150}
+              highlightLast
+              currentLabel="Altas"
+              format={(v) => `${v.toLocaleString("es-ES", NUM)} altas`}
+              axisFormat={(v) => String(v)}
+              data={growth.map((g) => ({ key: toISODate(g.date), label: capitalize(monthShort(g.date.getMonth())).slice(0, 1), tooltipLabel: capitalize(`${monthName(g.date.getMonth())} ${g.date.getFullYear()}`), current: g.added }))}
+            />
+          </div>
+        </Card>
 
-      {/* ---------------------------------------------------------- AÑO */}
-      <div className="mt-10">
-        <SectionTitle>Año {yearStart.getFullYear()}</SectionTitle>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-          <Kpi className="col-span-2" label="Facturación acumulada" value={formatMoney(kYear.revenue)} hint={`Media ${formatMoney(Math.round(kYear.revenue / Math.max(1, months.filter((m) => m.total > 0).length)))}/mes activo`} />
-          <Kpi label="Mejor mes" value={bestMonth ? capitalize(monthName(bestMonth.date.getMonth())) : "—"} hint={bestMonth ? formatMoney(bestMonth.total) : undefined} />
-          <Kpi label="Mejor día (caja)" value={bestDay ? formatDateShort(bestDay.date) : "—"} hint={bestDay ? formatMoney(bestDay.txSales) : undefined} />
-          <Kpi label="Top producto" value={<span className="text-lg">{kYear.byProduct[0]?.name ?? "—"}</span>} hint={kYear.byProduct[0] ? formatMoney(kYear.byProduct[0].amount) : undefined} />
-          <Kpi label="Top categoría" value={<span className="text-lg">{kYear.byCategory[0]?.name ?? "—"}</span>} hint={kYear.byCategory[0] ? formatMoney(kYear.byCategory[0].amount) : undefined} />
-        </div>
-        <Card className="mt-3">
+        {/* Recurrente + año */}
+        {hasRecurring && (
+          <Card className="xl:col-span-5">
+            <CardHeader title="Ingresos recurrentes" description="Cuotas por mes de servicio · base imponible" />
+            <div className="flex items-end gap-3">
+              <p className="figure text-3xl leading-none">{formatMoney(recurringNow)}</p>
+              <DeltaChip value={percentChange(recurringNow, recurringPrev)} label="vs mes anterior" />
+            </div>
+            <p className="mt-1.5 text-xs text-fg-3">{(recurring.at(-1)?.members ?? 0).toLocaleString("es-ES", NUM)} clientes con cuota este mes</p>
+            <div className="mt-4">
+              <ColumnChart
+                height={170}
+                highlightLast
+                currentLabel="Recurrente"
+                data={recurring.map((r) => ({ key: toISODate(r.date), label: capitalize(monthShort(r.date.getMonth())), tooltipLabel: capitalize(`${monthName(r.date.getMonth())} ${r.date.getFullYear()}`), current: r.amount }))}
+              />
+            </div>
+          </Card>
+        )}
+        <Card className={hasRecurring ? "xl:col-span-7" : "xl:col-span-12"}>
           <CardHeader
-            title="Evolución mensual"
-            description={`${yearStart.getFullYear()} frente a ${yearStart.getFullYear() - 1}`}
-            action={<Legend items={[{ label: String(yearStart.getFullYear()), color: "var(--chart-1)" }, { label: String(yearStart.getFullYear() - 1), color: "var(--chart-2)" }]} />}
+            title={`Año ${now.getFullYear()} frente a ${now.getFullYear() - 1}`}
+            description="Facturación mensual"
+            action={<Legend items={[{ label: String(now.getFullYear()), color: "var(--chart-1)", shape: "bar" }, { label: String(now.getFullYear() - 1), color: "var(--chart-2-bar)", shape: "bar" }]} />}
           />
-          <CompareBars
-            data={months.map((m, i) => ({ label: capitalize(monthShort(m.date.getMonth())), tooltipLabel: capitalize(monthName(m.date.getMonth())), current: m.total, previous: monthsPrev[i]?.total ?? 0 }))}
-            currentLabel={String(yearStart.getFullYear())}
-            previousLabel={String(yearStart.getFullYear() - 1)}
-          />
+          <ColumnChart data={yearMonths} currentLabel={String(now.getFullYear())} previousLabel={String(now.getFullYear() - 1)} height={hasRecurring ? 226 : 240} />
         </Card>
       </div>
     </Page>
+  );
+}
+
+function Onboarding() {
+  return (
+    <Card className="mb-6 overflow-hidden p-0">
+      <div className="grid md:grid-cols-[1.3fr_1fr]">
+        <div className="p-6 sm:p-8">
+          <Badge tone="accent">Primeros pasos</Badge>
+          <h2 className="mt-3 text-xl font-semibold tracking-tight">Trae tu negocio a Business OS</h2>
+          <p className="mt-1.5 max-w-lg text-sm text-fg-3">Importa tus Excel actuales o empieza desde cero. El sistema detecta hojas, columnas, duplicados y errores, y te enseña todo antes de guardar.</p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Link to="/importaciones/nueva"><Button variant="primary" icon={Upload}>Importar Excel o CSV</Button></Link>
+            <Link to="/catalogo?nuevo=1"><Button icon={Package}>Crear producto</Button></Link>
+          </div>
+        </div>
+        <ol className="hidden border-l border-line bg-surface-2 p-6 md:block">
+          {[
+            ["Catálogo y precios", Package],
+            ["Primera venta en Caja", Store],
+            ["Facturas, clientes e IVA", Receipt],
+            ["Informe para la gestoría", Upload],
+          ].map(([t], i) => (
+            <li key={String(t)} className="flex items-center gap-3 py-2 text-sm">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full border border-line bg-surface text-xs font-semibold num">{i + 1}</span>
+              {String(t)}
+            </li>
+          ))}
+        </ol>
+      </div>
+    </Card>
   );
 }

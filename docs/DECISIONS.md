@@ -3,6 +3,26 @@
 Registro de decisiones técnicas/producto relevantes tomadas de forma autónoma, con motivo. Formato: fecha — decisión — motivo — alternativas consideradas.
 
 
+## 2026-10-01 — Supabase como fuente de verdad mediante sincronización transaccional
+
+**Decisión**: las pantallas y repositorios siguen escribiendo en memoria (respuesta instantánea), y cada acción genera un **lote de cambios** (diferencia de estado) que se envía a `public.sync_push`, que lo aplica en **una transacción** con RLS, triggers de integridad y auditoría (security invoker). La lectura descarga el estado completo de la empresa (paginado). IndexedDB queda solo como **caché** (arranque instantáneo) y **cola offline** persistente.
+**Motivo**: reescribir ~20 repositorios y todas las pantallas a llamadas asíncronas habría sido un cambio grande y arriesgado; este diseño conserva la lógica de dominio probada, mantiene la atomicidad por acción (venta + líneas + pagos) y hace que el servidor tenga siempre la última palabra (rechazo → aviso + estado real restaurado).
+**Alternativas**: repositorios 100 % asíncronos contra PostgREST (más trabajo, peor percepción de velocidad); sincronización tipo CRDT (excesiva para el MVP).
+**Límites conocidos**: la descarga completa por empresa es adecuada para decenas de miles de registros; para volúmenes mayores se añadirá carga incremental por fecha. Edición concurrente del mismo registro desde dos dispositivos: gana la última escritura (los registros financieros son inmutables, así que solo afecta a fichas y configuración).
+
+## 2026-10-01 — Detalles de la conexión con Supabase
+
+- Nº de ticket asignado por la base de datos (correlativo sin colisiones entre dispositivos); el número local es provisional hasta confirmar.
+- Stock calculado en servidor (trigger); las ventas anteriores al alta del producto (históricos importados, demo) no mueven el stock. La migración 0700 se corrigió antes de aplicarse en ningún entorno compartido.
+- Al cerrar sesión se envía lo pendiente y se **borra la caché local** de la empresa (dispositivos compartidos). Si hay cambios sin enviar, no se permite cerrar sesión.
+- Equipo: alta por email de personas ya registradas (`add_member_by_email`), sin claves de servicio en el cliente. Invitaciones por email: Edge Function futura.
+- Empresa demo: se crea en el servidor marcada `is_demo` con datos 100 % ficticios.
+- Stack local equivalente (PostgreSQL + Supabase Auth + PostgREST, binarios oficiales) para desarrollo y E2E mientras el entorno de trabajo no tenga red a Supabase.
+
+## 2026-10-01 — Identidad visual V2 «Graphite & Cobalt»
+
+Neutros cálidos (off-white, piedra, grafito, negro), un único acento cobalto (`#3646f5`), Inter con tamaño óptico y cifras proporcionales en grande / tabulares en columnas, nuevo logotipo de bloques (core + módulo) sin referencias a ningún tenant. Detalle en DESIGN_SYSTEM.md.
+
 ## 2026-10-01 — Arquitectura de producto permanente (aprobada por el propietario)
 
 **Decisión permanente**:
