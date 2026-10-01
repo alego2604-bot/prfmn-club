@@ -43,8 +43,8 @@ No hay nada que rotar. `.env.example` siempre ha estado vacío.
 1. Backup completo (`git bundle --all` + mirror) antes de tocar nada, guardado fuera del repositorio.
 2. Árbol actual anonimizado: fixtures sintéticos, `EXCEL_ANALYSIS.md` sin cifras ni identificadores (se conservan las conclusiones técnicas), tests de ficheros reales con cifras esperadas fuera del repositorio, nombres de tenant y centro ficticios en tests.
 3. **Reescritura controlada del historial** (`git filter-repo --replace-text`) en todas las ramas: cada valor sensible sustituido por un marcador neutro en todos los commits; el contenido final del proyecto es idéntico al estado anonimizado.
-4. Verificación posterior: ninguno de los valores eliminados aparece en `git log -p --all` ni en ningún blob; tests, build y tests SQL en verde sobre el historial nuevo.
-5. Force-push de las ramas reescritas.
+4. Verificación posterior: ninguno de los valores eliminados aparece en `git log -p --all` ni en ningún blob; tests, build y tests SQL en verde sobre el historial nuevo. El único cambio en el árbol final respecto al estado anonimizado fue un número de factura real que quedaba en un comentario de una migración nunca aplicada.
+5. Force-push (con *lease*) de `main` y de la rama de desarrollo; verificado desde un clon nuevo de GitHub: 0 coincidencias, gitleaks sin hallazgos, ningún Excel/CSV/PDF en ningún commit. Objetos antiguos purgados del clon de trabajo (`reflog expire` + `gc --prune=now`).
 6. Repositorio pasado a **privado** y renombrado a `business-os` (acción del propietario en GitHub, ver CHANGELOG).
 7. Guardia `npm run check:privacy` + reglas de `.gitignore` para que no vuelva a ocurrir.
 
@@ -53,6 +53,7 @@ Este registro **no** reproduce los datos eliminados.
 **Riesgos residuales que no se pueden limpiar desde el repositorio**:
 - Clones locales hechos antes de la reescritura (Mac mini / MacBook del propietario y entornos de agentes): conservan el historial antiguo → borrar y volver a clonar.
 - GitHub puede seguir sirviendo commits antiguos **por su SHA** (caché, «dangling commits») hasta su recolección de basura. Mitigado al ser privado; para purgarlo del todo hay que abrir una solicitud a GitHub Support («remove cached views / sensitive data») indicando los SHA antiguos.
-- Forks: el repositorio no tenía forks conocidos al hacer la limpieza; si los hubiera, no se limpian automáticamente.
+- Forks: **0** según la API de GitHub en el momento de la limpieza.
+- Comprobado tras el push: GitHub **seguía sirviendo los commits antiguos por su SHA** (`/commit/<sha>`). Al pasar a privado dejan de ser públicos; para eliminarlos de los servidores de GitHub hay que solicitarlo a GitHub Support.
 - Mientras fue público, cualquier tercero pudo haber clonado o indexado el contenido (p. ej. archivos de código públicos, buscadores). No es reversible; el riesgo se considera bajo por el tiempo de exposición y la ausencia de secretos.
 - El backup previo a la limpieza contiene los datos antiguos: se guarda fuera del repositorio y debe eliminarse cuando el propietario confirme que el resultado es correcto.

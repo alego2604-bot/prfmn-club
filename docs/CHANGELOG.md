@@ -16,6 +16,8 @@ Formato: fecha, fase, resumen. Más reciente arriba.
 ### PENDIENTE DEL PROPIETARIO (en GitHub, sin permisos para hacerlo desde aquí)
 - Cambiar visibilidad a **privado** y renombrar `prfmn-club` → `business-os`.
 - Borrar y volver a clonar los clones locales anteriores a la reescritura.
+- (Opcional, recomendado) Pedir a GitHub Support la purga de los commits antiguos en caché (ver SECURITY).
+- Para Supabase staging: crear el proyecto `business-os-staging` (región UE), permitir `*.supabase.co` y `api.supabase.com` en la red del entorno y añadir sus credenciales como variables de entorno (nunca en Git ni en el chat).
 
 ## 2026-10-01 — Separación total de PRFMN · Business OS como producto independiente
 
