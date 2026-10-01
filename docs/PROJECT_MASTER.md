@@ -1,4 +1,8 @@
-# PRFMN Club — PROJECT MASTER (Source of Truth)
+# Business OS — PROJECT MASTER (Source of Truth)
+
+> **Business OS is an independent product and has no runtime dependency on PRFMN.**
+> **The Gravity Room is the first tenant, not the product itself.**
+> «Business OS» es el nombre interno provisional; el nombre comercial está por decidir.
 
 > Documento vivo. **Se actualiza con cada decisión relevante.** Si algo aquí contradice a otro documento, manda este (y se corrige el otro).
 > Última actualización: 2026-10-01.
@@ -26,7 +30,7 @@
 
 ## 1. Interpretación del producto
 
-**PRFMN Club es un Business Operating System**: la única fuente de verdad operativa y económica de un negocio de servicios, empezando por centros de entrenamiento.
+**Business OS es un software de gestión empresarial** (Business Management / CRM / Finance / Operations): la única fuente de verdad operativa y económica de cualquier negocio. Empieza con un módulo vertical para centros de entrenamiento porque su primera empresa cliente es un box, pero el núcleo es generalista.
 
 No es una caja, ni un CRM, ni un programa de facturación. Es el sitio donde:
 
@@ -41,7 +45,19 @@ Tres ideas lo distinguen de "un Excel bonito":
 2. **Entidades separadas y relacionadas.** Venta (qué), pago (cómo), factura (documento fiscal), membresía (servicio recurrente), gasto (salida), documento (archivo), cliente (persona). Nunca se mezclan.
 3. **Importar → interpretar → proponer → validar → guardar.** El sistema hace el trabajo pesado, el humano decide. Nada económico, fiscal o de comunicación se guarda o envía a ciegas.
 
-The Gravity Room es el primer cliente y el banco de pruebas. La arquitectura es multiempresa, multicentro y multisector desde el primer commit.
+The Gravity Room es la primera organización (tenant) y el banco de pruebas, no la identidad del software: sus productos, tarifas y datos son registros de su empresa, nunca código. La arquitectura es multiempresa, multicentro y multisector desde el primer commit.
+
+### 1.1 Independencia respecto a PRFMN (decisión 2026-10-01)
+
+| | PRFMN | Business OS |
+|---|---|---|
+| Ámbito | Sports / performance: programación, workouts, atletas, resultados, leaderboards | Business management: operaciones, clientes, finanzas, comunicaciones, datos, analytics, empresa |
+| Repositorio, BD, Supabase, Auth, Storage, Functions, logs, deploy, dominio | propios | propios |
+| Requiere cuenta del otro | no | no |
+| Si el otro desaparece | sigue al 100 % | sigue al 100 % |
+| Conexión | opcional, solo por API/webhook firmados → [INTEGRATIONS.md](INTEGRATIONS.md) | ← |
+
+Un cliente puede contratar A) solo PRFMN, B) solo Business OS o C) ambos (con integración opcional). La asistencia llega hoy por Excel/CSV; en el futuro PRFMN (u otro sistema) podrá ser una **fuente de datos más**, nunca una dependencia.
 
 ## 2. Arquitectura
 
@@ -321,7 +337,9 @@ Escala: `PLANNED` → `DESIGNED` → `FRONTEND ONLY` → `FUNCTIONAL` (funciona 
 
 | Módulo | Estado | Notas |
 |---|---|---|
-| Esquema SQL + RLS | TESTED | Migraciones aplicadas en Postgres 16 local + tests de aislamiento entre empresas |
+| Esquema SQL + RLS | TESTED | Migraciones aplicadas en Postgres 16 local + 27 comprobaciones de aislamiento, permisos e integridad |
+| Capa de integraciones (conexiones, identidades externas, eventos) | DESIGNED | Tablas + RLS probadas; conectores aún no implementados |
+| Módulos verticales (core / fitness) | FUNCTIONAL | Activables por empresa en Ajustes; el core no contiene reglas de sector |
 | Acceso (login local, crear empresa, workspace demo) | FUNCTIONAL | Auth real Supabase en Fase 5 |
 | Shell, navegación, ⌘K, selector de centro, tema | FUNCTIONAL | |
 | Catálogo (productos, categorías, precios con vigencia) | TESTED | |

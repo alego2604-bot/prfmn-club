@@ -9,6 +9,7 @@ import { Badge, Button, Card, CardHeader, Delta, EmptyState, Input, Kpi, Page, S
 import { BarList, CompareArea, CompareBars, Legend } from "@/design-system/components/charts";
 import { best, computeKpis, membershipStats, percentChange, revenueSeries, type Dataset } from "@/domain/analytics";
 import { computeAlerts } from "@/domain/alerts";
+import { hasModule } from "@/domain/modules";
 import { sessionSummary } from "@/data/repos/cash";
 import { openSessionFor } from "@/data/repos/sales";
 import {
@@ -93,7 +94,8 @@ export default function DashboardPage() {
   const cash = session ? sessionSummary(ws, session) : null;
   const empty = ws.sales.length === 0 && ws.invoices.length === 0;
   const method = (key: string) => today.byMethod.find((m) => m.key === key)?.amount ?? 0;
-  const categoryAmount = (re: RegExp) => k.byCategory.filter((c) => re.test(c.name.toLowerCase())).reduce((s, c) => s + c.amount, 0);
+  const fitness = hasModule(ws.organization, "fitness");
+  const topCategory = k.byCategory.find((c) => c.id !== "invoices");
 
   return (
     <Page>
@@ -114,7 +116,7 @@ export default function DashboardPage() {
           <div className="grid gap-0 md:grid-cols-[1.4fr_1fr]">
             <div className="p-6 sm:p-8">
               <Badge tone="accent">Primeros pasos</Badge>
-              <h2 className="mt-3 text-xl font-semibold tracking-tight">Trae tu negocio a PRFMN Club</h2>
+              <h2 className="mt-3 text-xl font-semibold tracking-tight">Trae tu negocio a Business OS</h2>
               <p className="mt-1.5 text-sm text-fg-3">Importa tus Excel actuales (caja anual y facturas trimestrales). El sistema detecta hojas, columnas, duplicados y errores, y te enseña todo antes de guardar.</p>
               <div className="mt-5 flex flex-wrap gap-2">
                 <Link to="/importaciones/nueva"><Button variant="primary" icon={Upload}>Importar Excel o CSV</Button></Link>
@@ -144,7 +146,7 @@ export default function DashboardPage() {
           delta={<Delta value={percentChange(today.revenue, yesterday.revenue)} label={`ayer ${formatMoney(yesterday.revenue, { compact: true })}`} />}
         />
         <Kpi label="Operaciones" icon={ShoppingBag} value={today.operations.toLocaleString("es-ES")} hint={`${today.units.toLocaleString("es-ES")} uds vendidas`} delta={<Delta value={percentChange(today.operations, yesterday.operations)} />} />
-        <Kpi label="Ticket medio" icon={Ticket} value={today.avgTicket !== null ? formatMoney(today.avgTicket) : "—"} hint={today.dropIns.units ? `${today.dropIns.units} drop-ins` : "Sin drop-ins"} />
+        <Kpi label="Ticket medio" icon={Ticket} value={today.avgTicket !== null ? formatMoney(today.avgTicket) : "—"} hint={fitness ? (today.dropIns.units ? `${today.dropIns.units} drop-ins` : "Sin drop-ins") : `${today.units.toLocaleString("es-ES")} uds`} />
         <div className="flex flex-col rounded-lg border border-line bg-surface p-4 shadow-xs">
           <div className="flex items-center justify-between text-sm text-fg-3">
             <span className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5" />Caja</span>
@@ -221,7 +223,7 @@ export default function DashboardPage() {
           emphasis
           className="col-span-2"
           label="Facturación"
-          tooltip="Ventas de caja (no anuladas) + facturas de cuotas no ligadas a una venta, por fecha de emisión. IVA incluido."
+          tooltip="Ventas de caja (no anuladas) + facturas no ligadas a una venta, por fecha de emisión. IVA incluido."
           value={formatMoney(k.revenue)}
           delta={
             <>
@@ -232,19 +234,28 @@ export default function DashboardPage() {
           footer={
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div><p className="text-xs text-fg-3">Caja / TPV</p><p className="font-semibold num">{formatMoney(k.salesRevenue)}</p></div>
-              <div><p className="text-xs text-fg-3">Cuotas y bonos (facturas)</p><p className="font-semibold num">{formatMoney(k.invoiceRevenue)}</p></div>
+              <div><p className="text-xs text-fg-3">Facturas emitidas</p><p className="font-semibold num">{formatMoney(k.invoiceRevenue)}</p></div>
             </div>
           }
         />
         <Kpi label="Nº de ventas" value={k.operations.toLocaleString("es-ES")} delta={<Delta value={percentChange(k.operations, kPrev.operations)} />} tooltip="Operaciones individuales. Los resúmenes mensuales importados no cuentan." hint={k.hasAggregates ? "excluye resúmenes" : undefined} />
         <Kpi label="Ticket medio" value={k.avgTicket !== null ? formatMoney(k.avgTicket) : "—"} delta={<Delta value={k.avgTicket !== null && kPrev.avgTicket !== null ? percentChange(k.avgTicket, kPrev.avgTicket) : null} />} />
-        <Kpi label="Drop-ins" value={k.dropIns.units.toLocaleString("es-ES")} hint={formatMoney(k.dropIns.amount)} delta={<Delta value={percentChange(k.dropIns.units, kPrev.dropIns.units)} />} />
-        <Kpi label="Suplementación" value={formatMoney(categoryAmount(/suplement/))} delta={<Delta value={percentChange(categoryAmount(/suplement/), kPrev.byCategory.filter((c) => /suplement/.test(c.name.toLowerCase())).reduce((s, c) => s + c.amount, 0))} />} />
-        <Kpi label="Retail / merchandising" value={formatMoney(categoryAmount(/merch|ropa|retail|textil/))} />
+        {fitness ? (
+          <Kpi label="Drop-ins" value={k.dropIns.units.toLocaleString("es-ES")} hint={formatMoney(k.dropIns.amount)} delta={<Delta value={percentChange(k.dropIns.units, kPrev.dropIns.units)} />} />
+        ) : (
+          <Kpi label="Unidades vendidas" value={k.units.toLocaleString("es-ES")} delta={<Delta value={percentChange(k.units, kPrev.units)} />} />
+        )}
+        <Kpi
+          label="Categoría principal"
+          value={<span className="text-lg">{topCategory?.name ?? "—"}</span>}
+          hint={topCategory ? formatMoney(topCategory.amount) : undefined}
+          tooltip="Categoría de producto con más facturación en caja durante el periodo (configurable en Catálogo)"
+        />
+        <Kpi label="Clientes con compra" value={new Set(ws.sales.filter((s) => s.customerId && s.status !== "voided" && new Date(s.occurredAt) >= period.start && new Date(s.occurredAt) < period.end).map((s) => s.customerId)).size.toLocaleString("es-ES")} tooltip="Clientes distintos asociados a ventas de caja en el periodo" />
         <Kpi label="IVA repercutido" value={formatMoney(k.vatCollected)} tooltip="Cuota de IVA de ventas y facturas del periodo" />
       </div>
 
-      {ms.available && ["month", "today", "7d", "30d"].includes(preset) && (
+      {fitness && ms.available && ["month", "today", "7d", "30d"].includes(preset) && (
         <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Kpi label="Membresías activas" icon={Users} value={ms.activeMembers.toLocaleString("es-ES")} tooltip="Clientes con una cuota cuyo periodo de servicio empieza este mes" />
           <Kpi label="MRR (sin IVA)" value={formatMoney(ms.mrr)} hint={ms.avgFee ? `ARPU ${formatMoney(ms.avgFee)}` : undefined} tooltip="Suma de la base imponible de las cuotas del mes" />

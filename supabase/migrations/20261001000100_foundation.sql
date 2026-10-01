@@ -1,5 +1,5 @@
 -- =====================================================================
--- PRFMN Club · 0100 · Foundation: tenancy, identity, roles, settings
+-- Business OS · 0100 · Foundation: tenancy, identity, roles, settings
 -- =====================================================================
 -- Reglas de este esquema (ver docs/DATABASE_SCHEMA.md):
 --   * Toda tabla de negocio lleva organization_id NOT NULL.

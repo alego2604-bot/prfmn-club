@@ -278,6 +278,28 @@ do $$ declare n int; begin
   raise notice 'PASS accountant: ve finanzas, ventas y auditoría; no edita catálogo';
 end $$;
 
+\echo '8. Integraciones (capa opcional y aislada)'
+select pg_temp.login('00000000-0000-0000-0000-00000000000a');
+insert into public.integration_connections (organization_id, provider, display_name, scopes)
+values (current_setting('test.org_a')::uuid, 'training_platform', 'Plataforma de entrenamiento', '{attendance.read}');
+do $$ begin
+  begin
+    insert into public.integration_events (organization_id, connection_id, direction, event_type, idempotency_key, payload)
+    select organization_id, id, 'inbound', 'attendance.recorded', 'k1', '{}' from public.integration_connections limit 1;
+    raise exception 'FAIL: un usuario pudo escribir eventos de integración';
+  exception when insufficient_privilege then raise notice 'PASS solo el servidor registra eventos de integración'; end;
+end $$;
+select pg_temp.login('00000000-0000-0000-0000-00000000000b');
+do $$ begin
+  if exists (select 1 from public.integration_connections) then raise exception 'FAIL: B ve integraciones de A'; end if;
+  raise notice 'PASS integraciones aisladas por empresa';
+end $$;
+select pg_temp.login('00000000-0000-0000-0000-00000000000e');
+do $$ begin
+  if exists (select 1 from public.integration_connections) then raise exception 'FAIL: employee ve integraciones'; end if;
+  raise notice 'PASS integraciones solo para quien gestiona la configuración';
+end $$;
+
 reset role;
 \echo ''
 \echo '✔ Todos los tests de aislamiento, permisos e integridad han pasado.'

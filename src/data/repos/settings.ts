@@ -3,7 +3,7 @@ import { nowISO, uid } from "@/lib/ids";
 import { normalizeKey } from "@/lib/text";
 import { assertCan, auditEntry, diff, ValidationError, type Ctx } from "../context";
 
-type OrgPatch = Partial<Pick<Organization, "name" | "legalName" | "taxId" | "address" | "city" | "postalCode" | "phone" | "email" | "website" | "logoDataUrl" | "vertical" | "fiscalYearStartMonth">>;
+type OrgPatch = Partial<Pick<Organization, "name" | "legalName" | "taxId" | "address" | "city" | "postalCode" | "phone" | "email" | "website" | "logoDataUrl" | "vertical" | "modules" | "fiscalYearStartMonth">>;
 
 export function updateOrganization(ctx: Ctx, patch: OrgPatch) {
   assertCan(ctx, "settings.manage");

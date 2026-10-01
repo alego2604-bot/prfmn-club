@@ -15,7 +15,8 @@ export interface NavItem {
   /** Descripción para la página de módulo planificado y la paleta ⌘K */
   description: string;
   end?: boolean;
-  vertical?: "fitness";
+  /** Requiere un módulo vertical activo (no forma parte del core) */
+  module?: "fitness";
 }
 
 export interface NavGroup {
@@ -42,9 +43,9 @@ export const NAV: NavGroup[] = [
     items: [
       { to: "/clientes", label: "Clientes", icon: Users, perm: "customers.view", status: "FUNCTIONAL", description: "Fichas, notas, compras y facturas" },
       { to: "/seguimiento", label: "Seguimiento", icon: Sparkles, perm: "customers.view", status: "DESIGNED", description: "Con quién hablar hoy y por qué: inactividad, renovaciones y pagos pendientes, siempre con el motivo explicado." },
-      { to: "/membresias", label: "Membresías", icon: Contact, perm: "customers.view", status: "DESIGNED", description: "Tarifas versionadas (11/16/21 créditos, ilimitada, fundador…), altas, renovaciones, bajas y MRR.", vertical: "fitness" },
-      { to: "/asistencia", label: "Asistencia", icon: CalendarCheck, perm: "customers.view", status: "DESIGNED", description: "Importación de asistencia (BeMadBox), última visita, frecuencia y cambios de frecuencia.", vertical: "fitness" },
-      { to: "/leads", label: "Leads", icon: UserPlus, perm: "customers.view", status: "DESIGNED", description: "Pipeline Lead → Visita → Drop-in → Prueba → Interesado → Miembro / Perdido con conversión." },
+      { to: "/membresias", label: "Membresías", icon: Contact, perm: "customers.view", status: "DESIGNED", description: "Tarifas versionadas (por créditos, ilimitadas, bonos…), altas, renovaciones, bajas y MRR.", module: "fitness" },
+      { to: "/asistencia", label: "Asistencia", icon: CalendarCheck, perm: "customers.view", status: "DESIGNED", description: "Importación de asistencia (Excel/CSV o integración), última visita, frecuencia y cambios de frecuencia.", module: "fitness" },
+      { to: "/leads", label: "Leads", icon: UserPlus, perm: "customers.view", status: "DESIGNED", description: "Pipeline de oportunidades configurable (Lead → Contacto → Prueba → Cliente / Perdido) con conversión." },
     ],
   },
   {

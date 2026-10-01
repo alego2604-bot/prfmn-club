@@ -9,20 +9,53 @@ export interface KV {
   keys(): Promise<string[]>;
 }
 
-const DB_NAME = "prfmn-club";
+const DB_NAME = "business-os";
+/** Nombre usado por versiones anteriores al cambio de nombre: solo para migrar datos locales existentes. */
+const LEGACY_DB_NAME = "prfmn-club";
 const STORE = "kv";
 
-function openDb(): Promise<IDBDatabase> {
+function openDb(name = DB_NAME): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
+    const req = indexedDB.open(name, 1);
     req.onupgradeneeded = () => req.result.createObjectStore(STORE);
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
 }
 
+/**
+ * Si existe la base local con el nombre anterior y la nueva está vacía, copia todo (cuentas, empresas, datos)
+ * y solo entonces elimina la antigua. Nunca borra nada sin haberlo copiado antes.
+ */
+async function migrateLegacyDb(): Promise<void> {
+  const list = (await indexedDB.databases?.().catch(() => [])) ?? [];
+  if (!list.some((d) => d.name === LEGACY_DB_NAME)) return;
+  const [legacy, current] = await Promise.all([openDb(LEGACY_DB_NAME), openDb(DB_NAME)]);
+  const req = <T,>(r: IDBRequest<T>) => new Promise<T>((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  const currentKeys = await req(current.transaction(STORE).objectStore(STORE).getAllKeys());
+  if (currentKeys.length) {
+    // Ya hay datos con el nombre nuevo: no se toca la base antigua (nunca se borra nada no copiado).
+    legacy.close();
+    current.close();
+    return;
+  }
+  {
+    const ro = legacy.transaction(STORE).objectStore(STORE);
+    const [keys, values] = await Promise.all([req(ro.getAllKeys()), req(ro.getAll())]);
+    await new Promise<void>((res, rej) => {
+      const tx = current.transaction(STORE, "readwrite");
+      keys.forEach((k, i) => tx.objectStore(STORE).put(values[i], k));
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+  }
+  legacy.close();
+  current.close();
+  await new Promise<void>((res) => { const d = indexedDB.deleteDatabase(LEGACY_DB_NAME); d.onsuccess = d.onerror = d.onblocked = () => res(); });
+}
+
 export function createIndexedDbKV(): KV {
-  const dbp = openDb();
+  const dbp = migrateLegacyDb().catch(() => undefined).then(() => openDb());
   const run = <T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest): Promise<T> =>
     dbp.then(
       (db) =>

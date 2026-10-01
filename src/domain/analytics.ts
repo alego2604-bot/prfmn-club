@@ -108,7 +108,7 @@ export function computeKpis(ds: Dataset, p: Period, locationId?: string): Period
     }
   }
   if (invoiceRevenue > 0) {
-    byCatMap.set("invoices", { id: "invoices", name: "Cuotas y bonos (facturas)", color: "#6366f1", amount: invoiceRevenue, units: invoices.length });
+    byCatMap.set("invoices", { id: "invoices", name: "Facturas emitidas", color: "#6366f1", amount: invoiceRevenue, units: invoices.length });
   }
 
   const pending = ds.invoices.filter((i) => (i.status === "issued" || i.status === "partially_paid") && within(invoiceDate(i), p));

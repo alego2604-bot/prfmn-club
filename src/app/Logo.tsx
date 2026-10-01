@@ -17,7 +17,7 @@ export function Logo({ className, compact }: { className?: string; compact?: boo
       <LogoMark />
       {!compact && (
         <span className="text-[15px] font-semibold tracking-tight">
-          PRFMN<span className="text-fg-3"> Club</span>
+          Business<span className="text-fg-3"> OS</span>
         </span>
       )}
     </span>

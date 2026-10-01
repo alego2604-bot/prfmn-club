@@ -21,6 +21,7 @@ Fuente de verdad: `supabase/migrations/*.sql` (probadas con `npm run db:test`). 
 | Operaciones | `cash_sessions` (1 abierta por centro), `cash_movements`, `cash_closings` (versionados, diferencia y estado calculados), `sales`, `sale_items` (snapshot), `stock_movements` |
 | Finanzas | `invoices` (emisión ≠ periodo de servicio, numeración sin huecos), `invoice_items`, `membership_charges`, `payments` (cargos y devoluciones), `suppliers`, `expense_categories`, `expenses`, `bank_transactions` |
 | Datos | `documents`, `document_links`, `imports`, `import_records`, `notifications`, `audit_logs` |
+| Integraciones (opcional) | `integration_connections` (solo referencia a secretos), `external_identities`, `integration_events` (idempotentes, solo escritura de servidor). Ver [INTEGRATIONS](INTEGRATIONS.md) |
 
 ## Relaciones clave
 - `sales 1—n sale_items`, `sales 1—n payments` (pago dividido), `invoices 0..1 → sales`.

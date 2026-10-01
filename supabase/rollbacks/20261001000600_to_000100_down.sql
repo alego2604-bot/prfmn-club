@@ -1,9 +1,10 @@
--- Reversión completa de las migraciones 0100–0500 (esquema inicial).
+-- Reversión completa de las migraciones 0100–0600 (esquema inicial + integraciones).
 -- ⚠ DESTRUCTIVO: solo para development/staging. NUNCA en producción con datos reales
 --   (allí los cambios se hacen con migraciones nuevas hacia delante).
 begin;
 drop function if exists public.create_organization(text, text, text, text, text, boolean);
 drop table if exists
+  public.integration_events, public.external_identities, public.integration_connections,
   public.audit_logs, public.notifications, public.import_records, public.imports, public.document_links, public.documents,
   public.bank_transactions, public.expenses, public.expense_categories, public.suppliers, public.payments,
   public.membership_charges, public.invoice_items, public.invoices, public.stock_movements, public.sale_items,

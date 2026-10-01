@@ -9,6 +9,7 @@ import {
 import { createCategory, createProduct, duplicateProduct, productUsage, setProductStatus, updateCategory, updateProduct, type ProductInput } from "@/data/repos/catalog";
 import { CATEGORY_COLORS } from "@/data/workspace";
 import { unitMargin } from "@/domain/pricing";
+import { productKindsFor } from "@/domain/modules";
 import type { CatalogStatus, Product, ProductCategory, ProductKind } from "@/domain/types";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatMoney, formatRate, splitGross } from "@/lib/money";
@@ -181,7 +182,7 @@ function CategoriesTab() {
       onRowClick={(c) => setParams({ categoria: c.id })}
       exportName="Categorias"
       exportCompany={ws.organization.name}
-      empty={{ icon: Tags, title: "Sin categorías", description: "Agrupa tus productos (Bebidas, Suplementación…) para analizar el mix de ventas." }}
+      empty={{ icon: Tags, title: "Sin categorías", description: "Agrupa tus productos y servicios para analizar el mix de ventas." }}
     />
   );
 }
@@ -221,7 +222,7 @@ function CategoryDialog({ categoryId, onClose }: { categoryId?: string; onClose:
       }
     >
       <div className="flex flex-col gap-4">
-        <Field label="Nombre" required><Input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Suplementación" /></Field>
+        <Field label="Nombre" required><Input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre de la categoría" /></Field>
         <Field label="IVA por defecto" hint="Se propone al crear productos de esta categoría.">
           <Select value={tax} onChange={(e) => setTax(e.target.value)}>
             {ws.taxRates.filter((t) => t.status === "active").map((t) => <option key={t.id} value={t.rateBp}>{t.name}</option>)}
@@ -302,7 +303,7 @@ function ProductDrawer({ productId, onClose }: { productId?: string; onClose: ()
       )}
     >
       <fieldset disabled={readOnly} className="flex flex-col gap-4">
-        <Field label="Nombre" required><Input autoFocus={!product} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Agua 50 cl" /></Field>
+        <Field label="Nombre" required><Input autoFocus={!product} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nombre del producto o servicio" /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Categoría">
             {newCat === null ? (
@@ -324,7 +325,7 @@ function ProductDrawer({ productId, onClose }: { productId?: string; onClose: ()
           </Field>
           <Field label="Tipo">
             <Select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as ProductKind })}>
-              {Object.entries(KIND_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              {[...new Set([...productKindsFor(ws.organization), form.kind])].map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
             </Select>
           </Field>
         </div>

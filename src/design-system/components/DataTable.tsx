@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Columns3, Download, FileSpreadsheet, Search, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { normalizeKey } from "@/lib/text";
+import { getPref, setPref } from "@/lib/localPrefs";
 import { downloadCsv, downloadXlsx, type ExportColumn, type ExportValue } from "@/lib/export";
 import { Button, IconButton } from "./primitives";
 import { Checkbox, Input } from "./form";
@@ -49,10 +50,10 @@ export interface DataTableProps<T> {
 function readHidden(key: string | undefined, cols: { id: string; defaultHidden?: boolean }[]): Set<string> {
   if (key) {
     try {
-      const raw = localStorage.getItem(`prfmn.table.${key}`);
+      const raw = getPref(`table.${key}`);
       if (raw) return new Set(JSON.parse(raw) as string[]);
     } catch {
-      /* almacenamiento no disponible */
+      /* valor corrupto */
     }
   }
   return new Set(cols.filter((c) => c.defaultHidden).map((c) => c.id));
@@ -60,7 +61,7 @@ function readHidden(key: string | undefined, cols: { id: string; defaultHidden?:
 
 export function DataTable<T>({
   rows, columns, getRowId, onRowClick, searchText, searchPlaceholder = "Buscar…", toolbar, selectable, bulkActions, pageSize = 50,
-  exportName, exportCompany = "PRFMN Club", empty, storageKey, initialSort, rowClassName, footer, dense,
+  exportName, exportCompany = "Business OS", empty, storageKey, initialSort, rowClassName, footer, dense,
 }: DataTableProps<T>) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<{ id: string; dir: "asc" | "desc" } | null>(initialSort ?? null);
@@ -70,11 +71,7 @@ export function DataTable<T>({
 
   useEffect(() => {
     if (!storageKey) return;
-    try {
-      localStorage.setItem(`prfmn.table.${storageKey}`, JSON.stringify([...hidden]));
-    } catch {
-      /* ignorar */
-    }
+    setPref(`table.${storageKey}`, JSON.stringify([...hidden]));
   }, [hidden, storageKey]);
 
   const visible = columns.filter((c) => !hidden.has(c.id));

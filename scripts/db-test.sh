@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PG_BIN="${PG_BIN:-$(dirname "$(command -v initdb 2>/dev/null || ls /usr/lib/postgresql/*/bin/initdb | tail -1)")}"
 PORT="${PGTEST_PORT:-54329}"
-DATA_DIR="$(mktemp -d -t prfmn-pgtest-XXXXXX)"
+DATA_DIR="$(mktemp -d -t bos-pgtest-XXXXXX)"
 RUN_AS=()
 if [ "$(id -u)" = "0" ]; then
   chown postgres "$DATA_DIR"

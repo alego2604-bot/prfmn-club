@@ -1,12 +1,14 @@
-# CLAUDE.md — PRFMN Club
+# CLAUDE.md — Business OS
 
 Este archivo son las instrucciones permanentes para cualquier agente (Claude u otro) que trabaje en este repositorio.
 
 ## Qué es este proyecto
 
-PRFMN Club es un **Business Operating System SaaS multi-tenant** (multiempresa, multicentro, multisector), especializado inicialmente en boxes de CrossFit, gimnasios funcionales/híbridos, centros HYROX y boutique performance gyms, preparado para retail, restauración, estética y servicios. No es un prototipo: se construye desde el día uno para producción real, con datos reales, dinero real y múltiples gimnasios (tenants) aislados entre sí.
+**Business OS** (nombre interno provisional) es un **software de gestión empresarial SaaS multi-tenant** (multiempresa, multicentro, multisector): un núcleo empresarial común + módulos verticales. El primer módulo vertical es Fitness (boxes, gimnasios, centros de entrenamiento); después retail, restauración, estética, clínicas y servicios.
 
-El primer tenant real será **The Gravity Room**, pero ningún código debe asumir que solo existe un gimnasio.
+**Business OS is an independent product and has no runtime dependency on PRFMN.** PRFMN es otro producto (software de training/performance) con su propio repositorio, Supabase, Auth y deploy. Este repositorio no importa, consulta ni comparte nada con él; cualquier conexión futura será opcional y solo por API/webhook (`docs/INTEGRATIONS.md`). No es un prototipo: se construye desde el día uno para producción real, con datos reales, dinero real y múltiples empresas (tenants) aislados entre sí.
+
+**The Gravity Room is the first tenant, not the product itself.** Ningún código puede contener reglas, productos, categorías, tarifas o textos de una empresa concreta (nada de `if (empresa === …)`): todo son datos de cada organización.
 
 Documentación completa en [`/docs`](docs/). Empieza siempre por [`docs/PROJECT_MASTER.md`](docs/PROJECT_MASTER.md) (source of truth, se actualiza con cada decisión relevante) y [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
@@ -19,10 +21,13 @@ Documentación completa en [`/docs`](docs/). Empieza siempre por [`docs/PROJECT_
 5. **Toda operación financiera requiere trazabilidad.** Facturas, pagos, devoluciones, ajustes de stock con impacto económico: nunca se hace `DELETE` físico, se anula/versiona manteniendo el histórico (soft-delete o tabla de eventos).
 6. **Nunca eliminar funcionalidad estable sin causa justificada y documentada en `docs/DECISIONS.md`.**
 7. **No copiar la interfaz ni arquitectura visual de BeMadBox ni de ningún competidor.** Referencia conceptual únicamente.
+8. **Independencia de producto.** Nunca usar la base de datos, el Supabase, la autenticación, las tablas, la lógica o los nombres internos de PRFMN ni de otro producto. Si Business OS o PRFMN desaparecieran, el otro debe seguir funcionando al 100 %.
+9. **Core sin sector.** Lo específico de un sector va en un módulo vertical (`src/domain/modules.ts`, `organization_modules`), nunca en el núcleo.
+10. **Datos personales reales nunca en el repositorio** (ni en tests ni en documentación): usar datos sintéticos.
 
 ## Antes de modificar funcionalidad importante
 
-1. **Inspeccionar arquitectura** — leer `docs/ARCHITECTURE.md`, `docs/MODULE_MAP.md` y el código relacionado.
+1. **Inspeccionar arquitectura** — leer `docs/ARCHITECTURE.md`, `docs/PROJECT_MASTER.md` y el código relacionado.
 2. **Localizar dependencias** — qué otros módulos, tablas o componentes usan lo que vas a tocar.
 3. **Planificar la implementación** — cambio mínimo y seguro, no reescrituras oportunistas.
 4. **Realizar el cambio mínimo seguro.**
@@ -56,6 +61,6 @@ MVP funcional en **modo local** (IndexedDB, mismo modelo que el SQL) + esquema S
 
 Se puede avanzar sin preguntar en decisiones de detalle (nombres de campos, estructura de componentes, copy de UI, elección de librería auxiliar menor). Se debe **detener y preguntar** ante decisiones que afecten: modelo de negocio, arquitectura principal, seguridad, facturación, riesgo de pérdida de datos, o costes económicos significativos (ej. servicios de pago de terceros). Toda decisión relevante tomada de forma autónoma se documenta en `docs/DECISIONS.md` con el motivo.
 
-## Este directorio es un proyecto aislado
+## Este repositorio es un producto aislado
 
-`prfmn-club/` vive dentro de una carpeta de trabajo más amplia que contiene un prototipo previo no relacionado (`PRFMN_TRACK_B_WORKING.html` y variantes, en la raíz de `../`). Ese prototipo es solo referencia funcional futura para el módulo de Workouts — **no se modifica ni se depende de él** desde este proyecto.
+Business OS vive en su propio repositorio. En la máquina del propietario puede convivir en una carpeta junto a otros proyectos (por ejemplo prototipos de PRFMN): **no se modifican, no se importan y no se depende de ellos**. Los documentos de la fase en que este repositorio se llamaba «PRFMN Club» están en `docs/archive/` solo como histórico.

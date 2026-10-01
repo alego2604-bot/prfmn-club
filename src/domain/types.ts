@@ -28,6 +28,8 @@ export interface Organization {
   timezone: string;
   locale: string;
   vertical: Vertical;
+  /** Módulos verticales activos (null/undefined = los de su sector por defecto). Espejo de organization_modules. */
+  modules?: ("fitness")[];
   fiscalYearStartMonth: number;
   isDemo: boolean;
   status: "active" | "suspended" | "archived";

@@ -2,6 +2,34 @@
 
 Registro de decisiones técnicas/producto relevantes tomadas de forma autónoma, con motivo. Formato: fecha — decisión — motivo — alternativas consideradas.
 
+
+## 2026-10-01 — Business OS es un producto independiente de PRFMN
+
+**Decisión** (del propietario): este repositorio es **Business OS**, software de gestión empresarial, totalmente separado de PRFMN (software de training/performance). Repositorio, base de datos, proyecto Supabase (Auth, PostgreSQL, RLS, Storage, Functions, logs), deploy y dominio propios. **Business OS is an independent product and has no runtime dependency on PRFMN.** Cualquier conexión futura será opcional y solo por API/webhook ([INTEGRATIONS.md](INTEGRATIONS.md)).
+
+**Auditoría realizada**:
+- Sin dependencias técnicas con PRFMN: ningún import, tabla, variable, servicio, Supabase ni Auth compartidos. El prototipo de workouts mencionado en decisiones de julio nunca formó parte de este repositorio y tenía su propio Supabase.
+- Restos de nombre (no funcionales) de la fase «PRFMN Club»: marca en la UI, nombre del paquete, base IndexedDB `prfmn-club`, claves `prfmn.*`, sal del hash local, comentarios de migraciones, variables de test. **Renombrados a Business OS** con migración automática de los datos locales existentes (se copian antes de retirar el nombre antiguo; nunca se borra nada sin copiar). Las únicas cadenas `prfmn` que quedan en el código son esos identificadores *legacy* de migración.
+- Comentarios de cabecera de las migraciones SQL cambiados: estas migraciones **no se han aplicado en ningún entorno**, así que no se viola la regla de no editar migraciones aplicadas.
+- Documentos de la fase anterior movidos a `docs/archive/` (no borrados).
+- El nombre del repositorio en GitHub (`prfmn-club`) **sigue siendo PRFMN**: renombrarlo es decisión del propietario (ver CHANGELOG, pendiente).
+
+## 2026-10-01 — The Gravity Room es el primer tenant, no el producto
+
+Ninguna regla, producto, categoría, tarifa ni texto de una empresa concreta en el código. Auditoría: no había `if (empresa === …)`; sí había dos KPIs del dashboard que buscaban categorías por nombre («Suplementación», «Retail/merchandising») → sustituidos por métricas genéricas (categoría principal, unidades, clientes con compra). Placeholders de alta neutrales. The Gravity Room solo aparece como organización en los datos y como nombre de tenant en tests.
+
+## 2026-10-01 — Core empresarial + módulos verticales
+
+`src/domain/modules.ts` (espejo de `organization_modules`). El módulo **Fitness** (membresías, créditos, drop-ins, asistencia) se activa por sector o desde Ajustes. Sin él, desaparecen de la navegación, del dashboard, de los tipos de producto y de las propuestas de la importación. Nuevos sectores (retail, restauración, estética…) se añadirán como módulos sin tocar el core.
+
+## 2026-10-01 — Capa de integraciones genérica (migración 0600)
+
+`integration_connections` (solo referencia a secretos en Vault), `external_identities`, `integration_events` (idempotentes, solo escritura de servidor). Proveedor genérico: PRFMN sería un proveedor más, igual que un software de reservas o una pasarela de pago. Los datos recibidos se guardan como datos propios (p. ej. `attendance.source = 'integration'`), así que nada se rompe si la integración se apaga.
+
+## 2026-10-01 — Datos personales reales retirados del repositorio público
+
+Tests y `EXCEL_ANALYSIS.md` contenían DNI/NIF reales y números de factura de clientes de The Gravity Room como ejemplos. Sustituidos por valores sintéticos. **Siguen en el historial de git** de un repositorio público: el propietario debe decidir hacerlo privado y/o reescribir el historial (acciones irreversibles o externas que no se han hecho sin su autorización).
+
 ## 2026-10-01 — Re-alcance a Business Operating System (organization_id + location_id)
 
 **Decisión**: el modelo pasa de `gym_id` a `organization_id` (empresa/tenant) + `location_id` (centro). Toda tabla de negocio lleva `organization_id`; lo que ocurre en un centro lleva `location_id`. FK compuestas `(organization_id, id)` para que sea imposible enlazar registros de dos empresas.

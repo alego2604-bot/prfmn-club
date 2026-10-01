@@ -1,7 +1,7 @@
 /**
  * Tests del motor de importación.
  * - Fixture sintético (siempre): reproduce la estructura y los problemas de los Excel reales.
- * - Ficheros reales (opcional, solo en local): PRFMN_CAJA_XLSX y PRFMN_FACTURAS_XLSX apuntan a los Excel.
+ * - Ficheros reales (opcional, solo en local): BOS_CAJA_XLSX y BOS_FACTURAS_XLSX apuntan a los Excel.
  *   Nunca se suben al repositorio (contienen datos personales); los asserts solo usan agregados.
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -183,8 +183,8 @@ describe("Importación de facturas (fixture)", () => {
   });
 });
 
-const CAJA = process.env.PRFMN_CAJA_XLSX;
-const FACTURAS = process.env.PRFMN_FACTURAS_XLSX;
+const CAJA = process.env.BOS_CAJA_XLSX;
+const FACTURAS = process.env.BOS_FACTURAS_XLSX;
 const asAB = (p: string) => {
   const b = readFileSync(p);
   return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;

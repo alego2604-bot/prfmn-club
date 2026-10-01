@@ -2,6 +2,22 @@
 
 Formato: fecha, fase, resumen. Más reciente arriba.
 
+## 2026-10-01 — Separación total de PRFMN · Business OS como producto independiente
+
+### HECHO
+- Auditoría de dependencias con PRFMN: **ninguna técnica** (sin código, tablas, Supabase, Auth, variables ni servicios compartidos). Solo restos de nombre, ya renombrados.
+- Rebranding interno a **Business OS** (UI, paquete, título, exportaciones, PDF, migraciones). Migración automática y segura de datos locales: base IndexedDB `prfmn-club` → `business-os`, claves `prfmn.*` → `bos.*`, contraseñas locales aceptadas y re-cifradas al nuevo formato.
+- Core vs vertical: `src/domain/modules.ts`, interruptor del módulo Fitness en Ajustes → Empresa, navegación/dashboard/catálogo/importación condicionados al módulo. Eliminadas las categorías escritas a mano en el dashboard.
+- Migración `0600_integrations` (capa opcional de integraciones) + 3 tests nuevos de aislamiento (27 en total). Documentación en `docs/INTEGRATIONS.md`.
+- Datos personales reales (DNI/NIF, nº de factura) sustituidos por datos sintéticos en tests y documentación.
+- Documentos de la fase «PRFMN Club» movidos a `docs/archive/`. README, PROJECT_MASTER, ARCHITECTURE, DECISIONS, CLAUDE.md, DEPLOYMENT y ENVIRONMENT actualizados con la independencia explícita.
+- 30 tests unitarios/integración + 27 comprobaciones SQL + lint + typecheck + build en verde.
+
+### PENDIENTE DEL PROPIETARIO
+- Renombrar el repositorio de GitHub (`prfmn-club` → p. ej. `business-os`) y decidir si debe ser **privado** (hoy es público y contiene el análisis económico de la empresa).
+- Decidir si se reescribe el historial de git para eliminar los DNI reales de commits antiguos.
+- Crear los proyectos Supabase nuevos `business-os-staging` / `business-os-production`.
+
 ## 2026-10-01 — Re-alcance a Business OS: definición, esquema SQL probado y MVP funcional (modo local)
 
 ### HECHO

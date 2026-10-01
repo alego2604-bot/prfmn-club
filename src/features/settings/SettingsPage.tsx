@@ -7,6 +7,7 @@ import {
 import { addLocation, addPaymentMethod, addTaxRate, setDefaultTaxRate, setLocationStatus, updateActivityRules, updateOrganization, updatePaymentMethod } from "@/data/repos/settings";
 import { addTeamMember, updateMember } from "@/data/repos/auth";
 import { ROLE_LABELS } from "@/domain/permissions";
+import { hasModule, MODULE_INFO } from "@/domain/modules";
 import type { ActivityRule, AuditLog, PaymentKind, RoleKey, Vertical } from "@/domain/types";
 import { formatDateTime } from "@/lib/dates";
 import { formatRate } from "@/lib/money";
@@ -81,6 +82,16 @@ function CompanyTab() {
         </div>
         <div className="mt-5 flex justify-end">
           <Button variant="primary" onClick={() => { try { updateOrganization(ctx, { ...f, fiscalYearStartMonth: Number(f.fiscalYearStartMonth) }); toast.success("Datos guardados"); } catch (e) { toast.fromError(e); } }}>Guardar</Button>
+        </div>
+        <div className="mt-6 border-t border-line pt-5">
+          <p className="mb-1 text-sm font-semibold">Módulos verticales</p>
+          <p className="mb-4 text-xs text-fg-3">El núcleo (ventas, caja, catálogo, clientes, finanzas, datos) es igual para cualquier negocio. Los módulos añaden funciones de un sector.</p>
+          <Switch
+            checked={hasModule(o, "fitness")}
+            onChange={(v) => { try { updateOrganization(ctx, { modules: v ? ["fitness"] : [] }); toast.success(v ? "Módulo Fitness activado" : "Módulo Fitness desactivado"); } catch (e) { toast.fromError(e); } }}
+            label={MODULE_INFO.fitness.name}
+            description={MODULE_INFO.fitness.description}
+          />
         </div>
       </Card>
       <Card>
@@ -255,7 +266,7 @@ function TaxesTab() {
   const [rate, setRate] = useState("");
   return (
     <div className="flex flex-col gap-4">
-      <Callout tone="warning">Los tipos asignados a cada producto deben validarse con la gestoría (p. ej. bebidas y suplementos al 10 % frente a merchandising y servicios al 21 %).</Callout>
+      <Callout tone="warning">Los tipos asignados a cada producto o servicio deben validarse con tu asesoría fiscal.</Callout>
       <Card padded={false}>
         {ws.taxRates.map((t) => (
           <div key={t.id} className="flex items-center gap-4 border-b border-line px-5 py-3 last:border-0">

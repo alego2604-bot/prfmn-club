@@ -6,7 +6,7 @@
 | **staging** | Proyecto Supabase propio, datos de prueba | Validar migraciones y releases |
 | **production** | Proyecto Supabase propio, datos reales | Solo migraciones revisadas; nunca pruebas destructivas |
 
-Nunca se comparten bases de datos entre entornos. El rollback de `supabase/rollbacks/` es solo para development/staging.
+Nunca se comparten bases de datos entre entornos **ni con otros productos** (PRFMN tiene su propio Supabase; Business OS tendrá el suyo). El rollback de `supabase/rollbacks/` es solo para development/staging.
 
 ## Variables (frontend, públicas)
 Solo claves públicas con prefijo `VITE_`. Ver `.env.example`.

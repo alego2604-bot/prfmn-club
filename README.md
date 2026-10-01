@@ -1,6 +1,11 @@
-# PRFMN Club
+# Business OS
 
-**Business Operating System** para centros de entrenamiento (y, después, cualquier negocio de servicios): caja, ventas, catálogo, clientes, facturación, importación de datos e informes en una única fuente de verdad. Multiempresa y multicentro desde el primer commit. Primer cliente real: **The Gravity Room**.
+> **Business OS is an independent product and has no runtime dependency on PRFMN.**
+> **The Gravity Room is the first tenant, not the product itself.**
+
+**Software de gestión empresarial** (Business Management / CRM / Finance / Operations): caja, ventas, catálogo, clientes, facturación, importación de datos e informes en una única fuente de verdad. Multiempresa, multicentro y multisector: un núcleo común + módulos verticales (el primero, Fitness). «Business OS» es el nombre interno provisional.
+
+Primera empresa cliente (tenant): The Gravity Room. El software funciona igual para cualquier empresa; ningún dato ni regla de una empresa concreta está en el código.
 
 > Empieza por [`docs/PROJECT_MASTER.md`](docs/PROJECT_MASTER.md) (source of truth) y las reglas de [`CLAUDE.md`](CLAUDE.md).
 
@@ -34,7 +39,7 @@ Crea una cuenta → crea tu empresa → **Importaciones → Nueva** y sube tus E
 
 Tests con tus Excel reales (solo en local, nunca se suben al repo):
 ```bash
-PRFMN_CAJA_XLSX=/ruta/CAJA.xlsx PRFMN_FACTURAS_XLSX=/ruta/BeMadBox_Q3.xlsx npm test
+BOS_CAJA_XLSX=/ruta/CAJA.xlsx BOS_FACTURAS_XLSX=/ruta/BeMadBox_Q3.xlsx npm test
 ```
 
 ## Documentación
@@ -48,8 +53,20 @@ PRFMN_CAJA_XLSX=/ruta/CAJA.xlsx PRFMN_FACTURAS_XLSX=/ruta/BeMadBox_Q3.xlsx npm t
 | [DESIGN_SYSTEM](docs/DESIGN_SYSTEM.md) | Tokens, componentes, gráficas |
 | [USER_FLOWS](docs/USER_FLOWS.md) | Flujos principales |
 | [ROADMAP](docs/ROADMAP.md) | Fases |
+| [INTEGRATIONS](docs/INTEGRATIONS.md) | Capa de integración opcional (API/webhooks), sin acoplamiento |
 | [SETUP](docs/SETUP.md) · [ENVIRONMENT](docs/ENVIRONMENT.md) · [DEPLOYMENT](docs/DEPLOYMENT.md) · [API](docs/API.md) | Operación |
 | [DECISIONS](docs/DECISIONS.md) · [CHANGELOG](docs/CHANGELOG.md) | Registro |
+
+## Independencia
+
+| | PRFMN | Business OS |
+|---|---|---|
+| Ámbito | Training / performance (workouts, atletas, scores, leaderboards) | Gestión empresarial (operaciones, clientes, finanzas, datos, analytics) |
+| Repositorio | propio | este |
+| Base de datos / Supabase / Auth | propios | propios (proyecto nuevo, aún por crear) |
+| Deploy y dominio | propios | propios |
+| Dependencia del otro | ninguna | ninguna |
+| Conexión futura | opcional, por API/webhook ([INTEGRATIONS](docs/INTEGRATIONS.md)) | ← |
 
 ## Estructura
 

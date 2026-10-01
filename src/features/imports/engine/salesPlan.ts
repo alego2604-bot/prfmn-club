@@ -3,6 +3,7 @@ import { capitalize, monthName, toISODate } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import { normalizeKey, similarity, squash } from "@/lib/text";
 import { PAYMENT_SYNONYMS } from "./fields";
+import { hasModule } from "@/domain/modules";
 import { findDeclaredTotal, monthFromName, rawOf, rowFields, rowText, toDate, toMoney, toNumber } from "./shared";
 import type { CatalogRow, FileAnalysis, ImportPlan, Issue, PlanOptions, SalesRow, WorkbookData } from "./types";
 
@@ -12,9 +13,10 @@ export function suggestTaxRate(categoryName: string): number {
   return REDUCED_VAT.test(normalizeKey(categoryName)) ? 1000 : 2100;
 }
 
-export function suggestKind(name: string, category: string): CatalogRow["kind"] {
+/** Tipo propuesto. "drop_in" solo existe si la empresa tiene el módulo fitness. */
+export function suggestKind(name: string, category: string, fitness = false): CatalogRow["kind"] {
   const n = normalizeKey(`${name} ${category}`);
-  if (/drop/.test(normalizeKey(name))) return "drop_in";
+  if (fitness && /drop/.test(normalizeKey(name))) return "drop_in";
   if (/bono|pack/.test(normalizeKey(name))) return "pack";
   if (/drop|bono|clase|sesion|servicio/.test(n)) return "service";
   return "physical";
@@ -82,7 +84,7 @@ export function buildSalesPlan(wb: WorkbookData, analysis: FileAnalysis, ws: Wor
       }
       catalog.push({
         type: "catalog", key: `${sa.name}:${r + 1}`, sheet: sa.name, rowNumber: r + 1, raw: rawOf(row, sa), status, confidence, issues,
-        decision: status === "valid" ? "import" : "ignore", name, categoryName, price, taxRateBp, kind: suggestKind(name, categoryName),
+        decision: status === "valid" ? "import" : "ignore", name, categoryName, price, taxRateBp, kind: suggestKind(name, categoryName, hasModule(ws.organization, "fitness")),
         existingProductId: existing?.kind === "existing" ? existing.id : undefined,
       });
       if (status === "valid" && !existing) productIndex.set(key, { kind: "new", name, price, category: categoryName });

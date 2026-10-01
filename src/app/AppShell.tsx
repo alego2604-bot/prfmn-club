@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { Button, Drawer, EmptyState, IconButton, Kbd, Menu, MenuItem, MenuLabel } from "@/design-system/components";
 import { computeAlerts } from "@/domain/alerts";
 import { ROLE_LABELS } from "@/domain/permissions";
+import { hasModule } from "@/domain/modules";
 import { ALL_ITEMS, MOBILE_TABS, NAV, SETTINGS_ITEM, type NavItem } from "./nav";
 import { useLocationScope, useSession, useWorkspace } from "./session";
 import { Logo, LogoMark } from "./Logo";
@@ -16,8 +17,7 @@ import { applyTheme, getThemePref, type ThemePref } from "./theme";
 function useVisibleNav() {
   const { can } = useSession();
   const ws = useWorkspace();
-  const fitness = ["fitness", "gym", "functional_training"].includes(ws.organization.vertical);
-  return NAV.map((g) => ({ ...g, items: g.items.filter((i) => (!i.perm || can(i.perm)) && (!i.vertical || fitness)) })).filter((g) => g.items.length);
+  return NAV.map((g) => ({ ...g, items: g.items.filter((i) => (!i.perm || can(i.perm)) && (!i.module || hasModule(ws.organization, i.module))) })).filter((g) => g.items.length);
 }
 
 function NavRow({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {

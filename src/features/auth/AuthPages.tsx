@@ -18,7 +18,7 @@ function AuthLayout({ children, aside }: { children: ReactNode; aside?: ReactNod
             <circle cx="14" cy="18" r="6.5" fill="none" stroke="#0b0d12" strokeWidth="2.6" />
             <circle cx="23" cy="9" r="3" fill="#3b5bfd" />
           </svg>
-          <span className="text-[15px] font-semibold tracking-tight">PRFMN<span className="text-white/50"> Club</span></span>
+          <span className="text-[15px] font-semibold tracking-tight">Business<span className="text-white/50"> OS</span></span>
         </div>
         <div className="relative mt-auto max-w-lg">
           {aside ?? (
@@ -203,14 +203,14 @@ export function OnboardingPage() {
               </div>
             </Field>
             <Field label="Nombre comercial" required htmlFor="orgName">
-              <Input id="orgName" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="The Gravity Room" required autoFocus />
+              <Input id="orgName" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Mi Empresa" required autoFocus />
             </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Razón social" htmlFor="legal"><Input id="legal" value={form.legalName} onChange={(e) => setForm({ ...form, legalName: e.target.value })} /></Field>
               <Field label="CIF / NIF" htmlFor="tax"><Input id="tax" value={form.taxId} onChange={(e) => setForm({ ...form, taxId: e.target.value })} /></Field>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Ciudad" htmlFor="city"><Input id="city" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="Calonge" /></Field>
+              <Field label="Ciudad" htmlFor="city"><Input id="city" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="Barcelona" /></Field>
               <Field label="Primer centro" htmlFor="loc"><Input id="loc" value={form.locationName} onChange={(e) => setForm({ ...form, locationName: e.target.value })} placeholder={form.city || "Principal"} /></Field>
             </div>
             <Button type="submit" variant="primary" size="lg" loading={busy} iconRight={ArrowRight} className="mt-2">Crear empresa</Button>

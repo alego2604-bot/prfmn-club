@@ -9,7 +9,9 @@ import { ValidationError } from "../context";
 import type { Store } from "../store";
 import { buildWorkspace } from "../workspace";
 
-const hashPassword = (email: string, password: string) => sha256Hex(`prfmn-local:${email.toLowerCase()}:${password}`);
+const hashPassword = (email: string, password: string) => sha256Hex(`bos-local:${email.toLowerCase()}:${password}`);
+/** Hash de cuentas locales creadas antes del cambio de nombre: se acepta una vez y se actualiza al nuevo formato. */
+const legacyHash = (email: string, password: string) => sha256Hex(`prfmn-local:${email.toLowerCase()}:${password}`);
 
 export async function registerAccount(store: Store, input: { fullName: string; email: string; password: string }): Promise<UserAccount> {
   const email = input.email.trim().toLowerCase();
@@ -25,8 +27,15 @@ export async function registerAccount(store: Store, input: { fullName: string; e
 export async function login(store: Store, email: string, password: string): Promise<UserAccount> {
   const e = email.trim().toLowerCase();
   const user = store.getMeta().users.find((u) => u.email === e);
-  if (!user || user.passwordHash !== (await hashPassword(e, password))) throw new ValidationError("Email o contraseña incorrectos");
-  return user;
+  if (!user) throw new ValidationError("Email o contraseña incorrectos");
+  const current = await hashPassword(e, password);
+  if (user.passwordHash === current) return user;
+  if (user.passwordHash === (await legacyHash(e, password))) {
+    const upgraded = { ...user, passwordHash: current };
+    await store.updateMeta((m) => ({ ...m, users: m.users.map((u) => (u.id === user.id ? upgraded : u)) }));
+    return upgraded;
+  }
+  throw new ValidationError("Email o contraseña incorrectos");
 }
 
 export function membershipsOf(store: Store, userId: string): Member[] {

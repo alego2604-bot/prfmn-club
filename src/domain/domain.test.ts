@@ -167,7 +167,7 @@ describe("Fechas y NIF", () => {
     const prev = previousPeriod(makePeriod("month", new Date(2026, 0, 10)));
     expect(prev.start).toEqual(new Date(2025, 11, 1));
   });
-  it("clasifica identificadores reales del Excel", () => {
+  it("clasifica identificadores (formatos vistos en los Excel, valores sintéticos)", () => {
     expect(classifyTaxId("87654321X").kind).toBe("dni");
     expect(classifyTaxId("12345678z").normalized).toBe("12345678Z");
     expect(classifyTaxId("x1234567l").kind).toBe("nie");

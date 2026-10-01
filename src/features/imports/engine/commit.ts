@@ -9,6 +9,7 @@ import { formatMoney } from "@/lib/money";
 import { normalizeKey } from "@/lib/text";
 import { classifyTaxId } from "@/lib/taxid";
 import { suggestKind, suggestTaxRate } from "./salesPlan";
+import { hasModule } from "@/domain/modules";
 import type { ImportPlan, InvoiceRow, PlanSummary, SalesRow } from "./types";
 
 export function isImportable(r: SalesRow | InvoiceRow): boolean {
@@ -94,7 +95,7 @@ export function commitPlan(ctx: Ctx, plan: ImportPlan, file: FileMeta): ImportJo
       if (!p) {
         const cat = ensureCategory(categoryName || "Sin categoría");
         p = {
-          id: uid(), organizationId: org, categoryId: cat?.id ?? null, name: name.trim(), kind: kind ?? suggestKind(name, categoryName),
+          id: uid(), organizationId: org, categoryId: cat?.id ?? null, name: name.trim(), kind: kind ?? suggestKind(name, categoryName, hasModule(ws0.organization, "fitness")),
           price, taxRateBp: taxRateBp ?? cat?.defaultTaxRateBp ?? suggestTaxRate(categoryName), trackStock: false, posVisible: true,
           sortOrder: products.length, status: "active", importId, createdAt: now, updatedAt: now,
         };

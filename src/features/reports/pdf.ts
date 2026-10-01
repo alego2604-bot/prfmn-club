@@ -110,7 +110,7 @@ export async function buildGestoriaPdf(r: GestoriaReport, company: { name: strin
     doc.setPage(i);
     doc.setFontSize(8);
     doc.setTextColor(...muted);
-    doc.text(`${company.name} · Generado con PRFMN Club · ${new Date().toLocaleString("es-ES")}`, 40, 820);
+    doc.text(`${company.name} · Generado con Business OS · ${new Date().toLocaleString("es-ES")}`, 40, 820);
     doc.text(`${i} / ${pages}`, W - 40, 820, { align: "right" });
   }
   return doc.output("blob");

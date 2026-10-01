@@ -1,5 +1,5 @@
 -- =====================================================================
--- PRFMN Club · 0500 · Row Level Security
+-- Business OS · 0500 · Row Level Security
 -- Patrón: leer = miembro activo con permiso X (+ acceso al centro si aplica)
 --         escribir = miembro activo con permiso Y (+ acceso al centro)
 --         borrar = no existe política (salvo enlaces y notificaciones propias)

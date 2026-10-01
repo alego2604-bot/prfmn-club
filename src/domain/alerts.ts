@@ -62,7 +62,7 @@ export function computeAlerts(ws: Workspace, now = new Date(), locationId?: stri
   if (unvalidatedTax.length) {
     out.push({
       id: "tax-validate", severity: "info", title: `IVA propuesto en ${unvalidatedTax.length} productos importados`,
-      reason: "Se asignó IVA reducido (10 %) a bebidas y suplementación por categoría. Confírmalo con la gestoría.", to: "/catalogo", cta: "Revisar catálogo",
+      reason: "Se propuso IVA reducido (10 %) según la categoría (alimentación y bebidas). Confírmalo con tu asesoría fiscal.", to: "/catalogo", cta: "Revisar catálogo",
     });
   }
 

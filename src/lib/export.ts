@@ -59,7 +59,7 @@ const NUMFMT: Record<string, string> = {
 export async function buildXlsx(sheets: ExportSheet[], meta: { company: string; generatedBy?: string }): Promise<Blob> {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
-  wb.creator = "PRFMN Club";
+  wb.creator = "Business OS";
   wb.company = meta.company;
   wb.created = new Date();
   for (const s of sheets) {

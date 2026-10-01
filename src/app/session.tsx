@@ -7,7 +7,7 @@ import type { Member, UserAccount, Vertical } from "@/domain/types";
 import * as auth from "@/data/repos/auth";
 import { createDemoWorkspace } from "@/data/demo";
 
-const SESSION_KEY = "prfmn.session";
+import { getPref, setPref } from "@/lib/localPrefs";
 
 interface Persisted {
   userId: string;
@@ -17,19 +17,14 @@ interface Persisted {
 
 function readSession(): Persisted | null {
   try {
-    const raw = localStorage.getItem(SESSION_KEY);
+    const raw = getPref("session");
     return raw ? (JSON.parse(raw) as Persisted) : null;
   } catch {
     return null;
   }
 }
 function writeSession(s: Persisted | null) {
-  try {
-    if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s));
-    else localStorage.removeItem(SESSION_KEY);
-  } catch {
-    /* modo privado */
-  }
+  setPref("session", s ? JSON.stringify(s) : null);
 }
 
 interface SessionValue {

@@ -1,5 +1,5 @@
 -- =====================================================================
--- PRFMN Club · 0300 · Ventas, pagos, caja, facturas, gastos
+-- Business OS · 0300 · Ventas, pagos, caja, facturas, gastos
 -- VENTA (qué) ≠ PAGO (cómo) ≠ FACTURA (documento fiscal) ≠ GASTO (salida)
 -- =====================================================================
 
