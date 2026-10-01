@@ -59,6 +59,12 @@ export function buildGestoriaReport(ws: Workspace, p: Period, locationId?: strin
   };
   for (const it of items) addVat("Ventas de caja (tickets)", it.taxRateBp, it.baseAmount, it.taxAmount, it.total);
   for (const it of invItems) addVat("Facturas emitidas", it.taxRateBp, it.baseAmount, it.taxAmount, it.total);
+  // Facturas sin líneas de detalle (solo cabecera): el tipo se deduce de su base y cuota, redondeado al tipo legal más cercano
+  const withItems = new Set(invItems.map((it) => it.invoiceId));
+  for (const i of inv) {
+    if (withItems.has(i.id)) continue;
+    addVat("Facturas emitidas", inferRateBp(i.subtotal, i.taxTotal), i.subtotal, i.taxTotal, i.total);
+  }
   const vat = [...vatMap.values()].sort((a, b) => a.source.localeCompare(b.source) || b.rateBp - a.rateBp);
 
   const salesTotal = sales.reduce((s, x) => s + x.total, 0);
@@ -205,4 +211,12 @@ export function buildGestoriaReport(ws: Workspace, p: Period, locationId?: strin
 
   const fileBase = `${periodFileLabel(p)}_${slugFile(ws.organization.name)}`;
   return { fileBase, title, periodLabel: p.label, kpis, vat, sheets, warnings };
+}
+
+const LEGAL_RATES = [0, 400, 500, 1000, 2100];
+/** Tipo de IVA a partir de base y cuota (p. ej. 51,24 € + 10,76 € → 21 %). */
+export function inferRateBp(base: number, tax: number): number {
+  if (base <= 0 || tax <= 0) return 0;
+  const raw = (tax / base) * 10000;
+  return LEGAL_RATES.reduce((best, r) => (Math.abs(r - raw) < Math.abs(best - raw) ? r : best), LEGAL_RATES[0]!);
 }

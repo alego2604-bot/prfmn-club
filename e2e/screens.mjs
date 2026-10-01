@@ -28,6 +28,7 @@ const SCREENS = [
   ["ventas", "/ventas"],
   ["clientes", "/clientes"],
   ["cliente", null],
+  ["finanzas", "/finanzas"],
   ["facturas", "/facturas"],
   ["importaciones", "/importaciones/nueva"],
   ["informes", "/informes"],
@@ -58,7 +59,7 @@ await setup.close();
 
 for (const [device, opts] of Object.entries(VIEWPORTS)) {
   for (const theme of ["light", "dark"]) {
-    const ctx = await browser.newContext({ ...opts, storageState: storage, locale: "es-ES", timezoneId: "Europe/Madrid", colorScheme: theme });
+    const ctx = await browser.newContext({ ...opts, storageState: storage, locale: "es-ES", timezoneId: "Europe/Madrid", colorScheme: theme, reducedMotion: "reduce" });
     await ctx.addInitScript((t) => localStorage.setItem("bos.theme", t), theme);
     const page = await ctx.newPage();
     page.on("pageerror", (e) => errors.push(`${device}/${theme}: ${e.message}`));
@@ -78,7 +79,7 @@ for (const [device, opts] of Object.entries(VIEWPORTS)) {
           await page.getByRole("radio", { name: "Tarjeta" }).click().catch(() => {});
           await page.waitForTimeout(400);
         }
-        await page.screenshot({ path: join(OUT, `${PREFIX}-${name}-${device}-${theme}.png`), fullPage: device !== "tablet" || name !== "caja" });
+        await page.screenshot({ path: join(OUT, `${PREFIX}-${name}-${device}-${theme}.jpg`), type: "jpeg", quality: 82, fullPage: device !== "tablet" || name !== "caja" });
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         if (overflow > 1) errors.push(`${device}/${theme}/${name}: desbordamiento horizontal de ${overflow}px`);
       } catch (e) {

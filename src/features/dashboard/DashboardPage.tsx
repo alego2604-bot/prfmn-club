@@ -69,7 +69,11 @@ export default function DashboardPage() {
   const k = useMemo(() => computeKpis(ds, period, filterId), [ds, period, filterId]);
   const kPrev = useMemo(() => computeKpis(ds, prev, filterId), [ds, prev, filterId]);
   const today = useMemo(() => computeKpis(ds, makePeriod("today", now), filterId), [ds, now, filterId]);
-  const yesterday = useMemo(() => computeKpis(ds, makePeriod("today", addDays(now, -1)), filterId), [ds, now, filterId]);
+  // Ayer hasta la misma hora: comparación justa con un día en curso
+  const yesterday = useMemo(() => {
+    const y = makePeriod("today", addDays(now, -1));
+    return computeKpis(ds, { ...y, end: new Date(now.getTime() - 86_400_000) }, filterId);
+  }, [ds, now, filterId]);
   const cust = useMemo(() => customerStats(ds, ws.customers, period, prev, filterId), [ds, ws.customers, period, prev, filterId]);
   const custPrev = useMemo(() => customerStats(ds, ws.customers, prev, previousPeriod(prev), filterId), [ds, ws.customers, prev, filterId]);
   const alerts = useMemo(() => computeAlerts(ws, now, filterId).filter((a) => a.id !== "cash-closed"), [ws, now, filterId]);
@@ -185,7 +189,7 @@ export default function DashboardPage() {
             <div className="mt-3 flex items-end justify-between gap-3">
               <div>
                 <p className="figure text-4xl leading-none">{formatMoney(today.revenue)}</p>
-                <div className="mt-2.5"><DeltaChip value={percentChange(today.revenue, yesterday.revenue)} label={`ayer ${formatMoney(yesterday.revenue)}`} /></div>
+                <div className="mt-2.5"><DeltaChip value={percentChange(today.revenue, yesterday.revenue)} label={`ayer a esta hora ${formatMoney(yesterday.revenue)}`} /></div>
               </div>
               <div className="text-right text-sm">
                 <p className="font-semibold num">{today.operations}</p>

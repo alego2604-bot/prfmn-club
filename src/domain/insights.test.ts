@@ -37,3 +37,16 @@ describe("insights (lectura automática, solo con datos reales)", () => {
     expect(t).toContain("3 clientes nuevos en el periodo.");
   });
 });
+
+import { comparablePrevious, makePeriod } from "@/lib/dates";
+describe("comparación justa de periodos en curso", () => {
+  it("el trimestre en curso se compara con los mismos días del anterior", () => {
+    const now = new Date(2026, 9, 5, 12);
+    const p = comparablePrevious(makePeriod("quarter", now), now);
+    expect([p.start.getMonth(), p.start.getDate(), p.end.getMonth(), p.end.getDate()]).toEqual([6, 1, 6, 6]);
+  });
+  it("un periodo cerrado se compara con el anterior completo", () => {
+    const p = comparablePrevious(makePeriod("30d", new Date(2026, 9, 5)), new Date(2026, 9, 5));
+    expect(Math.round((p.end.getTime() - p.start.getTime()) / 86_400_000)).toBe(30);
+  });
+});

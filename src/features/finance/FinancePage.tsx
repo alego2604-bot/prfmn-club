@@ -6,7 +6,7 @@ import { Card, CardHeader, DeltaChip, Page, RangeSelector } from "@/design-syste
 import { BarList, ColumnChart, Legend } from "@/design-system/components/charts";
 import { computeKpis, percentChange } from "@/domain/analytics";
 import { buildGestoriaReport } from "@/features/reports/gestoria";
-import { addDays, addMonths, capitalize, formatDate, makePeriod, monthName, monthShort, previousPeriod, startOfMonth, toISODate, type PeriodPreset } from "@/lib/dates";
+import { addDays, addMonths, capitalize, formatDate, comparablePrevious, makePeriod, monthName, monthShort, startOfMonth, toISODate, type PeriodPreset } from "@/lib/dates";
 import { formatMoney, formatRate } from "@/lib/money";
 import { cn } from "@/lib/cn";
 
@@ -29,7 +29,7 @@ export default function FinancePage() {
     () => makePeriod(range as PeriodPreset, now, range === "custom" ? { start: new Date(`${custom.start}T00:00`), end: new Date(`${custom.end}T00:00`) } : undefined),
     [range, now, custom],
   );
-  const prev = useMemo(() => previousPeriod(period), [period]);
+  const prev = useMemo(() => comparablePrevious(period, now), [period, now]);
   const k = useMemo(() => computeKpis(ws, period, filterId), [ws, period, filterId]);
   const kp = useMemo(() => computeKpis(ws, prev, filterId), [ws, prev, filterId]);
   const report = useMemo(() => buildGestoriaReport(ws, period, filterId), [ws, period, filterId]);
@@ -89,7 +89,7 @@ export default function FinancePage() {
                 <p className="text-sm font-medium text-fg-2">{f.label}</p>
                 <p className={cn("figure mt-2 leading-none", i === 0 ? "text-5xl" : "text-4xl")}>{f.value}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-fg-3">
-                  {f.delta !== null && <DeltaChip value={f.delta} label="vs anterior" />}
+                  {f.delta !== null && <DeltaChip value={f.delta} label={<span title={`${formatDate(prev.start)} – ${formatDate(addDays(prev.end, -1))}`}>vs {prev.label.toLowerCase()}</span>} />}
                   <span>{f.note}</span>
                 </div>
               </div>
@@ -152,7 +152,7 @@ export default function FinancePage() {
                     <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", days > 30 ? "bg-danger-soft text-danger-fg" : "bg-warning-soft text-warning-fg")}><Clock3 className="h-4 w-4" /></span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{i.customerName ?? "Sin cliente"}</span>
-                      <span className="block truncate text-xs text-fg-3">{i.number ?? i.externalNumber ?? "Factura"} · {i.issueDate ? formatDate(i.issueDate) : "—"} · hace {days} días</span>
+                      <span className="block truncate text-xs text-fg-3">{i.number ?? i.externalNumber ?? "Factura"} · {i.issueDate ? formatDate(i.issueDate) : "—"} · {days === 0 ? "hoy" : days === 1 ? "hace 1 día" : `hace ${days} días`}</span>
                     </span>
                     <span className="font-semibold num">{formatMoney(i.total - i.amountPaid)}</span>
                   </li>

@@ -112,6 +112,18 @@ export function previousPeriod(p: Period): Period {
   return { ...p, start: new Date(p.start.getTime() - len), end: p.start, label: "Periodo anterior" };
 }
 
+/**
+ * Periodo de comparación justo: si el periodo está en curso (mes, trimestre o año de calendario),
+ * el anterior se recorta a los mismos días transcurridos (1–5 oct frente a 1–5 sep, no frente a todo septiembre).
+ */
+export function comparablePrevious(p: Period, now = new Date()): Period {
+  const prev = previousPeriod(p);
+  if (!["month", "quarter", "year"].includes(p.preset) || p.end <= now) return prev;
+  const elapsed = addDays(startOfDay(now), 1).getTime() - p.start.getTime();
+  const end = new Date(prev.start.getTime() + elapsed);
+  return { ...prev, end: end < prev.end ? end : prev.end, label: `${prev.label} (mismos días)` };
+}
+
 /** Mismo periodo del año anterior. */
 export function yearAgoPeriod(p: Period): Period {
   const shift = (d: Date) => new Date(d.getFullYear() - 1, d.getMonth(), d.getDate());
