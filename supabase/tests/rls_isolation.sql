@@ -347,6 +347,42 @@ do $$ begin
   exception when insufficient_privilege then raise notice 'PASS employee no cambia precios ni con sync_push'; end;
 end $$;
 
+-- ---------------------------------------------------------------------
+\echo '10. Endurecimiento 0800'
+reset role;
+do $$ begin
+  if has_function_privilege('anon', 'public.create_organization(text, text, text, text, text, boolean)', 'execute') then
+    raise exception 'FAIL: anon puede ejecutar create_organization';
+  end if;
+  if not has_function_privilege('authenticated', 'public.create_organization(text, text, text, text, text, boolean)', 'execute') then
+    raise exception 'FAIL: authenticated no puede ejecutar create_organization';
+  end if;
+  raise notice 'PASS create_organization: solo authenticated';
+  if exists (
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname in ('touch_updated_at','normalize_tax_id','assign_sale_number','forbid_mutation',
+      'guard_sale_update','guard_payment_update','guard_invoice_update','guard_invoice_items','guard_cash_closing_update','guard_price_permission')
+      and (p.proconfig is null or not ('search_path=public, pg_temp' = any(p.proconfig))
+        or has_function_privilege('anon', p.oid, 'execute')
+        -- normalize_tax_id alimenta columnas generadas: authenticated la necesita (0810)
+        or (p.proname <> 'normalize_tax_id' and has_function_privilege('authenticated', p.oid, 'execute')))
+  ) then raise exception 'FAIL: helper interno con search_path mutable o ejecutable por clientes'; end if;
+  raise notice 'PASS helpers internos: search_path fijo y sin ejecución directa';
+end $$;
+-- Los triggers y columnas generadas que usan esos helpers siguen funcionando para usuarios autenticados
+set role authenticated;
+select pg_temp.login('00000000-0000-0000-0000-00000000000a');
+do $$ declare r jsonb; begin
+  r := public.sync_push(current_setting('test.org_a')::uuid, jsonb_build_object('ops', jsonb_build_array(jsonb_build_object(
+    'table','customers','op','insert','rows', jsonb_build_array(jsonb_build_object('id', gen_random_uuid(),
+      'organization_id', current_setting('test.org_a'), 'first_name','Nif','tax_id','12.345.678-z','status','active','tags','{}'))))));
+  if (r -> 0 -> 'rows' -> 0 ->> 'tax_id_normalized') is distinct from '12345678Z' then
+    raise exception 'FAIL: tax_id_normalized no calculado (%)', r -> 0 -> 'rows' -> 0 ->> 'tax_id_normalized';
+  end if;
+  update public.products set name = 'Agua 50cl' where id = current_setting('test.product_a')::uuid;
+  raise notice 'PASS triggers y columnas generadas siguen funcionando tras revocar EXECUTE';
+end $$;
+
 reset role;
 \echo ''
 \echo '✔ Todos los tests de aislamiento, permisos e integridad han pasado.'

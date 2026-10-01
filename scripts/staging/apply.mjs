@@ -47,6 +47,17 @@ create table if not exists supabase_migrations.schema_migrations (version text p
 const applied = new Set((await sql("select version from supabase_migrations.schema_migrations")).map((r) => r.version));
 
 console.log(`business-os-staging (${ref}) · ${applied.size} migraciones aplicadas de ${files.length}`);
+
+// Migraciones aplicadas por otra vía (p. ej. un conector que registra su propia versión/timestamp): si el
+// esquema ya existe pero el registro no coincide con los ficheros, no se reaplica nada a ciegas.
+const unknown = [...applied].filter((v) => !files.some((f) => f.startsWith(`${v}_`)));
+const schemaExists = (await sql(`select to_regclass('public.organizations') is not null as ok`))[0].ok;
+if (unknown.length || (schemaExists && !applied.has(files[0].split("_")[0]))) {
+  console.log(`  ⚠ Registro de migraciones distinto de los ficheros (versiones desconocidas: ${unknown.join(", ") || "—"}).`);
+  console.log("    Revisa supabase_migrations.schema_migrations y reconcilia a mano antes de aplicar.");
+  for (const f of files) console.log(`  ${applied.has(f.split("_")[0]) ? "✔" : "?"} ${f}`);
+  if (!statusOnly && !dry) process.exit(3);
+}
 for (const f of files) {
   const version = f.split("_")[0];
   const name = f.slice(version.length + 1, -4);

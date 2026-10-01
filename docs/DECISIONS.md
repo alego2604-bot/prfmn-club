@@ -171,6 +171,14 @@ La paleta de 8 colores de categoría no supera la validación de daltonismo (ski
 
 **Motivo**: limitación del entorno, no una decisión de producto. Se documenta porque bloquea la ejecución (`npm install`, `npm run dev`) hasta que el usuario instale Node manualmente. Todo el código fuente se escribe igualmente, listo para ejecutar en cuanto exista el runtime.
 
+## 2026-10-01 — 0800 se versiona tal cual se aplicó; su error se corrige hacia delante (0810)
+
+**Decisión**: `20261001000800_security_hardening.sql` refleja exactamente lo aplicado en business-os-staging. El fallo que introduce (EXECUTE revocado en `app.normalize_tax_id`, usada por columnas generadas) se corrige con una migración nueva, `20261001000810_tax_id_generated_columns.sql`, en vez de editar 0800.
+
+**Motivo**: regla 4 (nunca editar una migración ya aplicada). Conceder EXECUTE sobre una función pura e inmutable que solo normaliza texto no expone datos; el resto del endurecimiento se mantiene.
+
+**Alternativas consideradas**: editar 0800 (descartado: staging y Git divergirían); sustituir la columna generada por un trigger (más cambio del necesario).
+
 ## Pendiente de validación legal/fiscal
 
 **Nota**: el modelo de facturación (`BILLING_SYSTEM.md`) está preparado conceptualmente para normativa española (series, IVA, NIF/CIF) pero no ha sido validado por un asesor fiscal. No se debe emitir facturas reales en producción sin esa validación.

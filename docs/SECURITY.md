@@ -57,3 +57,22 @@ Este registro **no** reproduce los datos eliminados.
 - Comprobado tras el push: GitHub **seguía sirviendo los commits antiguos por su SHA** (`/commit/<sha>`). Al pasar a privado dejan de ser públicos; para eliminarlos de los servidores de GitHub hay que solicitarlo a GitHub Support.
 - Mientras fue público, cualquier tercero pudo haber clonado o indexado el contenido (p. ej. archivos de código públicos, buscadores). No es reversible; el riesgo se considera bajo por el tiempo de exposición y la ausencia de secretos.
 - El backup previo a la limpieza contiene los datos antiguos: se guarda fuera del repositorio y debe eliminarse cuando el propietario confirme que el resultado es correcto.
+
+## 4. Funciones SECURITY DEFINER y avisos del Security Advisor (revisión 2026-10-01)
+
+| Aviso | Estado | Motivo |
+|---|---|---|
+| `create_organization` ejecutable por `anon` | **Corregido** (0800) | Supabase concede EXECUTE a `anon` por defecto; `revoke … from public` no bastaba |
+| `search_path` mutable en helpers internos | **Corregido** (0800) | `search_path = public, pg_temp` |
+| `normalize_tax_id` sin EXECUTE para clientes | **Corregido** (0810) | Regresión de 0800 en columnas generadas |
+| SECURITY DEFINER `create_organization` | Intencionado | Exige `auth.uid()`; crea empresa + centro + owner atómicamente (el usuario aún no es miembro, RLS no le dejaría) |
+| SECURITY DEFINER `add_member_by_email` | Intencionado | Exige `team.manage` en `p_org`; no permite `owner`; valida rol de sistema y que los centros sean de esa empresa; necesita leer `auth.users` |
+| SECURITY DEFINER `update_member` | Intencionado | Exige `team.manage` en la empresa del miembro; no toca al owner ni asciende a owner |
+| `organization_counters` con RLS y sin políticas | Intencionado | Solo la escribe `app.next_counter` (definer) desde los triggers de numeración; inaccesible por API |
+
+**Endurecimiento adicional recomendado (no aplicado; no rompe flujos, decisión del propietario):**
+1. `add_member_by_email` revela si un email tiene cuenta (mensaje distinto). Solo a quien tiene `team.manage`; aceptable en staging. En producción: invitación por email con aceptación en vez de alta directa.
+2. `create_organization`: el cliente decide `p_is_demo` y no hay límite de empresas por usuario. Recomendado: límite por usuario y forzar `is_demo = false` salvo flujo demo.
+3. `update_member.p_status` sin lista blanca en la función (la protege el CHECK de la tabla). Recomendado validarlo y registrar la auditoría con el autor.
+4. `app.next_counter` es ejecutable por `authenticated` (lo necesita `assign_sale_number`, que no es definer). No es invocable vía API porque el esquema `app` no está expuesto en PostgREST; mantener `app` fuera de "Exposed schemas".
+

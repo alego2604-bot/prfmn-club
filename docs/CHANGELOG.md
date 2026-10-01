@@ -2,6 +2,18 @@
 
 Formato: fecha, fase, resumen. Más reciente arriba.
 
+## 2026-10-01 — Staging: endurecimiento de seguridad versionado (0800 + 0810)
+
+### HECHO
+- **Migración 0800 `security_hardening` versionada en Git** (ya estaba aplicada en business-os-staging por un conector externo sin escritura en GitHub): `create_organization` sin ejecución anónima, `search_path` fijo en 10 helpers internos, sin ejecución directa de esos helpers desde clientes. Idempotente.
+- **Bug encontrado en 0800 y corregido con 0810**: revocar EXECUTE de `app.normalize_tax_id` rompe el alta/edición de clientes y proveedores **con NIF** (`permission denied for function normalize_tax_id`): esa función alimenta las columnas generadas `tax_id_normalized`, y PostgreSQL sí comprueba EXECUTE al evaluarlas (no en triggers). 0810 la concede solo a `authenticated` y `service_role`. **Staging tiene el bug activo hasta aplicar 0810.**
+- **SQL**: 3 comprobaciones nuevas (sección 10): `create_organization` solo `authenticated`, helpers con `search_path` fijo y sin EXECUTE de clientes, y alta de cliente con NIF vía `sync_push` + triggers tras el endurecimiento. Total **37** (la tabla de estado decía 32; la batería real ya tenía 34 antes de esta sesión).
+- `scripts/staging/apply.mjs`: no reaplica nada si el registro `schema_migrations` de staging no coincide con los ficheros (migraciones aplicadas por otra vía con otro identificador de versión).
+- Revisión de las funciones SECURITY DEFINER y de `organization_counters` (ver SECURITY §4).
+
+### PENDIENTE
+- Aplicar **0810** en staging y repetir SQL / `test:cloud` / `e2e` / capturas contra staging: esta sesión sigue sin red a `api.supabase.com` ni `*.supabase.co` y sin credenciales.
+
 ## 2026-10-01 — Supabase + Design System V2
 
 ### HECHO

@@ -342,7 +342,7 @@ Escala: `PLANNED` → `DESIGNED` → `FRONTEND ONLY` → `FUNCTIONAL` (funciona 
 
 | Módulo | Estado | Notas |
 |---|---|---|
-| Esquema SQL + RLS | TESTED | 7 migraciones aplicadas sobre Postgres 16 + **Supabase Auth real** (stack local); 32 comprobaciones SQL de aislamiento, permisos, integridad y `sync_push`. **Pendiente: aplicar en business-os-staging** (`scripts/staging/apply.mjs`) |
+| Esquema SQL + RLS | TESTED | 9 migraciones (0100–0800 + 0810); 0100–0800 aplicadas en business-os-staging (50 tablas, RLS en todas; aplicadas externamente). 37 comprobaciones SQL locales (aislamiento, permisos, integridad, `sync_push`, endurecimiento). **Pendiente: aplicar 0810 en staging y ejecutar la batería contra staging** |
 | Persistencia en Supabase (sync transaccional, caché/offline IndexedDB) | TESTED | `data/cloud`: diferencias → `sync_push` (1 transacción por acción, RLS), cola offline persistente, descarga completa por empresa. Tests de integración (2 dispositivos) + E2E navegador 22/22 contra stack local. **Pendiente: validar contra staging** |
 | Auth Supabase (registro, login, sesión, logout con borrado de caché) | TESTED | Email + contraseña. Confirmación de email depende de la config del proyecto |
 | Organizaciones, centros, miembros, roles | TESTED | Alta por RPC; equipo por email con `add_member_by_email` / `update_member` (sin claves de servicio) |
@@ -379,7 +379,7 @@ Ver [`CHANGELOG.md`](CHANGELOG.md) (última entrada) para el informe de fase: HE
 
 Preguntas abiertas para el propietario:
 1. ¿Confirmas Vite SPA (recomendado) o prefieres migrar a Next.js?
-2. ~~Proyectos Supabase~~ → `business-os-staging` creado; falta aplicar migraciones y validar (sesión con red a Supabase).
+2. ~~Proyectos Supabase~~ → `business-os-staging` con 0100–0800 aplicadas; falta 0810 y la validación (sesión con red a Supabase).
 3. Tipos de IVA por categoría (bebidas, suplementación, merchandising, drop-in): validar con la gestoría.
 4. Series de factura propias (¿continuar la numeración de BeMadBox o serie nueva?).
 5. ¿Las tarifas *Fundador* siguen abiertas a nuevas altas o están cerradas?

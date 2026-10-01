@@ -1,0 +1,11 @@
+-- =====================================================================
+-- Business OS · 0810 · Corrección de 0800: columnas generadas con NIF
+--   0800 revocó EXECUTE de app.normalize_tax_id(text) a todos los clientes, pero esa función no es
+--   solo un helper interno: la usan las columnas generadas customers.tax_id_normalized y
+--   suppliers.tax_id_normalized, y PostgreSQL SÍ comprueba EXECUTE al evaluarlas (a diferencia de los
+--   triggers). Resultado tras 0800: "permission denied for function normalize_tax_id" al crear o
+--   editar un cliente/proveedor con NIF. Se concede de nuevo solo a los roles que escriben esas
+--   tablas. Es una función pura e inmutable (normaliza texto): concederla no expone datos.
+--   El resto de 0800 (search_path fijo, triggers sin ejecución directa, create_organization sin anon) se mantiene.
+-- =====================================================================
+grant execute on function app.normalize_tax_id(text) to authenticated, service_role;
