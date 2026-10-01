@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ArrowDownLeft, ArrowUpRight, Calculator, CheckCircle2, History, Lock, RotateCcw, Unlock, Wallet, XCircle } from "lucide-react";
-import { useCtx, useLocationScope, useSession, useWorkspace } from "@/app/session";
+import { useCtx, useLocationScope, useSession, useWorkspace, usePersonName } from "@/app/session";
 import {
   Badge, Button, Card, CardHeader, DataTable, DescriptionList, Drawer, Field, Input, Modal, MoneyInput, Page, PageHeader, ReasonDialog,
   Segmented, Textarea, useToast, type Column,
@@ -74,9 +74,7 @@ export default function CashPage() {
 }
 
 function useUserNames() {
-  const { store } = useSession();
-  const users = store.getMeta().users;
-  return (id?: string) => users.find((u) => u.id === id)?.fullName ?? "—";
+  return usePersonName();
 }
 
 function LocationCash({ location }: { location: Location }) {

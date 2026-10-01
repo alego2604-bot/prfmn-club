@@ -40,6 +40,10 @@ export interface Workspace {
   importRecords: ImportRecordRow[];
   auditLogs: AuditLog[];
   counters: Record<string, number>;
+  /** Nombres de las personas de la empresa (autor de ventas, notas, importaciones). Solo lectura. */
+  people?: { id: string; fullName: string }[];
+  /** Equipo (modo Supabase). Solo lectura: se gestiona con RPC (add_member_by_email / update_member). */
+  team?: (Member & { fullName?: string; email?: string })[];
 }
 
 export interface Meta {
@@ -61,6 +65,8 @@ export class Store {
   private writing: Promise<void> | null = null;
   private dirty = false;
   version = 0;
+  /** Gancho de sincronización (modo Supabase): recibe cada escritura confirmada de la app. */
+  onCommit: ((prev: Workspace, next: Workspace) => void) | null = null;
 
   constructor(private kv: KV) {}
 
@@ -115,8 +121,24 @@ export class Store {
     if (next.organization.id !== current.organization.id) throw new Error("Cambio de empresa no permitido");
     this.ws = next;
     this.scheduleSave();
+    this.onCommit?.(current, next);
     this.emit();
     return next;
+  }
+
+  /** Sustituye el workspace por el estado del servidor (no genera cambios a sincronizar). */
+  setWorkspace(ws: Workspace): void {
+    this.ws = ws;
+    this.scheduleSave();
+    this.emit();
+  }
+
+  /** Ajuste local con valores asignados por el servidor (no genera cambios a sincronizar). */
+  patch(fn: (ws: Workspace) => Workspace): void {
+    if (!this.ws) return;
+    this.ws = fn(this.ws);
+    this.scheduleSave();
+    this.emit();
   }
 
   /** Espera a que lo pendiente esté en disco (p. ej. tras una importación). */

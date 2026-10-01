@@ -7,7 +7,7 @@ import type { Customer, Invoice, Payment, Product, ProductCategory, Sale, SaleIt
 import { addDays, startOfDay, toISODate } from "@/lib/dates";
 import { uid } from "@/lib/ids";
 import { splitGross } from "@/lib/money";
-import type { Store } from "./store";
+import type { Store, Workspace } from "./store";
 import { createOrganization } from "./repos/auth";
 
 function rng(seed: number) {
@@ -50,19 +50,31 @@ const FIRST = ["Lucía", "Martín", "Paula", "Hugo", "Carla", "Daniel", "Irene",
 const LAST = ["Ferrer", "Soler", "Vidal", "Roca", "Puig", "Serra", "Costa", "Font", "Pons", "Vila", "Riera", "Mas", "Sala", "Camps", "Prat"];
 const PLANS: [string, number][] = [["8 sesiones", 5500], ["12 sesiones", 6900], ["Ilimitada", 8900], ["Open Box", 4500]];
 
+export const DEMO_ORGANIZATION = {
+  name: "Atlas Training Club (demo)",
+  vertical: "functional_training" as const,
+  locationName: "Centro",
+  legalName: "Atlas Training Demo S.L.",
+  taxId: "B00000000",
+  city: "Ciudad Demo",
+  isDemo: true,
+};
+
+/** Modo local: crea la empresa demo en este navegador. */
 export async function createDemoWorkspace(store: Store, user: UserAccount): Promise<string> {
-  const orgId = await createOrganization(store, user, {
-    name: "Atlas Training Club (demo)",
-    vertical: "functional_training",
-    locationName: "Centro",
-    legalName: "Atlas Training Demo S.L.",
-    taxId: "B00000000",
-    city: "Ciudad Demo",
-    isDemo: true,
-  });
+  const orgId = await createOrganization(store, user, DEMO_ORGANIZATION);
   await store.openWorkspace(orgId);
+  store.update((ws) => fillDemoWorkspace(ws, user.id));
+  await store.flush();
+  return orgId;
+}
+
+/** Rellena una empresa demo (vacía) con datos 100 % ficticios. Se usa igual en local y en Supabase. */
+export function fillDemoWorkspace(ws: Workspace, userId: string): Workspace {
+  const orgId = ws.organization.id;
+  const user = { id: userId };
   const r = rng(42);
-  store.update((ws) => {
+  {
     const now = new Date();
     const iso = now.toISOString();
     const loc = ws.locations[0]!;
@@ -146,7 +158,5 @@ export async function createDemoWorkspace(store: Store, user: UserAccount): Prom
       }
     }
     return { ...ws, categories, products, customers, sales, saleItems: items, payments, invoices, counters: { sale: n } };
-  });
-  await store.flush();
-  return orgId;
+  }
 }

@@ -23,3 +23,5 @@ real-data/
 private/
 expect*.json
 *.bundle
+.local-supabase/
+e2e/results/

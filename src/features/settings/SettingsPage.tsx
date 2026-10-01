@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { Building2, Database, Download, History, Plus, ShieldCheck } from "lucide-react";
-import { useCtx, useSession, useWorkspace } from "@/app/session";
+import { useCtx, useSession, useWorkspace, useTeam } from "@/app/session";
 import {
   Avatar, Badge, Button, Callout, Card, CardHeader, DataTable, Field, Input, Modal, Page, PageHeader, Select, Switch, Tabs, useToast, type Column,
 } from "@/design-system/components";
 import { addLocation, addPaymentMethod, addTaxRate, setDefaultTaxRate, setLocationStatus, updateActivityRules, updateOrganization, updatePaymentMethod } from "@/data/repos/settings";
-import { addTeamMember, updateMember } from "@/data/repos/auth";
 import { ROLE_LABELS } from "@/domain/permissions";
 import { hasModule, MODULE_INFO } from "@/domain/modules";
 import type { ActivityRule, AuditLog, PaymentKind, RoleKey, Vertical } from "@/domain/types";
@@ -140,12 +139,11 @@ function LocationsTab() {
 
 function TeamTab() {
   const ws = useWorkspace();
-  const { store, member: me } = useSession();
+  const { member: me, mode, addMember, updateMember } = useSession();
   const toast = useToast();
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState({ fullName: "", email: "", password: "", role: "employee" as RoleKey, location: "" });
-  const members = store.getMeta().members.filter((m) => m.organizationId === ws.organization.id);
-  const users = store.getMeta().users;
+  const members = useTeam();
   return (
     <div className="flex flex-col gap-4">
       <Callout icon={ShieldCheck}>Los permisos se comprueban por capacidades (p. ej. <span className="font-mono text-xs">sales.void</span>), igual que en las políticas RLS de la base de datos. Un empleado puede limitarse a uno o varios centros.</Callout>
@@ -155,7 +153,7 @@ function TeamTab() {
           <Button variant="primary" icon={Plus} onClick={() => setAdding(true)}>Añadir persona</Button>
         </div>
         {members.map((m) => {
-          const u = users.find((x) => x.id === m.userId);
+          const u = { fullName: m.fullName, email: m.email };
           return (
             <div key={m.id} className="flex flex-wrap items-center gap-4 border-t border-line px-5 py-3">
               <Avatar name={u?.fullName ?? "?"} size={32} />
@@ -164,7 +162,7 @@ function TeamTab() {
               {m.role === "owner" ? (
                 <Badge tone="accent">Owner</Badge>
               ) : (
-                <Select value={m.role} className="w-40" onChange={async (e) => { try { await updateMember(store, m.id, { role: e.target.value as RoleKey }); toast.success("Rol actualizado"); } catch (err) { toast.fromError(err); } }}>
+                <Select value={m.role} className="w-40" onChange={async (e) => { try { await updateMember(m.id, { role: e.target.value as RoleKey }); toast.success("Rol actualizado"); } catch (err) { toast.fromError(err); } }}>
                   {(Object.keys(ROLE_LABELS) as RoleKey[]).filter((r) => r !== "owner").map((r) => <option key={r} value={r}>{ROLE_LABELS[r].name}</option>)}
                 </Select>
               )}
@@ -185,13 +183,13 @@ function TeamTab() {
           open
           onClose={() => setAdding(false)}
           title="Añadir persona al equipo"
-          description="En modo local se crea una cuenta en este dispositivo. Con el servidor conectado, recibirá una invitación por email."
+          description={mode === "cloud" ? "La persona debe haber creado antes su cuenta en Business OS con ese email. Tendrá acceso inmediato con el rol elegido." : "Modo local: se crea una cuenta en este dispositivo."}
           footer={
             <>
               <Button variant="ghost" onClick={() => setAdding(false)}>Cancelar</Button>
               <Button variant="primary" onClick={async () => {
                 try {
-                  await addTeamMember(store, ws.organization.id, { ...f, locationIds: f.location ? [f.location] : null });
+                  await addMember({ ...f, locationIds: f.location ? [f.location] : null });
                   toast.success("Persona añadida");
                   setAdding(false);
                 } catch (e) { toast.fromError(e); }
@@ -200,9 +198,9 @@ function TeamTab() {
           }
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Nombre"><Input value={f.fullName} onChange={(e) => setF({ ...f, fullName: e.target.value })} /></Field>
-            <Field label="Email"><Input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
-            <Field label="Contraseña inicial" hint="Mínimo 8 caracteres"><Input type="password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
+            {mode === "local" && <Field label="Nombre"><Input value={f.fullName} onChange={(e) => setF({ ...f, fullName: e.target.value })} /></Field>}
+            <Field label="Email" className={mode === "cloud" ? "sm:col-span-2" : undefined}><Input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
+            {mode === "local" && <Field label="Contraseña inicial" hint="Mínimo 8 caracteres"><Input type="password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>}
             <Field label="Rol">
               <Select value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as RoleKey })}>
                 {(Object.keys(ROLE_LABELS) as RoleKey[]).filter((r) => r !== "owner").map((r) => <option key={r} value={r}>{ROLE_LABELS[r].name} — {ROLE_LABELS[r].description}</option>)}

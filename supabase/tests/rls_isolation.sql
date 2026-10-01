@@ -300,6 +300,53 @@ do $$ begin
   raise notice 'PASS integraciones solo para quien gestiona la configuración';
 end $$;
 
+\echo '9. Sincronización de la app (sync_push)'
+select pg_temp.login('00000000-0000-0000-0000-00000000000b');
+do $$ begin
+  begin
+    perform public.sync_push(current_setting('test.org_a')::uuid, '{"ops":[]}'::jsonb);
+    raise exception 'FAIL: B pudo sincronizar en la empresa A';
+  exception when insufficient_privilege then raise notice 'PASS sync_push rechaza empresas ajenas'; end;
+  begin
+    perform public.sync_push(current_setting('test.org_b')::uuid, jsonb_build_object('ops', jsonb_build_array(jsonb_build_object(
+      'table','customers','op','insert','rows', jsonb_build_array(jsonb_build_object('id', gen_random_uuid(), 'organization_id', current_setting('test.org_a'), 'first_name','X','status','active','tags','{}'))))));
+    raise exception 'FAIL: B coló un cliente en la empresa A dentro de su lote';
+  exception when insufficient_privilege then raise notice 'PASS un lote no puede contener registros de otra empresa'; end;
+  begin
+    perform public.sync_push(current_setting('test.org_b')::uuid, '{"ops":[{"table":"audit_logs","op":"insert","rows":[{"id":1}]}]}'::jsonb);
+    raise exception 'FAIL: se pudo escribir en audit_logs vía sync_push';
+  exception when invalid_parameter_value then raise notice 'PASS solo tablas sincronizables (auditoría inaccesible)'; end;
+end $$;
+select pg_temp.login('00000000-0000-0000-0000-00000000000a');
+do $$ declare r jsonb; begin
+  r := public.sync_push(current_setting('test.org_a')::uuid, jsonb_build_object(
+    'audit', jsonb_build_object(current_setting('test.product_a'), jsonb_build_object('action','price_change','label','Agua · nuevo precio')),
+    'ops', jsonb_build_array(jsonb_build_object('table','products','op','update','rows', jsonb_build_array(jsonb_build_object('id', current_setting('test.product_a'), 'price', 130))))));
+  if (r -> 0 -> 'rows' -> 0 ->> 'price')::int <> 130 then raise exception 'FAIL: sync_push no devolvió la fila actualizada'; end if;
+  if not exists (select 1 from public.audit_logs where entity_id = current_setting('test.product_a')::uuid and entity_label = 'Agua · nuevo precio') then
+    raise exception 'FAIL: la auditoría no recogió el contexto de la app';
+  end if;
+  if (select count(*) from public.product_prices where product_id = current_setting('test.product_a')::uuid) < 2 then raise exception 'FAIL: sin histórico de precio'; end if;
+  begin
+    perform public.sync_push(current_setting('test.org_a')::uuid, jsonb_build_object('ops', jsonb_build_array(
+      jsonb_build_object('table','products','op','insert','rows', jsonb_build_array(
+        jsonb_build_object('id', gen_random_uuid(), 'organization_id', current_setting('test.org_a'), 'name','Uno','price',100,'tax_rate_bp',2100))),
+      jsonb_build_object('table','products','op','insert','rows', jsonb_build_array(
+        jsonb_build_object('id', gen_random_uuid(), 'organization_id', current_setting('test.org_a'), 'name','Dos','price',-1,'tax_rate_bp',2100))))));
+    raise exception 'FAIL: un lote con un registro inválido se aplicó';
+  exception when check_violation then null; end;
+  if exists (select 1 from public.products where name = 'Uno') then raise exception 'FAIL: lote aplicado a medias (no atómico)'; end if;
+  raise notice 'PASS sync_push: RLS, auditoría con contexto, histórico de precios y atomicidad del lote';
+end $$;
+select pg_temp.login('00000000-0000-0000-0000-00000000000e');
+do $$ begin
+  begin
+    perform public.sync_push(current_setting('test.org_a')::uuid, jsonb_build_object('ops', jsonb_build_array(jsonb_build_object(
+      'table','products','op','update','rows', jsonb_build_array(jsonb_build_object('id', current_setting('test.product_a'), 'price', 1))))));
+    raise exception 'FAIL: employee cambió un precio vía sync_push';
+  exception when insufficient_privilege then raise notice 'PASS employee no cambia precios ni con sync_push'; end;
+end $$;
+
 reset role;
 \echo ''
 \echo '✔ Todos los tests de aislamiento, permisos e integridad han pasado.'

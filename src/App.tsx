@@ -61,8 +61,23 @@ function Root() {
       </div>
     );
   }
+  if (s.status === "error") {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-6">
+        <div className="max-w-sm text-center">
+          <LogoMark size={36} className="mx-auto" />
+          <h1 className="mt-6 text-lg font-semibold tracking-tight">No hemos podido cargar tu empresa</h1>
+          <p className="mt-2 text-sm text-fg-3">Comprueba la conexión a internet. Tus datos están a salvo en el servidor.</p>
+          <button onClick={s.retryBoot} className="mt-6 h-10 rounded-md bg-ink px-4 text-sm font-medium text-fg-inverse">Reintentar</button>
+          {s.bootError && <details className="mt-4 text-left text-xs text-fg-3"><summary className="cursor-pointer">Detalles técnicos</summary><p className="mt-2 break-words font-mono">{s.bootError}</p></details>}
+        </div>
+      </div>
+    );
+  }
   if (s.status === "anon") return <AuthPage />;
   if (s.status === "no-org") return <OnboardingPage />;
+  // Transición (cambio de empresa / cierre de sesión): nunca renderizar la app sin empresa cargada
+  if (!s.store.getWorkspace()) return <div className="flex min-h-screen items-center justify-center"><LogoMark size={36} className="animate-pulse" /></div>;
   return <AppShell />;
 }
 

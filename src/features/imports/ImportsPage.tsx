@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { FileSpreadsheet, Upload } from "lucide-react";
-import { useSession, useWorkspace } from "@/app/session";
+import { useWorkspace, usePersonName } from "@/app/session";
 import { Badge, Button, DataTable, Page, PageHeader, type Column } from "@/design-system/components";
 import type { ImportJob } from "@/domain/types";
 import { formatDateTime } from "@/lib/dates";
@@ -16,9 +16,8 @@ export function ImportStatus({ job }: { job: ImportJob }) {
 
 export default function ImportsPage() {
   const ws = useWorkspace();
-  const { store } = useSession();
   const navigate = useNavigate();
-  const userName = (id?: string) => store.getMeta().users.find((u) => u.id === id)?.fullName ?? "—";
+  const userName = usePersonName();
   const columns: Column<ImportJob>[] = [
     { id: "date", header: "Fecha", sortValue: (j) => j.createdAt, exportValue: (j) => new Date(j.createdAt), exportFormat: "datetime", cell: (j) => formatDateTime(j.createdAt) },
     { id: "file", header: "Archivo", exportValue: (j) => j.fileName, cell: (j) => <span className="flex items-center gap-2 font-medium"><FileSpreadsheet className="h-4 w-4 text-success" />{j.fileName}</span> },

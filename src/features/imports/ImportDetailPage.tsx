@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, FileX, RotateCcw, ShieldAlert } from "lucide-react";
-import { useCtx, useSession, useWorkspace } from "@/app/session";
+import { useCtx, useSession, useWorkspace, usePersonName } from "@/app/session";
 import { Badge, Button, Callout, DataTable, DescriptionList, EmptyState, Kpi, Page, PageHeader, ReasonDialog, Segmented, useToast, type Column } from "@/design-system/components";
 import type { ImportRecordRow } from "@/domain/types";
 import { formatDateTime } from "@/lib/dates";
@@ -20,7 +20,8 @@ export default function ImportDetailPage() {
   const { id } = useParams();
   const ws = useWorkspace();
   const ctx = useCtx();
-  const { can, store } = useSession();
+  const { can } = useSession();
+  const personName = usePersonName();
   const toast = useToast();
   const [reverting, setReverting] = useState(false);
   const [filter, setFilter] = useState<"all" | ImportRecordRow["status"]>("all");
@@ -42,7 +43,7 @@ export default function ImportDetailPage() {
       <Link to="/importaciones" className="mb-4 inline-flex items-center gap-1.5 text-sm text-fg-3 hover:text-fg"><ArrowLeft className="h-4 w-4" />Importaciones</Link>
       <PageHeader
         title={job.fileName}
-        description={`${KIND_LABEL[job.kind]} · ${formatDateTime(job.createdAt)} · ${store.getMeta().users.find((u) => u.id === job.createdBy)?.fullName ?? ""}`}
+        description={`${KIND_LABEL[job.kind]} · ${formatDateTime(job.createdAt)} · ${personName(job.createdBy)}`}
         actions={
           <>
             <ImportStatus job={job} />

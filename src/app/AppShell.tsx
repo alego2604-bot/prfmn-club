@@ -4,7 +4,7 @@ import {
   Bell, Building2, Check, ChevronsUpDown, FlaskConical, LogOut, Menu as MenuIcon, Monitor, Moon, MoreHorizontal, Search, Sun, X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Button, Drawer, EmptyState, IconButton, Kbd, Menu, MenuItem, MenuLabel } from "@/design-system/components";
+import { Button, Drawer, EmptyState, IconButton, Kbd, Menu, MenuItem, MenuLabel, useToast } from "@/design-system/components";
 import { computeAlerts } from "@/domain/alerts";
 import { ROLE_LABELS } from "@/domain/permissions";
 import { hasModule } from "@/domain/modules";
@@ -45,7 +45,7 @@ function OrgSwitcher() {
   const s = useSession();
   const ws = useWorkspace();
   const navigate = useNavigate();
-  const orgs = s.store.getMeta().organizations.filter((o) => s.memberships.some((m) => m.organizationId === o.id));
+  const orgs = s.organizations;
   return (
     <Menu
       align="start"
@@ -150,6 +150,7 @@ function LocationSwitcher() {
 
 function UserMenu() {
   const s = useSession();
+  const toast = useToast();
   return (
     <Menu
       width={240}
@@ -166,7 +167,7 @@ function UserMenu() {
             <p className="truncate text-xs text-fg-3">{s.user?.email}</p>
           </div>
           <div className="my-1 h-px bg-line" />
-          <MenuItem icon={LogOut} onClick={() => { close(); s.logout(); }}>Cerrar sesión</MenuItem>
+          <MenuItem icon={LogOut} onClick={async () => { close(); try { await s.logout(); } catch (e) { toast.fromError(e); } }}>Cerrar sesión</MenuItem>
         </>
       )}
     </Menu>
@@ -254,6 +255,33 @@ function MobileTabBar({ onMore }: { onMore: () => void }) {
   );
 }
 
+/** Estado de guardado en el servidor: discreto cuando todo va bien, claro cuando no. */
+function SyncIndicator() {
+  const s = useSession();
+  const toast = useToast();
+  useEffect(() => s.onSyncError((m) => toast.error("No se ha podido guardar", m)), [s, toast]);
+  if (s.mode !== "cloud" || !s.sync) return null;
+  const { state, pending } = s.sync;
+  const label =
+    state === "offline" ? `Sin conexión · ${pending} pendiente${pending === 1 ? "" : "s"}`
+    : state === "syncing" || pending ? "Guardando…"
+    : state === "error" ? "Error al guardar"
+    : "Guardado";
+  const dot = state === "offline" || state === "error" ? "bg-warning" : state === "syncing" || pending ? "bg-accent animate-pulse" : "bg-success";
+  return (
+    <button
+      onClick={() => void s.refresh().catch(() => undefined)}
+      title={s.sync.lastSyncedAt ? `Última sincronización: ${new Date(s.sync.lastSyncedAt).toLocaleTimeString("es-ES")}` : "Sincronizar"}
+      className="hidden h-8 items-center gap-2 rounded-md px-2.5 text-xs font-medium text-fg-3 transition-colors hover:bg-surface-sunken hover:text-fg sm:flex"
+      data-testid="sync-indicator"
+      data-state={pending ? "pending" : state}
+    >
+      <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />
+      {label}
+    </button>
+  );
+}
+
 export function AppShell() {
   const ws = useWorkspace();
   const location = useLocation();
@@ -301,6 +329,7 @@ export function AppShell() {
               <Kbd>⌘</Kbd><Kbd>K</Kbd>
             </button>
             <IconButton icon={Search} label="Buscar" className="md:hidden" onClick={() => setPaletteOpen(true)} />
+            <SyncIndicator />
             <Notifications />
             <ThemeMenu />
             <UserMenu />

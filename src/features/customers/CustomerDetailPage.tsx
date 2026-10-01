@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AlertCircle, ArrowLeft, BellOff, Mail, MessageCircle, NotebookPen, Pencil, Pin, Receipt, ShoppingBag, StickyNote, UserX } from "lucide-react";
-import { useCtx, useSession, useWorkspace } from "@/app/session";
+import { useCtx, useSession, useWorkspace, usePersonName } from "@/app/session";
 import { Avatar, Badge, Button, Callout, Card, DescriptionList, EmptyState, Field, Input, Kpi, Mono, Page, Switch, Tabs, Textarea, useToast } from "@/design-system/components";
 import { addCustomerNote, customerName } from "@/data/repos/customers";
 import { daysBetween, formatDate, formatDateTime, relativeDays } from "@/lib/dates";
@@ -15,7 +15,8 @@ type Tab = "overview" | "activity" | "invoices" | "purchases" | "notes";
 export default function CustomerDetailPage() {
   const { id } = useParams();
   const ws = useWorkspace();
-  const { can, store } = useSession();
+  const { can } = useSession();
+  const authorName = usePersonName();
   const ctx = useCtx();
   const toast = useToast();
   const [tab, setTab] = useState<Tab>("overview");
@@ -56,7 +57,6 @@ export default function CustomerDetailPage() {
   const name = customerName(c);
   const phoneDigits = c.phone?.replace(/[^\d+]/g, "").replace(/^\+/, "");
   const waNumber = phoneDigits ? (phoneDigits.length === 9 ? `34${phoneDigits}` : phoneDigits) : null;
-  const authorName = (uid?: string) => store.getMeta().users.find((u) => u.id === uid)?.fullName ?? "—";
 
   const saveNote = () => {
     try {

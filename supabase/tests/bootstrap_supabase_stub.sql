@@ -7,7 +7,8 @@ create role service_role nologin bypassrls;
 create schema auth;
 create table auth.users (
   id    uuid primary key,
-  email text unique
+  email text unique,
+  raw_user_meta_data jsonb
 );
 
 -- Same contract as Supabase: the user id comes from the JWT "sub" claim.

@@ -57,7 +57,7 @@ function AuthLayout({ children, aside }: { children: ReactNode; aside?: ReactNod
 export function AuthPage() {
   const s = useSession();
   const toast = useToast();
-  const hasAccounts = s.store.getMeta().users.length > 0;
+  const hasAccounts = s.mode === "cloud" || s.store.getMeta().users.length > 0;
   const [mode, setMode] = useState<"login" | "register">(hasAccounts ? "login" : "register");
   const [form, setForm] = useState({ fullName: "", email: "", password: "" });
   const [busy, setBusy] = useState(false);
@@ -70,8 +70,11 @@ export function AuthPage() {
     try {
       if (mode === "login") await s.login(form.email, form.password);
       else {
-        await s.register(form);
-        toast.success("Cuenta creada", "Ahora crea tu empresa o explora la demo.");
+        const r = await s.register(form);
+        if (r.needsConfirmation) {
+          setMode("login");
+          toast.success("Revisa tu email", "Te hemos enviado un enlace para confirmar la cuenta. Después, inicia sesión.");
+        } else toast.success("Cuenta creada", "Ahora crea tu empresa o explora la demo.");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -128,7 +131,7 @@ export function OnboardingPage() {
   const [step, setStep] = useState<"choose" | "create">(s.memberships.length ? "choose" : "create");
   const [form, setForm] = useState({ name: "", legalName: "", taxId: "", city: "", locationName: "", vertical: "fitness" as Vertical });
   const [busy, setBusy] = useState(false);
-  const orgs = s.store.getMeta().organizations.filter((o) => s.memberships.some((m) => m.organizationId === o.id));
+  const orgs = s.organizations;
 
   const create = async (e: FormEvent) => {
     e.preventDefault();
@@ -176,7 +179,7 @@ export function OnboardingPage() {
           </div>
           <div className="mt-6 flex flex-col gap-2">
             <Button variant="primary" size="lg" onClick={() => setStep("create")}>Crear nueva empresa</Button>
-            <Button variant="ghost" icon={LogOut} onClick={s.logout}>Cerrar sesión</Button>
+            <Button variant="ghost" icon={LogOut} onClick={() => void s.logout()}>Cerrar sesión</Button>
           </div>
         </>
       ) : (
