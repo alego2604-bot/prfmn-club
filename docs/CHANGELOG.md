@@ -2,6 +2,40 @@
 
 Formato: fecha, fase, resumen. Más reciente arriba.
 
+## 2026-10-01 — Re-alcance a Business OS: definición, esquema SQL probado y MVP funcional (modo local)
+
+### HECHO
+- **Producto**: `PROJECT_MASTER.md` (las 15 respuestas pedidas: interpretación, arquitectura, módulos, sitemap, modelo de datos, diseño, MVP, posteriores, riesgos, decisiones, orden, análisis de Excel, reutilización, reestructuración, plan de importación) + `EXCEL_ANALYSIS.md` (fila a fila: 19 problemas de calidad documentados; anonimizado el 2026-10-01).
+- **Base de datos**: 5 migraciones (`supabase/migrations`) con ~45 tablas, RLS en todas, FK compuestas por empresa, auditoría append-only por trigger, versionado de precios, numeración de facturas sin huecos, inmutabilidad financiera y RPC de alta de empresa. **24 comprobaciones de aislamiento/permisos/integridad pasan** en PostgreSQL 16 (`npm run db:test`).
+- **Design system** nuevo (light + dark), shell por pilares, ⌘K, selector de empresa y centro, notificaciones calculadas, barra móvil.
+- **Módulos funcionales**: Acceso (cuenta, empresa, demo separada), Dashboard (Hoy / periodo con comparativas / Año), Caja táctil, Ventas, Cierres, Catálogo, Clientes + ficha, Facturas, Pagos, Importaciones (asistente 6 pasos + historial + reversión), Informes gestoría (XLSX 10 hojas, PDF, CSV), Ajustes (empresa, centros, equipo y roles, métodos de pago, IVA, reglas, auditoría, copia JSON).
+- **Tests**: 27 unitarios/integración (Vitest) + 2 con los Excel reales en local + E2E en Chromium (registro → importar ambos Excel → venta → recarga → cierre → informe → desktop/tablet/móvil/dark) sin errores de consola.
+- Lint (0 warnings), typecheck y build de producción en verde. Configuración ESLint añadida (el script existía sin config) y script `typecheck` corregido.
+
+### QUÉ FUNCIONA (verificado)
+- Importar el Excel de caja real (solo en local): todos los controles de cuadre mensuales ✓, duplicados TPV detectados, fechas de enero corregidas, fila sin producto con candidatos, importe ≠ precio×uds detectado; total importado = total del Excel − filas pendientes de decidir.
+- Importar el export de facturas real (solo en local): clientes sin duplicar, IVA y pies de hoja cuadrados, aviso de facturas del trimestre anterior y de huecos de numeración.
+- Informe trimestral para gestoría (`Q<n>_<año>_<Empresa>.xlsx` / `.pdf`): facturas por fecha de emisión + caja, IVA por tipo.
+- Caja → venta multi-pago → dashboard al instante → cierre cuadrado/descuadre → reapertura versionada.
+
+### QUÉ NO ESTÁ CONECTADO
+- Supabase (auth, base de datos, storage): los datos viven en el navegador. Esquema listo y probado.
+- Emisión de facturas propias, gastos, membresías, asistencia, seguimiento, inbox/WhatsApp, documentos, analytics avanzados, Copilot, OCR (estados en PROJECT_MASTER §16, marcados «Pronto» en la app, sin botones falsos).
+
+### PROBLEMAS ENCONTRADOS Y CORREGIDOS
+- Venta perdida al recargar inmediatamente (debounce de guardado) → escritura inmediata.
+- Carrito de Caja cortado en tablet 1024 px → barra lateral oculta en Caja hasta 1280 px.
+- «Mejor día» tomaba un resumen mensual importado → solo ventas individuales.
+- Etiquetas de formulario no asociadas a su campo → `Field` las asocia automáticamente.
+
+### DECISIONES
+Ver `DECISIONS.md` (2026-10-01): organization/location, Vite vs Next.js (pendiente de confirmar), modo local, céntimos/IVA, histórico de precios, no borrar, tratamiento de los Excel, retirada del mock, navegación, gráficas.
+
+### SIGUIENTE ETAPA
+1. Crear proyectos Supabase (staging/prod) y SupabaseAdapter + Auth real.
+2. Membresías desde las facturas importadas (tarifas detectadas) + importación de asistencia → Seguimiento.
+3. Gastos y proveedores; validar IVA y series con la gestoría antes de emitir facturas.
+
 ## 2026-07-23 — Fase 3: revisión UX y interactividad del mock (sin ejecución local)
 
 Sesión de trabajo dedicada exclusivamente a mejorar el frontend mock ya existente — sin backend, sin Stripe, sin instalar nada en el sistema. Entorno de trabajo confirmado sin Node.js disponible; se decidió posponer toda ejecución/validación real hasta un Mac mini dedicado (ver `DECISIONS.md`).

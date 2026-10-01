@@ -1,3 +1,5 @@
+> **Nota (2026-10-01)**: documento de la fase anterior (modelo `gym_id`, frontend mock). Se conserva como referencia histórica; la fuente de verdad actual es [PROJECT_MASTER.md](PROJECT_MASTER.md).
+
 # MVP Scope
 
 ## Objetivo del MVP

@@ -2,6 +2,68 @@
 
 Registro de decisiones técnicas/producto relevantes tomadas de forma autónoma, con motivo. Formato: fecha — decisión — motivo — alternativas consideradas.
 
+## 2026-10-01 — Re-alcance a Business Operating System (organization_id + location_id)
+
+**Decisión**: el modelo pasa de `gym_id` a `organization_id` (empresa/tenant) + `location_id` (centro). Toda tabla de negocio lleva `organization_id`; lo que ocurre en un centro lleva `location_id`. FK compuestas `(organization_id, id)` para que sea imposible enlazar registros de dos empresas.
+**Motivo**: el propietario pide un producto multiempresa, multicentro y multisector (gimnasios hoy; retail, restauración, estética mañana). `gym_id` acoplaba el core al vertical.
+**Alternativas**: mantener `gym_id` y renombrar después (descartada: migración costosa con datos reales).
+
+## 2026-10-01 — Mantener Vite SPA en vez de migrar a Next.js (PENDIENTE DE CONFIRMAR)
+
+**Decisión**: seguir con React + TypeScript + Vite (SPA/PWA) + Supabase.
+**Motivo**: app 100 % autenticada (sin SEO), la Caja en tablet se beneficia de una SPA rápida y apta para offline, el servidor ya lo cubre Supabase (Postgres/RLS/Auth/Storage/Edge Functions) y el repositorio ya era Vite. Next.js añadiría SSR + gestión de cookies de sesión sin beneficio funcional ahora.
+**Reversible**: `domain/` y `data/` no dependen del framework; migrar sería mover `features/` a rutas de Next.
+**Pregunta abierta** al propietario: confirmar o pedir Next.js.
+
+## 2026-10-01 — Modo local (IndexedDB) con el mismo modelo que el SQL hasta conectar Supabase
+
+**Decisión**: la app funciona y persiste de verdad en el navegador mediante un store por empresa con repositorios que aplican permisos, validación, atomicidad y auditoría. El esquema SQL está escrito y probado aparte.
+**Motivo**: no hay proyecto Supabase creado (requiere alta y posibles costes → decisión del propietario). La regla «nada de botones falsos» exige que lo marcado como funcional funcione: con el adaptador local, crear producto guarda, vender afecta al dashboard, importar crea registros, cerrar caja guarda el cierre.
+**Limitaciones conocidas**: datos solo en ese navegador (copia JSON en Ajustes → Datos); la contraseña local (SHA-256) no es seguridad de servidor; un único usuario a la vez por dispositivo.
+**Siguiente paso**: SupabaseAdapter con el mismo contrato de repositorios.
+
+## 2026-10-01 — Escritura inmediata a IndexedDB (sin debounce)
+
+**Decisión**: cada `store.update` dispara el guardado; si hay uno en curso se coalesce y se guarda el último estado al terminar.
+**Motivo**: el test E2E detectó que una venta hecha justo antes de recargar se perdía con el debounce de 120 ms. En una caja eso es inaceptable.
+
+## 2026-10-01 — Dinero en céntimos enteros, precios con IVA incluido, IVA en puntos básicos
+
+**Motivo**: evita errores de coma flotante; el negocio vende a consumidor final con PVP con IVA; base = round(total / (1+tipo)) y la cuota absorbe el céntimo de redondeo (base + IVA = total siempre, probado con 700 importes).
+
+## 2026-10-01 — Histórico de precios por vigencias + snapshot en líneas
+
+`product_prices` / `membership_plan_versions` con `valid_from/valid_to`; `sale_items` e `invoice_items` copian nombre, categoría, precio e IVA. Cambiar un precio nunca reescribe el pasado (requisito: p. ej. 50 € en enero, 55 € en octubre).
+
+## 2026-10-01 — Nada financiero se borra
+
+Ventas, pagos, facturas, cierres y movimientos: sin DELETE (trigger incluso para el owner de la BD). Corrección = anulación con motivo + devoluciones compensatorias, o nueva versión (cierres). Reversión de importaciones = anular lo creado y archivar productos/clientes sin uso.
+
+## 2026-10-01 — Tratamiento de los Excel actuales
+
+- Ene–Mar (resúmenes mensuales) → `granularity = 'aggregate'`: cuentan en facturación y unidades, no en nº de operaciones ni ticket medio.
+- Hora fija 17:00 en el 84 % de filas → `time_precision = 'day'`; se excluyen de la analítica por hora.
+- Hoja `TPV` = duplicado de septiembre → marcada como posible duplicado e ignorada por defecto.
+- Fechas fuera del mes de la hoja (enero con 31/12/2025) → decisión masiva, por defecto «mes de la hoja».
+- Sin método de pago → ventas «Desconocido (importado)», sin registro de pago inventado y fuera de cualquier cierre.
+- Cada fila = una venta (no se inventan agrupaciones en tickets).
+- Facturas: fecha de emisión (IVA) separada del periodo de servicio (MRR). Parte de las facturas de la hoja de un mes son del trimestre anterior.
+- IVA por categoría propuesto (10 % bebidas/suplementación, 21 % resto) y marcado «a validar con la gestoría».
+
+## 2026-10-01 — Retirada del frontend mock anterior
+
+**Decisión**: se eliminan del árbol las pantallas mock de la Fase 2/3 (datos en memoria, reservas, leads, automatizaciones…). Siguen en el historial git (commit `bc7c5b5`).
+**Motivo**: mezclaban datos ficticios con la app (prohibido por el propietario), su modelo (`gym_id`) ya no aplica y ninguna funcionalidad era real. Las ideas valiosas (briefing «necesita tu atención», ficha 360, caja en 3 toques) se conservan en el nuevo diseño. Los módulos no reconstruidos aparecen en la navegación como «Pronto» con su estado honesto.
+
+## 2026-10-01 — Navegación por pilares (mejora sobre la propuesta)
+
+Catálogo dentro de Operaciones; WhatsApp/Email como canales del Inbox (no páginas); Informes + Exportaciones + Gestoría unificados; configuración bajo Ajustes; selector de centro global. Motivo y sitemap en PROJECT_MASTER §4.
+
+## 2026-10-01 — Gráficas: un solo color + gris de comparación
+
+La paleta de 8 colores de categoría no supera la validación de daltonismo (skill dataviz). Mix y métodos de pago se muestran como barras de un único color con etiqueta; los colores de categoría solo identifican productos en la Caja.
+
+
 ## 2026-07-23 — Máquina de desarrollo principal será un Mac mini dedicado, no esta máquina
 
 **Decisión**: se detiene todo intento de instalar Node.js/Homebrew en la máquina actual. El usuario indicó que un Mac mini dedicado a IA/desarrollo será la máquina principal en el futuro. Hasta entonces, el trabajo continúa exclusivamente en código, documentación y arquitectura, sin ninguna ejecución local (`npm install`, `npm run build`, `npm run dev`).

@@ -1,77 +1,36 @@
 # User Flows
 
-## 1. Alta de cliente (self-service)
+Cada flujo indica su estado real. ✅ funcional y probado en navegador · 🟡 parcial · ⏭ planificado.
 
-```
-Landing / enlace del gimnasio
-  → Crear cuenta (email + password, o social si se añade más adelante)
-  → Datos personales (nombre, apellidos, teléfono, fecha nacimiento, contacto emergencia)
-  → Seleccionar tarifa (catálogo del gimnasio, precios y condiciones visibles)
-  → Método de pago (Stripe: tarjeta / Apple Pay / Google Pay)
-  → Aceptar términos y firmar contrato (checkbox + registro de aceptación con timestamp/IP; PDF firmado en Fase futura)
-  → Solicitud enviada → estado "pendiente de aprobación"
-```
+## ✅ Alta
+Crear cuenta → «¿Qué tipo de negocio?» (8 sectores) → nombre comercial, razón social, CIF, ciudad, primer centro → dashboard con «Primeros pasos». Alternativa: «Explorar con datos de demostración» (empresa demo separada, banner permanente).
 
-Panel admin recibe **Nueva solicitud** con: nombre, tarifa elegida, método de pago, estado del contrato. Acciones: **Aceptar / Modificar tarifa / Rechazar**.
+## ✅ Vender (objetivo < 5 s)
+Caja → (si está cerrada: fondo inicial → Abrir caja) → tocar Agua, Agua, Monster, Drop-In (contador en la tarjeta) → método (Efectivo muestra «Entregado» con importes rápidos y cambio) → «Cobrar 19,00 €» → confirmación con nº de venta. Extras: dividir pago, cliente opcional, editar línea (cantidad, precio puntual, descuento), atajo «/» para buscar.
 
-Al Aceptar:
-```
-activar usuario → activar membresía → generar configuración de facturación
-→ activar acceso a reservas → crear ficha CRM → registrar alta
-→ (opcional) lanzar automatización de bienvenida
-```
+## ✅ Cerrar caja
+Cierres → tarjeta del centro (ventas, total, esperado, por método) → Entrada/Salida de efectivo con motivo → Cerrar caja → importe o conteo por billetes/monedas → Esperado / Real / Diferencia → **CAJA CUADRADA** o **DESCUADRE** (observación obligatoria) → historial. Reabrir con motivo → nueva versión del cierre.
 
-## 2. Reserva de clase (atleta)
+## ✅ Importar Excel
+Importaciones → Nueva → arrastrar archivo → hojas detectadas (ventas, catálogo, resumen omitido) → mapeo de columnas con confianza y ejemplos → previsualización → validación (encontrados, válidos, revisar, duplicados, errores; control de cuadre contra los totales del propio archivo; «lo que hemos entendido»; decisión masiva para fechas fuera de mes; fila a fila: importar/ignorar, elegir producto) → confirmar → resultado → historial con reversión segura.
 
-```
-Abrir Reservar → ver semana/día → elegir clase con plazas
-  → Reservar (1 toque) → confirmación
-```//
-Si está llena: **Unirse a lista de espera** → notificación automática si se libera plaza.
-Cancelar: desde "Mis reservas", 1 toque, respeta política de cancelación (configurable por gimnasio).
+## ✅ Corregir una venta
+Ventas → fila → detalle (líneas, IVA, pagos, origen, historial) → Anular con motivo → devoluciones compensatorias; queda tachada, nunca desaparece.
 
-## 3. Gestión de clase (admin/coach)
+## ✅ Cambiar un precio
+Catálogo → producto → nuevo precio (+ motivo) → aviso «las N ventas anteriores conservan su precio» → histórico de precios con autor y vigencias; auditoría `price_change`.
 
-```
-Calendario → seleccionar sesión → ver lista de inscritos
-  → Añadir atleta / Añadir invitado / Pasar a lista de espera
-  → Pasar asistencia (marcar asistió / no-show)
-  → (opcional) modificar aforo, cancelar sesión completa
-```
+## ✅ Mandar el trimestre a la gestoría
+Informes → Trimestre → Q3 → revisar KPIs, IVA por tipo y notas → Descargar Excel (`Q3_2026_TheGravityRoom.xlsx`, 10 hojas) / PDF / CSV por hoja.
 
-## 4. Venta rápida (POS)
+## ✅ Encontrar algo
+⌘K → clientes (nombre, NIF, email, teléfono), productos, `#123` ventas, facturas, acciones y secciones.
 
-```
-+ VENTA → elegir producto frecuente (Agua/Café/Barrita/Shake) o categoría (Ropa/Accesorios/Otros)
-  → elegir cliente (buscador rápido o "venta anónima")
-  → Cobrar ahora / A cuenta del cliente / A próxima factura
-  → Confirmado
-```
-Objetivo: <5 segundos para una venta de producto frecuente a un cliente habitual.
+## ✅ Ficha de cliente
+Clientes → filtro (activos, leads, bajas, «revisar NIF») → ficha: tarifa, último movimiento, antigüedad, WhatsApp (enlace), email, nota (fijada / silenciar avisos hasta), pestañas Resumen · Actividad · Facturas · Compras · Notas.
 
-## 5. Resolución desde "Necesita tu atención" (dashboard)
+## ⏭ Seguimiento (siguiente fase)
+Importar asistencia → reglas de actividad → «8 clientes llevan +14 días sin venir» con el motivo → contactar por WhatsApp (API oficial) → queda en el timeline → tarea / posponer / resuelto.
 
-```
-Dashboard → tarjeta de alerta (ej. "Marta lleva 17 días sin entrenar")
-  → acción directa sugerida (Enviar mensaje / Ver ficha / Reintentar cobro / Reponer stock)
-  → ejecutar acción sin salir del dashboard (o navegación directa a la ficha con contexto)
-```
-
-## 6. Gestión de lead (CRM)
-
-```
-Lead entra (formulario web / WhatsApp / manual) → estado "Nuevo"
-  → Contactar → estado "Contactado"
-  → Invitar a clase de prueba → estado "Prueba"
-  → Enviar oferta/tarifa → estado "Oferta"
-  → Cierre → "Ganado" (dispara flujo de alta de cliente) o "Perdido" (motivo registrado)
-```
-
-## 7. Impago y recuperación
-
-```
-Cobro Stripe falla → webhook actualiza payment a "failed"
-  → automatización dispara mensaje al cliente + alerta interna en dashboard
-  → staff puede "Reintentar cobro" o "Contactar cliente" desde la ficha o el dashboard
-  → al cobrar correctamente, estado del cliente vuelve a normal, se cierra la alerta
-```
+## ⏭ Gastos con lectura de facturas
+Subir PDF/foto → extracción (proveedor, NIF, nº, base, IVA, total, categoría propuesta) → Confirmar / Editar / Descartar → gasto enlazado al documento original.

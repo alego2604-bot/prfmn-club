@@ -4,15 +4,15 @@ Este archivo son las instrucciones permanentes para cualquier agente (Claude u o
 
 ## Qué es este proyecto
 
-PRFMN Club es un **SaaS profesional multi-tenant** de gestión para boxes de CrossFit, gimnasios de entrenamiento funcional/híbrido, centros HYROX, Strength & Conditioning y boutique performance gyms. No es un prototipo: se construye desde el día uno para producción real, con datos reales, dinero real y múltiples gimnasios (tenants) aislados entre sí.
+PRFMN Club es un **Business Operating System SaaS multi-tenant** (multiempresa, multicentro, multisector), especializado inicialmente en boxes de CrossFit, gimnasios funcionales/híbridos, centros HYROX y boutique performance gyms, preparado para retail, restauración, estética y servicios. No es un prototipo: se construye desde el día uno para producción real, con datos reales, dinero real y múltiples gimnasios (tenants) aislados entre sí.
 
 El primer tenant real será **The Gravity Room**, pero ningún código debe asumir que solo existe un gimnasio.
 
-Documentación completa en [`/docs`](docs/). Empieza siempre por [`docs/PRFMN_CLUB_VISION.md`](docs/PRFMN_CLUB_VISION.md) y [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) si eres nuevo en el proyecto.
+Documentación completa en [`/docs`](docs/). Empieza siempre por [`docs/PROJECT_MASTER.md`](docs/PROJECT_MASTER.md) (source of truth, se actualiza con cada decisión relevante) y [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Reglas no negociables
 
-1. **Nunca romper el aislamiento multi-tenant.** Toda tabla con datos de negocio lleva `gym_id`. Toda query, política RLS y endpoint debe filtrar por `gym_id` del usuario autenticado. Un gimnasio JAMÁS puede leer o escribir datos de otro.
+1. **Nunca romper el aislamiento multi-tenant.** Toda tabla con datos de negocio lleva `organization_id` (y `location_id` si ocurre en un centro), con FK compuestas `(organization_id, id)`. Toda query, política RLS y repositorio filtra por la empresa del usuario autenticado. Una empresa JAMÁS puede leer o escribir datos de otra. Los tests de `supabase/tests/rls_isolation.sql` deben seguir pasando.
 2. **Nunca exponer secretos.** Claves de servicio (`service_role`), secretos de Stripe, etc. viven solo en el backend/edge functions. El frontend solo usa claves públicas (`anon key`, `publishable key`).
 3. **Nunca introducir claves API sensibles en el frontend.** Si una integración necesita una clave secreta, se hace desde una Supabase Edge Function o backend, nunca desde el cliente.
 4. **Nunca hacer cambios destructivos en base de datos sin migración.** Todo cambio de esquema es una migración versionada y reversible (ver `supabase/migrations`). Nunca `DROP` sin `IF EXISTS` + revisión, nunca editar una migración ya aplicada en producción: se crea una nueva.
@@ -38,7 +38,7 @@ No añadir abstracciones para casos hipotéticos futuros. Tres líneas parecidas
 
 ## Stack
 
-- Frontend: React + TypeScript + Vite
+- Frontend: React + TypeScript + Vite (SPA; Next.js pendiente de confirmación del propietario, ver DECISIONS)
 - Estilos: Tailwind CSS + design tokens propios (ver `docs/DESIGN_SYSTEM.md`)
 - Backend/DB: Supabase (PostgreSQL + Auth + Storage + Edge Functions)
 - Pagos: Stripe
@@ -46,7 +46,11 @@ No añadir abstracciones para casos hipotéticos futuros. Tres líneas parecidas
 
 ## Estado actual (ver docs/CHANGELOG.md para detalle)
 
-Fase 2 en curso: frontend navegable con datos mock, sin backend real conectado todavía. No asumir que Supabase/Stripe están conectados hasta que `docs/CHANGELOG.md` lo confirme.
+MVP funcional en **modo local** (IndexedDB, mismo modelo que el SQL) + esquema Supabase escrito y probado en Postgres. Supabase/Stripe **no** están conectados todavía. Estado por módulo (PLANNED → PRODUCTION READY) en `docs/PROJECT_MASTER.md §16`: nunca marcar como terminado algo que solo tiene UI.
+
+## Verificación obligatoria
+
+`npm run lint && npm run typecheck && npm test && npm run build` y, si se tocan migraciones, `npm run db:test`. Los cálculos de dinero viven en `src/domain` (con tests); las escrituras pasan por `src/data/repos` (permisos + auditoría). Datos demo solo en la empresa demo (`isDemo`), nunca mezclados con datos reales. Nunca subir los Excel reales del cliente al repositorio.
 
 ## Convenciones de trabajo autónomo
 

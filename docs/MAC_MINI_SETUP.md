@@ -1,3 +1,5 @@
+> **Nota (2026-10-01)**: documento de la fase anterior (modelo `gym_id`, frontend mock). Se conserva como referencia histórica; la fuente de verdad actual es [PROJECT_MASTER.md](PROJECT_MASTER.md).
+
 # Mac mini Setup — continuar PRFMN Club en la máquina de desarrollo
 
 Esta guía asume que vas a clonar/copiar el repositorio en un Mac nuevo (el Mac mini dedicado a IA/desarrollo) donde **sí** se instalarán herramientas de desarrollo, a diferencia de la máquina usada para las fases de diseño/documentación.

@@ -1,55 +1,41 @@
 # Design System
 
-## Dirección estética
+Identidad **"instrumento de precisión"**: neutros fríos, tinta casi negra para la acción principal y un único acento eléctrico (`#3B5BFD`). Light por defecto; dark con tokens propios (no inversión automática). Referencias de nivel (no de copia): Linear, Stripe, Attio, Ramp.
 
-Premium, deportivo, minimalista, tecnológico. Referencias conceptuales: SaaS moderno (Linear, Stripe, Notion), fintech, apps de fitness premium. **Nunca** copiar literalmente ninguna de estas ni la interfaz de BeMadBox.
+## Tokens (`src/design-system/tokens.css`)
+| Token | Uso |
+|---|---|
+| `--canvas`, `--surface`, `--surface-2`, `--surface-sunken` | Fondo, tarjetas, cabeceras de tabla, controles hundidos |
+| `--border`, `--border-strong` | Bordes (1 px, bajo contraste) |
+| `--text`, `--text-2`, `--text-3` | Jerarquía tipográfica |
+| `--ink` | Botón primario, selección fuerte (chips, métodos de pago) |
+| `--accent` (+ `-soft`, `-text`) | Foco, enlaces, gráfica principal, estados informativos |
+| `--success/warning/danger/info` (+ `-soft`, `-text`) | Estados: solo cuando el color *significa* algo, siempre con icono o texto |
+| `--chart-1`, `--chart-2`, `--chart-grid` | Serie actual, serie de comparación, rejilla |
 
-Principios: mucho espacio, jerarquía tipográfica clara, navegación sencilla, acciones rápidas accesibles, sobriedad, velocidad percibida, componentes reutilizables. Evitar: interfaces saturadas, exceso de bordes/sombras, tablas gigantes cuando no son necesarias, navegación confusa, look de "software administrativo antiguo".
+Tailwind expone todo con soporte de opacidad (`bg-accent/20`) vía `color-mix`.
 
-## Modo
+## Tipografía y escala
+Inter Variable (`cv11`, `ss01`, `ss03`) + JetBrains Mono para referencias (nº factura, SKU, hash). Cifras siempre `tabular-nums` (`.num`). Escala: 11 / 12 / 13 / 14 (base) / 15 / 17 / 20 / 24 / 30 / 38 px, tracking negativo en titulares.
 
-Dark-first (estética deportiva/tecnológica), con superficie clara disponible. El admin puede vivir principalmente en dark; la app del atleta puede admitir claro/oscuro según preferencia del sistema.
+## Espaciado, radios, sombras
+Rejilla de 4/8 px. Radios 6 (controles) · 8 · 12 (tarjetas) · 16 (modales). Sombras `xs` (reposo) → `md` (popovers) → `lg` (modales). Movimiento 140–200 ms `cubic-bezier(.2,.8,.2,1)`; feedback táctil `active:scale(.97)`.
 
-## Tokens de color (ver `src/design-system/tokens.css`)
+## Componentes (`src/design-system/components`)
+Button (primary/accent/secondary/ghost/subtle/danger · sm/md/lg/xl), IconButton, Badge/Dot, Card/CardHeader, Kbd, Avatar, Skeleton, Field/Input/Textarea/Select/MoneyInput/Switch/Checkbox, Modal, Drawer, Menu/MenuItem, ReasonDialog (motivo obligatorio), Toast, EmptyState, Callout, PageHeader/Page, Tabs, Segmented, Kpi + Delta, StatusPill (PLANNED → PRODUCTION READY), DescriptionList, **DataTable** (buscar, ordenar, columnas visibles persistentes, paginar, seleccionar, acciones masivas, exportar XLSX/CSV), charts (CompareArea, CompareBars, BarList, Legend).
 
-- `--bg-canvas`: fondo base de la aplicación (casi negro, no negro puro).
-- `--bg-surface`: superficie de tarjetas/paneles, un escalón por encima del canvas.
-- `--bg-surface-raised`: superficie elevada (modales, dropdowns).
-- `--border-subtle` / `--border-default`: bordes de bajo contraste, uso mínimo.
-- `--text-primary` / `--text-secondary` / `--text-tertiary`: jerarquía tipográfica.
-- `--accent`: verde-lima energético (acento de marca, deportivo, alto contraste sobre fondo oscuro) — uso reservado a acciones primarias y estados positivos.
-- `--accent-contrast`: color de texto sobre `--accent`.
-- `--danger`, `--warning`, `--success`, `--info`: estados semánticos.
-- Escala neutra `--gray-50..900` para superficies/tipografía en modo claro.
+## Gráficas (método skill *dataviz*)
+- Una serie = acento; comparación = gris recesivo (discontinuo en líneas). Nunca doble eje.
+- Mix por categoría y métodos de pago = **barras de un solo color** con etiqueta y %, no arcoíris (la paleta de 8 categorías no supera la validación CVD; los colores de categoría solo identifican en la Caja).
+- Tooltip en hover siempre; leyenda con ≥2 series; texto en tokens de texto, nunca del color de la serie.
 
-## Tipografía
+## Patrones
+- KPI protagonista + chips de variación con tooltip que explica el cálculo.
+- Estados vacíos que enseñan el siguiente paso; skeletons en cargas.
+- Acciones destructivas o financieras → ReasonDialog (motivo queda en auditoría).
+- Módulos no construidos → página honesta con estado y lo ya preparado; **sin botones falsos**.
 
-- Fuente principal: `Inter` (system fallback a `-apple-system, Segoe UI, Roboto`), variable, con soporte de pesos 400/500/600/700.
-- Escala: `text-xs` (12px) a `text-4xl` (36px) siguiendo la escala por defecto de Tailwind, con `tracking-tight` en títulos grandes para sensación premium.
-- Números (KPIs, precios) en `tabular-nums` para alineación consistente.
-
-## Espaciado y layout
-
-- Grid de 8px como unidad base.
-- Contenedores de página con padding generoso (`p-6`/`p-8` en desktop), nunca contenido pegado al borde.
-- Sidebar de navegación fija en desktop (72-80px colapsada / 240px expandida), contenido en área central con ancho máximo cómodo para lectura de tablas.
-
-## Componentes base (`src/design-system/components`)
-
-- `Button` (primary/secondary/ghost/destructive, tamaños sm/md/lg)
-- `Card` / `StatTile` (KPI con label, valor, delta opcional)
-- `Badge` (estado: success/warning/danger/info/neutral)
-- `DataTable` (cabecera sticky, densidad cómoda, sin rejillas pesadas)
-- `Modal` / `Drawer`
-- `EmptyState`
-- `Avatar`
-- `Tabs`
-- `SearchInput`
-- `AttentionCard` (tarjeta de "Necesita tu atención": icono de severidad, texto, acción directa)
-- `HealthScoreRing` (anillo de progreso con color según riesgo)
-
-## Interacción
-
-- Transiciones cortas (150-200ms), sin animaciones decorativas gratuitas.
-- Feedback inmediato en acciones (toast, cambio de estado visual) especialmente en POS y reservas.
-- Objetivos táctiles ≥44px en cualquier vista usable desde tablet/móvil (POS, check-in, reservas).
+## Responsive
+- Desktop ≥1024: barra lateral fija (en Caja, solo ≥1280 para dar sitio al carrito).
+- Tablet: Caja en dos columnas, tarjetas de producto de 104 px, botones de pago de 48 px, objetivos táctiles ≥44 px.
+- Móvil: barra inferior (Inicio · Caja · Ventas · Clientes · Más), carrito como hoja inferior.
