@@ -2,6 +2,21 @@
 
 Formato: fecha, fase, resumen. Más reciente arriba.
 
+## 2026-10-01 — Privacidad del repositorio: secretos, historial y datos de clientes
+
+### HECHO
+- **Revisión de secretos** de todo el historial (gitleaks + patrones): ningún secreto real; nada que rotar.
+- **Backup** completo (bundle + mirror) fuera del repositorio antes de reescribir.
+- **Historial reescrito** en todas las ramas para eliminar identificadores fiscales, nombres, números de factura, emails de personal con dominio real y cifras económicas del primer tenant; verificado que no aparecen en ningún commit ni blob. Detalle sin datos en [SECURITY.md](SECURITY.md).
+- `EXCEL_ANALYSIS.md` anonimizado (conclusiones técnicas intactas, ejemplos ficticios). CHANGELOG, PROJECT_MASTER, DECISIONS, SETUP y USER_FLOWS sin cifras reales.
+- Tests de ficheros reales: cifras esperadas movidas a un JSON local fuera del repositorio (`BOS_REAL_EXPECT`); sin él solo se comprueban invariantes. Tenants y centros de los tests SQL/TS ficticios.
+- Regla permanente de privacidad (CLAUDE.md regla 10, `docs/SECURITY.md`), `.gitignore` que bloquea Excel/CSV/PDF y carpetas de datos reales, y guardia `npm run check:privacy` en la verificación obligatoria.
+- Decisión permanente de arquitectura PRFMN / Business OS / tenant / módulo Fitness / integraciones registrada en DECISIONS.
+
+### PENDIENTE DEL PROPIETARIO (en GitHub, sin permisos para hacerlo desde aquí)
+- Cambiar visibilidad a **privado** y renombrar `prfmn-club` → `business-os`.
+- Borrar y volver a clonar los clones locales anteriores a la reescritura.
+
 ## 2026-10-01 — Separación total de PRFMN · Business OS como producto independiente
 
 ### HECHO
@@ -14,8 +29,7 @@ Formato: fecha, fase, resumen. Más reciente arriba.
 - 30 tests unitarios/integración + 27 comprobaciones SQL + lint + typecheck + build en verde.
 
 ### PENDIENTE DEL PROPIETARIO
-- Renombrar el repositorio de GitHub (`prfmn-club` → p. ej. `business-os`) y decidir si debe ser **privado** (hoy es público y contiene el análisis económico de la empresa).
-- Decidir si se reescribe el historial de git para eliminar los DNI reales de commits antiguos.
+- ~~Renombrar el repositorio y hacerlo privado~~ · ~~reescribir el historial~~ → decididos (entrada superior).
 - Crear los proyectos Supabase nuevos `business-os-staging` / `business-os-production`.
 
 ## 2026-10-01 — Re-alcance a Business OS: definición, esquema SQL probado y MVP funcional (modo local)

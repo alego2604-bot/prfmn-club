@@ -19,12 +19,14 @@ npm run lint && npm run typecheck && npm test && npm run build
 npm run db:test   # si tocas supabase/migrations
 ```
 
-## Primer uso con The Gravity Room
-1. Crear cuenta y empresa «The Gravity Room» (tipo Fitness, centro Calonge).
-2. Importaciones → Nueva → `CAJA GIMNASIO PRO - ANUAL 2026.xlsx` → revisar avisos (fechas de enero, fila sin producto, duplicados TPV) → Importar.
-3. Importaciones → Nueva → `BeMadBox_Q3_2026.xlsx` → Importar (crea clientes y facturas, deduplicados por NIF).
-4. Catálogo → revisar el IVA propuesto (10 % bebidas/suplementación) con la gestoría.
+## Primer uso de una empresa real
+1. Crear cuenta y empresa (sector y centro de la empresa).
+2. Importaciones → Nueva → Excel de caja → revisar avisos (fechas fuera de la hoja, filas sin producto, duplicados) → Importar.
+3. Importaciones → Nueva → Excel de facturas → Importar (crea clientes y facturas, deduplicados por NIF).
+4. Catálogo → revisar el IVA propuesto con la asesoría fiscal.
 5. Caja → abrir caja → vender.
+
+Los ficheros reales del cliente se importan desde la app; **nunca** se copian al repositorio (ver `docs/SECURITY.md`).
 
 ## Conectar Supabase (Fase 5, pendiente)
 Ver [ENVIRONMENT.md](ENVIRONMENT.md) y [DEPLOYMENT.md](DEPLOYMENT.md).

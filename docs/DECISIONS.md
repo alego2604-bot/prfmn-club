@@ -3,6 +3,19 @@
 Registro de decisiones técnicas/producto relevantes tomadas de forma autónoma, con motivo. Formato: fecha — decisión — motivo — alternativas consideradas.
 
 
+## 2026-10-01 — Arquitectura de producto permanente (aprobada por el propietario)
+
+**Decisión permanente**:
+- **PRFMN** = producto deportivo (training / performance). **BUSINESS OS** = producto empresarial independiente.
+- The Gravity Room es únicamente el **primer tenant/organization**.
+- **Fitness** es un módulo vertical **opcional** sobre el CORE. Con Fitness desactivado no aparecen membresías, asistencia, créditos, drop-ins ni tipos de producto fitness, y el CORE no contiene reglas sectoriales. Futuros módulos (Retail, Services, Restaurant…) se añaden sin modificar el núcleo.
+- Integraciones (PRFMN incluido): opcionales y desacopladas por API/webhooks/capa de integraciones, **nunca** compartiendo base de datos. Ninguna integración externa puede convertirse en dependencia obligatoria; los datos recibidos se transforman al modelo interno de Business OS y el histórico importado sigue funcionando si la conexión desaparece.
+
+## 2026-10-01 — Repositorio privado, renombrado y con historial saneado
+
+**Decisión** (del propietario): repositorio **privado**, renombrado de `prfmn-club` a `business-os` (sin PRFMN, The Gravity Room ni Fitness en la identidad estructural) e historial reescrito para eliminar datos personales y cifras reales. Separación estricta **código de producto ≠ datos de clientes/negocio**. Procedimiento, verificación y riesgos residuales en [SECURITY.md](SECURITY.md) (sin reproducir los datos eliminados).
+**Motivo**: el repositorio contendrá arquitectura, lógica financiera, esquemas, importadores e integraciones; nunca debe contener datos reales.
+
 ## 2026-10-01 — Business OS es un producto independiente de PRFMN
 
 **Decisión** (del propietario): este repositorio es **Business OS**, software de gestión empresarial, totalmente separado de PRFMN (software de training/performance). Repositorio, base de datos, proyecto Supabase (Auth, PostgreSQL, RLS, Storage, Functions, logs), deploy y dominio propios. **Business OS is an independent product and has no runtime dependency on PRFMN.** Cualquier conexión futura será opcional y solo por API/webhook ([INTEGRATIONS.md](INTEGRATIONS.md)).
@@ -12,7 +25,7 @@ Registro de decisiones técnicas/producto relevantes tomadas de forma autónoma,
 - Restos de nombre (no funcionales) de la fase «PRFMN Club»: marca en la UI, nombre del paquete, base IndexedDB `prfmn-club`, claves `prfmn.*`, sal del hash local, comentarios de migraciones, variables de test. **Renombrados a Business OS** con migración automática de los datos locales existentes (se copian antes de retirar el nombre antiguo; nunca se borra nada sin copiar). Las únicas cadenas `prfmn` que quedan en el código son esos identificadores *legacy* de migración.
 - Comentarios de cabecera de las migraciones SQL cambiados: estas migraciones **no se han aplicado en ningún entorno**, así que no se viola la regla de no editar migraciones aplicadas.
 - Documentos de la fase anterior movidos a `docs/archive/` (no borrados).
-- El nombre del repositorio en GitHub (`prfmn-club`) **sigue siendo PRFMN**: renombrarlo es decisión del propietario (ver CHANGELOG, pendiente).
+- El nombre del repositorio en GitHub era `prfmn-club`: se renombra a `business-os` (decisión posterior del mismo día).
 
 ## 2026-10-01 — The Gravity Room es el primer tenant, no el producto
 
@@ -28,7 +41,7 @@ Ninguna regla, producto, categoría, tarifa ni texto de una empresa concreta en 
 
 ## 2026-10-01 — Datos personales reales retirados del repositorio público
 
-Tests y `EXCEL_ANALYSIS.md` contenían DNI/NIF reales y números de factura de clientes de The Gravity Room como ejemplos. Sustituidos por valores sintéticos. **Siguen en el historial de git** de un repositorio público: el propietario debe decidir hacerlo privado y/o reescribir el historial (acciones irreversibles o externas que no se han hecho sin su autorización).
+Tests y `EXCEL_ANALYSIS.md` contenían identificadores fiscales y números de factura reales como ejemplos. Sustituidos por valores sintéticos y, con autorización del propietario, eliminados también del historial (ver entrada «Repositorio privado…» y [SECURITY.md](SECURITY.md)).
 
 ## 2026-10-01 — Re-alcance a Business Operating System (organization_id + location_id)
 

@@ -14,9 +14,9 @@ end $$;
 
 -- Usuarios de prueba
 insert into auth.users (id, email) values
-  ('00000000-0000-0000-0000-00000000000a', 'alex@gravity.test'),
-  ('00000000-0000-0000-0000-00000000000b', 'bob@othergym.test'),
-  ('00000000-0000-0000-0000-00000000000e', 'emma@gravity.test'),
+  ('00000000-0000-0000-0000-00000000000a', 'alex@empresa-a.test'),
+  ('00000000-0000-0000-0000-00000000000b', 'bob@empresa-b.test'),
+  ('00000000-0000-0000-0000-00000000000e', 'emma@empresa-a.test'),
   ('00000000-0000-0000-0000-0000000000cc', 'carla@gestoria.test');
 
 grant select, insert, update, delete on all tables in schema public to authenticated;
@@ -33,9 +33,9 @@ do $$ begin
 end $$;
 
 select pg_temp.login('00000000-0000-0000-0000-00000000000a');
-select set_config('test.org_a', public.create_organization('The Gravity Room', 'fitness', 'Calonge')::text, false);
+select set_config('test.org_a', public.create_organization('Empresa A', 'fitness', 'Centro Norte')::text, false);
 select pg_temp.login('00000000-0000-0000-0000-00000000000b');
-select set_config('test.org_b', public.create_organization('Other Gym', 'fitness', 'Centro')::text, false);
+select set_config('test.org_b', public.create_organization('Empresa B', 'fitness', 'Centro')::text, false);
 
 do $$ begin
   if (select count(*) from public.organizations) <> 1 then raise exception 'FAIL: B ve % organizaciones', (select count(*) from public.organizations); end if;
@@ -234,7 +234,7 @@ end $$;
 -- ---------------------------------------------------------------------
 \echo '7. Roles: employee y accountant'
 reset role;
-insert into public.locations (organization_id, name) values (current_setting('test.org_a')::uuid, 'Girona')
+insert into public.locations (organization_id, name) values (current_setting('test.org_a')::uuid, 'Centro Sur')
 returning set_config('test.loc_a2', id::text, false) as _;
 insert into public.organization_members (organization_id, user_id, role_id, location_ids)
 select current_setting('test.org_a')::uuid, '00000000-0000-0000-0000-00000000000e', id, array[current_setting('test.loc_a2')::uuid]
@@ -252,7 +252,7 @@ do $$ declare n int; begin
   if n <> 0 then raise exception 'FAIL: employee cambió un precio'; end if;
   if exists (select 1 from public.invoices) then raise exception 'FAIL: employee ve facturas'; end if;
   if exists (select 1 from public.audit_logs) then raise exception 'FAIL: employee ve auditoría'; end if;
-  if exists (select 1 from public.sales) then raise exception 'FAIL: employee de Girona ve ventas de Calonge'; end if;
+  if exists (select 1 from public.sales) then raise exception 'FAIL: employee de Centro Sur ve ventas de Centro Norte'; end if;
   raise notice 'PASS employee: ve catálogo, no cambia precios, no ve facturas/auditoría ni ventas de otro centro';
   begin
     insert into public.sales (organization_id, location_id, subtotal, tax_total, total)

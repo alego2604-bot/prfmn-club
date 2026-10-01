@@ -10,3 +10,16 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 *.tsbuildinfo
+
+# Datos reales de clientes / negocio: NUNCA en Git (ver docs/SECURITY.md)
+*.xlsx
+*.xls
+*.xlsm
+*.ods
+*.csv
+*.pdf
+*.numbers
+real-data/
+private/
+expect*.json
+*.bundle

@@ -23,7 +23,7 @@ import type { PlanOptions, SalesRow, WorkbookData } from "./types";
 async function makeCtx(): Promise<Ctx> {
   const store = new Store(createMemoryKV());
   await store.init();
-  const ws = buildWorkspace({ name: "Test Gym", vertical: "fitness", locationName: "Calonge" });
+  const ws = buildWorkspace({ name: "Test Gym", vertical: "fitness", locationName: "Centro Norte" });
   await store.createWorkspace(ws);
   await store.openWorkspace(ws.organization.id);
   return { store, user: { id: "u1", fullName: "Alex", email: "alex@test" }, role: "owner", locationIds: null };
@@ -185,30 +185,42 @@ describe("Importación de facturas (fixture)", () => {
 
 const CAJA = process.env.BOS_CAJA_XLSX;
 const FACTURAS = process.env.BOS_FACTURAS_XLSX;
+/**
+ * Cifras esperadas de los ficheros reales: viven en un JSON local fuera del repositorio
+ * (BOS_REAL_EXPECT=/ruta/expect.json). Sin él, solo se comprueban invariantes (cuadres y controles).
+ * Nunca escribir aquí importes, recuentos ni datos de una empresa real.
+ */
+type RealExpect = {
+  caja?: { catalog: number; found: number; dupInFile: number; noProduct: number; dateOutsideSheet: number; amountMismatch: number; revenueCents: number };
+  facturas?: { found: number; invoices: number; customers: number; totalCents: number; taxCents: number };
+};
+const EXPECT: RealExpect = process.env.BOS_REAL_EXPECT && existsSync(process.env.BOS_REAL_EXPECT) ? JSON.parse(readFileSync(process.env.BOS_REAL_EXPECT, "utf8")) : {};
 const asAB = (p: string) => {
   const b = readFileSync(p);
   return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
 };
 
 describe.skipIf(!CAJA || !existsSync(CAJA ?? ""))("Excel real de caja (local)", () => {
-  it("cuadra al céntimo con el Excel y detecta los problemas documentados", async () => {
+  it("cuadra con los controles del propio Excel y detecta los problemas documentados", async () => {
     const ctx = await makeCtx();
     const wb = await readXlsx(asAB(CAJA!), "caja-real.xlsx");
     const plan = buildSalesPlan(wb, analyzeWorkbook(wb), ctx.store.requireWorkspace(), { dateOutsideSheet: "sheet_month", locationId: ctx.store.requireWorkspace().locations[0]!.id });
     const s = summarizePlan(plan, ctx.store.requireWorkspace());
     const codes = (c: string) => plan.rows.filter((r) => r.issues.some((i) => i.code === c)).length;
-    console.log("CAJA", JSON.stringify({ s, controls: plan.controls.map((c) => `${c.label}:${c.ok}`), insights: plan.insights }, null, 1));
-    expect(plan.catalog.filter((c) => c.status === "valid").length).toBeGreaterThan(0);
-    expect(s.found).toBeGreaterThan(0);
-    expect(codes("DUP_IN_FILE")).toBe(12);
-    expect(codes("NO_PRODUCT")).toBe(1);
-    expect(codes("DATE_OUTSIDE_SHEET")).toBe(11);
-    expect(codes("AMOUNT_MISMATCH")).toBe(1);
     expect(plan.controls.filter((c) => c.ok)).toHaveLength(plan.controls.length);
     commitPlan(ctx, plan, { name: "caja", sha256: "z", size: 1 });
     const ws = ctx.store.requireWorkspace();
     const year = computeKpis(ws, makePeriod("year", new Date(2026, 5, 1)));
-    expect(year.salesRevenue).toBeGreaterThan(0);
+    const e = EXPECT.caja;
+    if (e) {
+      expect(plan.catalog.filter((c) => c.status === "valid")).toHaveLength(e.catalog);
+      expect(s.found).toBe(e.found);
+      expect(codes("DUP_IN_FILE")).toBe(e.dupInFile);
+      expect(codes("NO_PRODUCT")).toBe(e.noProduct);
+      expect(codes("DATE_OUTSIDE_SHEET")).toBe(e.dateOutsideSheet);
+      expect(codes("AMOUNT_MISMATCH")).toBe(e.amountMismatch);
+      expect(year.salesRevenue).toBe(e.revenueCents);
+    }
   });
 });
 
@@ -218,14 +230,17 @@ describe.skipIf(!FACTURAS || !existsSync(FACTURAS ?? ""))("Excel real de factura
     const wb = await readXlsx(asAB(FACTURAS!), "facturas-real.xlsx");
     const plan = buildInvoicesPlan(wb, analyzeWorkbook(wb), ctx.store.requireWorkspace(), { dateOutsideSheet: "keep", locationId: ctx.store.requireWorkspace().locations[0]!.id });
     const s = summarizePlan(plan, ctx.store.requireWorkspace());
-    console.log("FACTURAS", JSON.stringify({ s, controls: plan.controls.map((c) => `${c.label}:${c.expected}/${c.actual}`), insights: plan.insights }, null, 1));
-    expect(s.found).toBeGreaterThan(0);
     expect(plan.controls.every((c) => c.ok)).toBe(true);
     const job = commitPlan(ctx, plan, { name: "f", sha256: "f", size: 1 });
-    expect(job.summary.created.facturas).toBe(s.found);
-    expect(job.summary.created.clientes).toBeGreaterThan(0);
     const ws = ctx.store.requireWorkspace();
-    expect(ws.invoices.reduce((a, i) => a + i.total, 0)).toBeGreaterThan(0);
-    expect(ws.invoices.reduce((a, i) => a + i.taxTotal, 0)).toBeGreaterThan(0);
+    expect(job.summary.created.facturas).toBe(s.found);
+    const e = EXPECT.facturas;
+    if (e) {
+      expect(s.found).toBe(e.found);
+      expect(job.summary.created.facturas).toBe(e.invoices);
+      expect(job.summary.created.clientes).toBe(e.customers);
+      expect(ws.invoices.reduce((a, i) => a + i.total, 0)).toBe(e.totalCents);
+      expect(ws.invoices.reduce((a, i) => a + i.taxTotal, 0)).toBe(e.taxCents);
+    }
   });
 });

@@ -19,7 +19,7 @@ const as = (role: Ctx["role"], locationIds: string[] | null = null): Ctx => ({ .
 beforeEach(async () => {
   const store = new Store(createMemoryKV());
   await store.init();
-  const ws = buildWorkspace({ name: "The Gravity Room", vertical: "fitness", locationName: "Calonge" });
+  const ws = buildWorkspace({ name: "Empresa Ejemplo", vertical: "fitness", locationName: "Centro Norte" });
   ws.locations.push({ id: "loc2", organizationId: ws.organization.id, name: "Girona", status: "active", createdAt: "" });
   await store.createWorkspace(ws);
   await store.openWorkspace(ws.organization.id);
@@ -145,7 +145,7 @@ describe("Informe gestoría", () => {
     expect(r.sheets.map((s) => s.name)).toEqual(["Resumen", "Caja diaria", "Ventas", "Facturación", "IVA", "Métodos de pago", "Categorías", "Productos", "Clientes", "Cierres"]);
     expect(r.vat.reduce((s, v) => s + v.total, 0)).toBe(1800);
     expect(r.vat.find((v) => v.rateBp === 1000)!.base + r.vat.find((v) => v.rateBp === 1000)!.tax).toBe(300);
-    expect(r.fileBase).toBe(`Q${Math.floor(now.getMonth() / 3) + 1}_${now.getFullYear()}_TheGravityRoom`);
-    expect(buildGestoriaReport(owner.store.requireWorkspace(), quarterPeriod(2026, 3)).fileBase).toBe("Q3_2026_TheGravityRoom");
+    expect(r.fileBase).toBe(`Q${Math.floor(now.getMonth() / 3) + 1}_${now.getFullYear()}_EmpresaEjemplo`);
+    expect(buildGestoriaReport(owner.store.requireWorkspace(), quarterPeriod(2026, 3)).fileBase).toBe("Q3_2026_EmpresaEjemplo");
   });
 });

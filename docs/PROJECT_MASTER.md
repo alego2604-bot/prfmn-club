@@ -59,6 +59,11 @@ The Gravity Room es la primera organización (tenant) y el banco de pruebas, no 
 
 Un cliente puede contratar A) solo PRFMN, B) solo Business OS o C) ambos (con integración opcional). La asistencia llega hoy por Excel/CSV; en el futuro PRFMN (u otro sistema) podrá ser una **fuente de datos más**, nunca una dependencia.
 
+**Decisión permanente (aprobada por el propietario, 2026-10-01)**: PRFMN = producto deportivo; BUSINESS OS = producto empresarial independiente; The Gravity Room = primer tenant; Fitness = módulo opcional del CORE; integraciones opcionales y desacopladas (API/webhooks/capa de integraciones), nunca base de datos compartida ni dependencia obligatoria.
+
+### 1.2 Privacidad: código de producto ≠ datos de clientes
+El repositorio (privado, `business-os`) contiene solo código, documentación técnica, fixtures ficticios y ejemplos anonimizados. Los datos reales viven en la BD/Storage autorizados y en las importaciones del usuario. Regla, guardia automática (`npm run check:privacy`) y registro de la limpieza del historial en [SECURITY.md](SECURITY.md).
+
 ## 2. Arquitectura
 
 ```

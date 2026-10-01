@@ -23,7 +23,8 @@ Documentación completa en [`/docs`](docs/). Empieza siempre por [`docs/PROJECT_
 7. **No copiar la interfaz ni arquitectura visual de BeMadBox ni de ningún competidor.** Referencia conceptual únicamente.
 8. **Independencia de producto.** Nunca usar la base de datos, el Supabase, la autenticación, las tablas, la lógica o los nombres internos de PRFMN ni de otro producto. Si Business OS o PRFMN desaparecieran, el otro debe seguir funcionando al 100 %.
 9. **Core sin sector.** Lo específico de un sector va en un módulo vertical (`src/domain/modules.ts`, `organization_modules`), nunca en el núcleo.
-10. **Datos personales reales nunca en el repositorio** (ni en tests ni en documentación): usar datos sintéticos.
+10. **Privacidad: código de producto ≠ datos de clientes.** NUNCA introducir en Git datos reales de clientes, DNI/NIF, teléfonos, emails, direcciones, números de factura reales, documentos, información bancaria ni datos financieros detallados de clientes o del negocio de un tenant. Tests: exclusivamente fixtures sintéticos, datos ficticios o anonimizados. Los datos reales existen solo en la base de datos autorizada, el Storage autorizado, las importaciones del usuario y entornos seguros, nunca en el código fuente. Los Excel/CSV/PDF del cliente nunca se versionan. Ver `docs/SECURITY.md`.
+11. **Integraciones nunca obligatorias.** Ninguna integración externa (PRFMN incluido) puede ser dependencia obligatoria; los datos de un proveedor se transforman al modelo interno y el histórico importado sigue funcionando si la conexión desaparece. Nunca base de datos compartida.
 
 ## Antes de modificar funcionalidad importante
 
@@ -55,7 +56,7 @@ MVP funcional en **modo local** (IndexedDB, mismo modelo que el SQL) + esquema S
 
 ## Verificación obligatoria
 
-`npm run lint && npm run typecheck && npm test && npm run build` y, si se tocan migraciones, `npm run db:test`. Los cálculos de dinero viven en `src/domain` (con tests); las escrituras pasan por `src/data/repos` (permisos + auditoría). Datos demo solo en la empresa demo (`isDemo`), nunca mezclados con datos reales. Nunca subir los Excel reales del cliente al repositorio.
+`npm run check:privacy && npm run lint && npm run typecheck && npm test && npm run build` y, si se tocan migraciones, `npm run db:test`. Los cálculos de dinero viven en `src/domain` (con tests); las escrituras pasan por `src/data/repos` (permisos + auditoría). Datos demo solo en la empresa demo (`isDemo`), nunca mezclados con datos reales. Nunca subir los Excel reales del cliente al repositorio (`.gitignore` los bloquea).
 
 ## Convenciones de trabajo autónomo
 

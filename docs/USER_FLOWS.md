@@ -21,7 +21,7 @@ Ventas → fila → detalle (líneas, IVA, pagos, origen, historial) → Anular 
 Catálogo → producto → nuevo precio (+ motivo) → aviso «las N ventas anteriores conservan su precio» → histórico de precios con autor y vigencias; auditoría `price_change`.
 
 ## ✅ Mandar el trimestre a la gestoría
-Informes → Trimestre → Q3 → revisar KPIs, IVA por tipo y notas → Descargar Excel (`Q3_2026_TheGravityRoom.xlsx`, 10 hojas) / PDF / CSV por hoja.
+Informes → Trimestre → Q3 → revisar KPIs, IVA por tipo y notas → Descargar Excel (`Q3_2026_<Empresa>.xlsx`, 10 hojas) / PDF / CSV por hoja.
 
 ## ✅ Encontrar algo
 ⌘K → clientes (nombre, NIF, email, teléfono), productos, `#123` ventas, facturas, acciones y secciones.

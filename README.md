@@ -36,10 +36,12 @@ Crea una cuenta → crea tu empresa → **Importaciones → Nueva** y sube tus E
 | `npm run lint` | ESLint (0 warnings permitidos) |
 | `npm test` | Tests unitarios y de integración (Vitest) |
 | `npm run db:test` | Aplica las migraciones en un Postgres efímero y ejecuta los tests de RLS/aislamiento |
+| `npm run check:privacy` | Bloquea datos personales y secretos en los ficheros versionados |
 
 Tests con tus Excel reales (solo en local, nunca se suben al repo):
 ```bash
-BOS_CAJA_XLSX=/ruta/CAJA.xlsx BOS_FACTURAS_XLSX=/ruta/BeMadBox_Q3.xlsx npm test
+# ficheros y cifras esperadas fuera del repositorio
+BOS_CAJA_XLSX=/ruta/caja.xlsx BOS_FACTURAS_XLSX=/ruta/facturas.xlsx BOS_REAL_EXPECT=/ruta/expect.json npm test
 ```
 
 ## Documentación
@@ -47,7 +49,8 @@ BOS_CAJA_XLSX=/ruta/CAJA.xlsx BOS_FACTURAS_XLSX=/ruta/BeMadBox_Q3.xlsx npm test
 | Documento | Contenido |
 |---|---|
 | [PROJECT_MASTER](docs/PROJECT_MASTER.md) | Visión, arquitectura, módulos, sitemap, MVP, riesgos, decisiones, estado |
-| [EXCEL_ANALYSIS](docs/EXCEL_ANALYSIS.md) | Análisis fila a fila de los Excel actuales |
+| [EXCEL_ANALYSIS](docs/EXCEL_ANALYSIS.md) | Formatos Excel de origen y sus problemas de calidad (anonimizado) |
+| [SECURITY](docs/SECURITY.md) | Privacidad, secretos, datos de clientes fuera de Git |
 | [ARCHITECTURE](docs/ARCHITECTURE.md) | Capas, multitenancy, seguridad |
 | [DATABASE_SCHEMA](docs/DATABASE_SCHEMA.md) | Modelo de datos y RLS |
 | [DESIGN_SYSTEM](docs/DESIGN_SYSTEM.md) | Tokens, componentes, gráficas |
@@ -80,7 +83,7 @@ src/
                   payments, imports/engine, reports, settings, dashboard, auth)
   lib/            dinero, fechas, NIF, exportación XLSX/CSV
 supabase/
-  migrations/     esquema SQL versionado (0100–0500)
+  migrations/     esquema SQL versionado (0100–0600)
   tests/          stub de Supabase + tests de aislamiento RLS
   rollbacks/      reversión (solo dev/staging)
 scripts/db-test.sh
