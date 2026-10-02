@@ -2,6 +2,28 @@
 
 Formato: fecha, fase, resumen. Más reciente arriba.
 
+## 2026-10-02 — Validación completa contra business-os-staging (schema 900)
+
+### HECHO
+- `server_capabilities()` en staging → `{schema: 900, features: [expenses, suppliers, memberships, tasks, invoice_editor, onboarding]}` (anónimo: denegado 42501).
+- `test:cloud` contra staging sin omisiones (incluida la prueba de finanzas que antes se saltaba) y prueba nueva `staging900.integration.test.ts`: protecciones de facturas emitidas (líneas ni se borran ni se editan), gastos sin borrado, ciclo completo de membresías (PENDING / ACTIVE / PAST_DUE / PAUSED / CANCELLED / EXPIRED, cambio de tarifa, cuotas con factura), MRR, multicentro (gastos generales solo en el consolidado), empleado sin acceso a gastos (ni por RPC ni por PostgREST), aislamiento entre empresas.
+- E2E de navegador completo (`e2e/full.e2e.mjs`, 39 pasos) contra staging: puesta en marcha de 10 pasos, gastos, facturación, membresías con ficha 360, tareas, caja por centro, finanzas, logout/login, multiempresa por pestaña, segundo navegador (iPad) en ambos sentidos, móvil e iPad vertical sin desbordamiento.
+- Demo completa sembrada en staging con la 0900 (cuenta sintética `demo-900@empresa.test`): 2 centros, 64 clientes, 4.277 ventas, 477 facturas, 4.747 cobros, 91 cierres, 10 proveedores, 124 gastos, 60 membresías, 475 cuotas, 10 tareas. Repetir la siembra no duplica nada.
+- Staging público preparado en GitHub Pages (workflow + ruta base). El build pasa en Actions; falta activar Pages en el repositorio.
+
+### FALLOS ENCONTRADOS Y CORREGIDOS
+1. Cambiar el precio de una tarifa (o el IVA por defecto) enviaba la fila nueva antes de cerrar la vigente: el índice «solo una vigente» rechazaba el lote y las membresías con la versión nueva fallaban por FK.
+2. Una descarga del servidor podía pisar un cambio confirmado durante la propia descarga (el paso «Centros» de la puesta en marcha se perdía al invitar a alguien justo después).
+3. Botones sin `type` dentro de formularios actuaban como *submit*: pulsar «Pendiente de pago» registraba el gasto a medias (55 botones corregidos + regla de lint).
+4. La puesta en marcha daba por hechos los datos fiscales con los campos obligatorios vacíos (facturas con «NIF pendiente»).
+5. «Cuotas vencidas» mostraba 0,00 € cuando la cuota vencida aún no se había emitido.
+6. Menús sin `role=menu/menuitem` y casillas de fila sin etiqueta (lectores de pantalla).
+7. CI: la ruta base de Pages se aplicaba también a los tests.
+
+### LIMITACIONES
+- `sync_push` ignora en silencio (sin error) un `delete` de líneas de una factura ya emitida: los datos quedan protegidos, pero el cliente no recibe aviso. Mejorable con una migración futura.
+- La batería SQL `rls_isolation.sql` no se puede ejecutar contra staging sin credencial de base de datos; se cubre con pruebas por API real.
+
 ## 2026-10-02 — Sprint: finanzas completas, gastos, facturación, membresías, Customer 360 y diseño V3
 
 ### HECHO

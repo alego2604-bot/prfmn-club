@@ -52,6 +52,8 @@ URL: **https://alego2604-bot.github.io/prfmn-club/** (HTTPS, sin coste: el repos
 2. Settings → Environments → `github-pages` → *Deployment branches and tags*: añadir `claude/business-os-fitness-r9jaxb` (por defecto solo permite la rama por defecto). Alternativa: fusionar en `main`.
 3. Actions → «Staging (GitHub Pages)» → *Re-run* (o cualquier push).
 
+Limitación conocida de Pages: al abrir o recargar directamente una ruta interna (p. ej. `/prfmn-club/gastos`) el servidor responde `404.html` con estado 404; la app carga y funciona igual, pero la consola del navegador muestra ese 404.
+
 Supabase: con «Confirm email» desactivado no hace falta tocar *Site URL*; si se activa, añadir la URL de Pages a *Redirect URLs* para que los enlaces de confirmación vuelvan a la app.
 
 ## Desarrollo local equivalente a Supabase
