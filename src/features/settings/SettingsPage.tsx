@@ -5,7 +5,9 @@ import { useCtx, useSession, useWorkspace, useTeam } from "@/app/session";
 import {
   Avatar, Badge, Button, Callout, Card, CardHeader, DataTable, Field, Input, Modal, Page, PageHeader, Select, Switch, Tabs, useToast, type Column,
 } from "@/design-system/components";
-import { addLocation, addPaymentMethod, addTaxRate, setDefaultTaxRate, setLocationStatus, updateActivityRules, updateOrganization, updatePaymentMethod } from "@/data/repos/settings";
+import { addLocation, addPaymentMethod, addTaxRate, createInvoiceSeries, setDefaultTaxRate, setLocationStatus, updateActivityRules, updateOrganization, updatePaymentMethod } from "@/data/repos/settings";
+import { createExpenseCategory, ensureExpenseCategories, updateExpenseCategory } from "@/data/repos/expenses";
+import { useServerReady } from "@/app/serverCaps";
 import { ROLE_LABELS } from "@/domain/permissions";
 import { hasModule, MODULE_INFO } from "@/domain/modules";
 import type { ActivityRule, AuditLog, PaymentKind, RoleKey, Vertical } from "@/domain/types";
@@ -13,10 +15,10 @@ import { formatDateTime } from "@/lib/dates";
 import { formatRate, NUM } from "@/lib/money";
 import { triggerDownload } from "@/lib/export";
 
-type Tab = "company" | "locations" | "team" | "payments" | "taxes" | "rules" | "audit" | "data";
+type Tab = "company" | "locations" | "team" | "payments" | "taxes" | "billing" | "expenses" | "rules" | "audit" | "data";
 
 /** Pestañas enlazables desde la navegación (Empresa → Equipo / Centros): ?tab=equipo|centros|… */
-const TAB_PARAM: Record<string, Tab> = { empresa: "company", centros: "locations", equipo: "team", pagos: "payments", impuestos: "taxes", reglas: "rules", auditoria: "audit", datos: "data" };
+const TAB_PARAM: Record<string, Tab> = { empresa: "company", centros: "locations", equipo: "team", pagos: "payments", impuestos: "taxes", facturacion: "billing", gastos: "expenses", reglas: "rules", auditoria: "audit", datos: "data" };
 const PARAM_OF = Object.fromEntries(Object.entries(TAB_PARAM).map(([k, v]) => [v, k])) as Record<Tab, string>;
 
 export default function SettingsPage() {
@@ -28,7 +30,7 @@ export default function SettingsPage() {
   const items: { value: Tab; label: string }[] = [
     ...(can("settings.manage") ? [{ value: "company" as Tab, label: "Empresa" }, { value: "locations" as Tab, label: "Centros" }] : []),
     ...(can("team.manage") ? [{ value: "team" as Tab, label: "Equipo y roles" }] : []),
-    ...(can("settings.manage") ? [{ value: "payments" as Tab, label: "Métodos de pago" }, { value: "taxes" as Tab, label: "Impuestos" }, { value: "rules" as Tab, label: "Reglas" }] : []),
+    ...(can("settings.manage") ? [{ value: "payments" as Tab, label: "Métodos de pago" }, { value: "taxes" as Tab, label: "Impuestos" }, { value: "billing" as Tab, label: "Facturación" }, { value: "expenses" as Tab, label: "Categorías de gasto" }, { value: "rules" as Tab, label: "Reglas" }] : []),
     ...(can("audit.view") ? [{ value: "audit" as Tab, label: "Auditoría" }] : []),
     { value: "data", label: "Datos" },
   ];
@@ -41,6 +43,8 @@ export default function SettingsPage() {
       {tab === "team" && <TeamTab />}
       {tab === "payments" && <PaymentsTab />}
       {tab === "taxes" && <TaxesTab />}
+      {tab === "billing" && <BillingTab />}
+      {tab === "expenses" && <ExpenseCategoriesTab />}
       {tab === "rules" && <RulesTab />}
       {tab === "audit" && <AuditTab />}
       {tab === "data" && <DataTab />}
@@ -65,7 +69,7 @@ function CompanyTab() {
   return (
     <div className="grid items-start gap-5 lg:grid-cols-[1fr_300px]">
       <Card>
-        <CardHeader title="Datos de la empresa" description="Aparecen en informes y, en el futuro, en las facturas emitidas." />
+        <CardHeader title="Datos de la empresa" description="Aparecen en las facturas que emites (PDF) y en los informes." />
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Nombre comercial" required><Input value={f.name} onChange={set("name")} /></Field>
           <Field label="Razón social"><Input value={f.legalName} onChange={set("legalName")} /></Field>
@@ -402,3 +406,84 @@ const VERTICAL_LABEL: Record<Vertical, string> = {
   fitness: "Fitness / Box", gym: "Gimnasio", functional_training: "Entrenamiento funcional / híbrido", restaurant: "Restauración",
   retail: "Comercio / retail", services: "Servicios", beauty: "Estética", clinic: "Clínica", other: "Otro",
 };
+
+
+/** Series de numeración: una por año (F2026-, F2027-…). El correlativo lo lleva el servidor, sin huecos. */
+function BillingTab() {
+  const ws = useWorkspace();
+  const ctx = useCtx();
+  const toast = useToast();
+  const ready = useServerReady();
+  const next = new Date().getFullYear() + (ws.documentSeries.some((s) => s.year === new Date().getFullYear() && s.documentType === "invoice") ? 1 : 0);
+  const [year, setYear] = useState(next);
+  const [prefix, setPrefix] = useState(`F${next}-`);
+  const issued = (id: string) => ws.invoices.filter((i) => i.seriesId === id && i.status !== "draft").length;
+  return (
+    <div className="grid items-start gap-5 lg:grid-cols-[1fr_320px]">
+      <Card padded={false}>
+        <div className="p-5 pb-3"><CardHeader className="mb-0" title="Series de facturación" description="El número se asigna al emitir, correlativo y sin huecos. Una serie emitida no se borra." /></div>
+        <table className="w-full text-sm">
+          <thead><tr className="border-y border-line bg-surface-2 text-xs text-fg-3"><th className="px-5 py-2 text-left font-medium">Serie</th><th className="px-3 py-2 text-left font-medium">Tipo</th><th className="px-3 py-2 text-left font-medium">Año</th><th className="px-3 py-2 text-right font-medium">Siguiente</th><th className="px-5 py-2 text-right font-medium">Emitidas</th></tr></thead>
+          <tbody>
+            {ws.documentSeries.map((s) => (
+              <tr key={s.id} className="border-b border-line last:border-0">
+                <td className="px-5 py-3 font-mono font-medium">{s.prefix}</td>
+                <td className="px-3 py-3 text-fg-2">{{ invoice: "Factura", simplified_invoice: "Simplificada", credit_note: "Rectificativa", sale_ticket: "Ticket" }[s.documentType]}</td>
+                <td className="px-3 py-3 text-fg-2">{s.year ?? "Sin reinicio"}</td>
+                <td className="px-3 py-3 text-right font-mono text-fg-2">{s.prefix}{String(s.nextNumber).padStart(s.padding, "0")}</td>
+                <td className="px-5 py-3 text-right num">{issued(s.id)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="border-t border-line px-5 py-3 text-xs text-fg-3">Rectificativas, retenciones (IRPF) y envío a la AEAT (Verifactu) se activarán tras validarlos con tu asesoría: el modelo ya lo admite.</p>
+      </Card>
+      <Card>
+        <CardHeader title="Nueva serie" description="Al empezar un año nuevo o para separar actividades." />
+        <div className="grid gap-3">
+          <Field label="Año"><Input type="number" value={year} onChange={(e) => { const y = Number(e.target.value); setYear(y); setPrefix(`F${y}-`); }} /></Field>
+          <Field label="Prefijo" hint={`Primera factura: ${prefix}00001`}><Input value={prefix} onChange={(e) => setPrefix(e.target.value)} /></Field>
+          <Button variant="primary" icon={Plus} disabled={!ready} onClick={() => { try { createInvoiceSeries(ctx, { year, prefix }); toast.success("Serie creada", prefix); } catch (e) { toast.fromError(e); } }}>Crear serie</Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function ExpenseCategoriesTab() {
+  const ws = useWorkspace();
+  const ctx = useCtx();
+  const toast = useToast();
+  const ready = useServerReady();
+  const [name, setName] = useState("");
+  const [rate, setRate] = useState(2100);
+  const count = (id: string) => ws.expenses.filter((e) => e.categoryId === id && e.status !== "void").length;
+  return (
+    <div className="grid items-start gap-5 lg:grid-cols-[1fr_320px]">
+      <Card padded={false}>
+        <div className="p-5 pb-3"><CardHeader className="mb-0" title="Categorías de gasto" description="Son datos de tu empresa: renómbralas, archívalas o crea las tuyas. El IVA es solo la propuesta del formulario." /></div>
+        {ws.expenseCategories.length ? (
+          <ul>
+            {ws.expenseCategories.map((c) => (
+              <li key={c.id} className="flex items-center gap-3 border-t border-line px-5 py-2.5 text-sm">
+                <span className={c.status === "archived" ? "flex-1 text-fg-3 line-through" : "flex-1 font-medium"}>{c.name}</span>
+                <span className="text-xs text-fg-3">{c.defaultTaxRateBp !== undefined ? `IVA ${formatRate(c.defaultTaxRateBp)}` : "Sin IVA propuesto"} · {count(c.id)} gastos</span>
+                {ready && <Button size="sm" variant="ghost" onClick={() => { try { updateExpenseCategory(ctx, c.id, { status: c.status === "archived" ? "active" : "archived" }); } catch (e) { toast.fromError(e); } }}>{c.status === "archived" ? "Reactivar" : "Archivar"}</Button>}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="border-t border-line p-5 text-sm text-fg-3">Aún no hay categorías. {ready && <button className="font-medium text-accent-fg hover:underline" onClick={() => { try { ensureExpenseCategories(ctx); toast.success("Categorías sugeridas creadas"); } catch (e) { toast.fromError(e); } }}>Crear las sugeridas</button>}</div>
+        )}
+      </Card>
+      <Card>
+        <CardHeader title="Nueva categoría" />
+        <div className="grid gap-3">
+          <Field label="Nombre"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Formación" /></Field>
+          <Field label="IVA propuesto"><Select value={rate} onChange={(e) => setRate(Number(e.target.value))}>{ws.taxRates.filter((t) => t.status === "active").map((t) => <option key={t.id} value={t.rateBp}>{formatRate(t.rateBp)}</option>)}</Select></Field>
+          <Button variant="primary" icon={Plus} disabled={!ready || !name.trim()} onClick={() => { try { createExpenseCategory(ctx, name, rate); setName(""); toast.success("Categoría creada"); } catch (e) { toast.fromError(e); } }}>Crear categoría</Button>
+        </div>
+      </Card>
+    </div>
+  );
+}

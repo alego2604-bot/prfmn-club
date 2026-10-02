@@ -121,6 +121,12 @@ export default function CatalogPage() {
           { value: "categories", label: "Categorías", count: ws.categories.filter((c) => c.status !== "archived").length },
         ]}
       />
+      {ws.membershipPlans.length > 0 && tab === "products" && (
+        <Link to="/membresias?tab=tarifas" className="mb-4 flex items-center justify-between rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm transition-colors hover:border-line-strong">
+          <span><span className="font-medium">Tarifas de membresía</span> <span className="text-fg-3">· {ws.membershipPlans.filter((p) => p.status !== "archived").length} tarifas con histórico de precio</span></span>
+          <span className="font-medium text-fg-2">Gestionar →</span>
+        </Link>
+      )}
       {tab === "products" ? (
         <DataTable
           rows={rows}

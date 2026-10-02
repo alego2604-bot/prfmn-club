@@ -6,6 +6,7 @@ import { Drawer, EmptyState, IconButton, Kbd, Menu, MenuItem, useToast } from "@
 import { computeAlerts } from "@/domain/alerts";
 import { hasModule } from "@/domain/modules";
 import { ALL_ITEMS, isPlanned, MOBILE_TABS, NAV, routePath, SETTINGS_ITEM, type NavItem } from "./nav";
+import { RouteErrorBoundary } from "./RouteErrorBoundary";
 import { getPref, setPref } from "@/lib/localPrefs";
 import { useLocationScope, useSession, useWorkspace } from "./session";
 import { Logo, LogoMark } from "./Logo";
@@ -384,7 +385,7 @@ export function AppShell() {
         </header>
         {locations.length > 1 && <div className="flex items-center gap-2 border-b border-line px-3 py-2 md:hidden"><LocationSwitcher compact /></div>}
         <main className={cn(isPos && "min-h-0 flex-1")}>
-          <Outlet />
+          <RouteErrorBoundary resetKey={location.pathname}><Outlet /></RouteErrorBoundary>
         </main>
       </div>
       <MobileMenu open={mobileOpen} onClose={() => setMobileOpen(false)} />
