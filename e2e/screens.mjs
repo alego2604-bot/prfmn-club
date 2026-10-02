@@ -74,14 +74,16 @@ if (!process.env.SINGLE_COMPANY) {
   await p0.getByText("Crear empresa o abrir la demo").click();
 }
 await p0.getByRole("button", { name: /demo/i }).first().click();
-await p0.getByText(/Hola,/).first().waitFor({ timeout: 120000 });
+// «Hola,» también aparece en el selector de empresa: se espera a la app (indicador de sincronización)
+await p0.locator('[data-testid="sync-indicator"]').first().waitFor({ state: "attached", timeout: 180000 });
 // Con servidor, la demo se sube por lotes: se espera a ver el progreso y a que termine
 await p0.getByText(/Preparando la empresa demo/).first().waitFor({ timeout: 10000 }).catch(() => {});
-await p0.waitForFunction(() => (document.querySelector('[data-testid="sync-indicator"]')?.getAttribute("data-state") ?? "idle") === "idle", null, { timeout: 120000 });
+await p0.waitForFunction(() => (document.querySelector('[data-testid="sync-indicator"]')?.getAttribute("data-state") ?? "idle") === "idle", null, { timeout: 480000 });
 // Caja abierta para capturar la Caja en uso
 await p0.goto(BASE + "/caja");
 await p0.getByRole("button", { name: "Abrir caja" }).click().catch(() => {});
 await p0.waitForTimeout(1500);
+console.log("contexto guardado:", await p0.evaluate(() => JSON.stringify({ last: localStorage.getItem("bos.session"), tab: sessionStorage.getItem("bos.tab.ctx"), url: location.pathname })));
 const storage = await setup.storageState({ indexedDB: true }); // modo local: la sesión vive en IndexedDB
 await setup.close();
 
@@ -103,6 +105,8 @@ for (const [device, opts] of Object.entries(VIEWPORTS)) {
           await page.goto(BASE + "/importaciones");
           await page.locator('tbody tr, [data-testid="table-cards"] li button').first().click();
         } else await page.goto(BASE + path);
+        if (await page.getByText("Elige empresa").count()) { await page.getByText("Atlas Training Club (demo)").first().click(); await page.goto(BASE + (path ?? "/")); }
+        await page.locator('[data-testid="sync-indicator"]').first().waitFor({ state: "attached", timeout: 60000 }).catch(() => {});
         await page.waitForFunction(() => (document.querySelector('[data-testid="sync-indicator"]')?.getAttribute("data-state") ?? "idle") === "idle", null, { timeout: 60000 }).catch(() => {});
         await page.waitForTimeout(2200);
         if (name === "caja" && device !== "mobile") {
