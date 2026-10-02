@@ -89,6 +89,7 @@ await setup.close();
 
 for (const [device, opts] of Object.entries(VIEWPORTS)) {
   for (const theme of ["light", "dark"]) {
+    if (process.env.SKIP?.split(",").includes(`${device}-${theme}`)) continue;
     const ctx = await browser.newContext({ ...opts, storageState: storage, locale: "es-ES", timezoneId: "Europe/Madrid", colorScheme: theme, reducedMotion: "reduce" });
     await ctx.addInitScript((t) => localStorage.setItem("bos.theme", t), theme);
     const page = await ctx.newPage();
