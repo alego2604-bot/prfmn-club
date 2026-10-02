@@ -243,6 +243,18 @@ La paleta de 8 colores de categoría no supera la validación de daltonismo (ski
 
 **Motivo**: navegación por tareas y sin entradas vacías; cabe en pantallas de 900 px de alto.
 
+## 2026-10-02 — Staging público en GitHub Pages
+
+**Decisión**: el frontend de staging se publica con GitHub Actions en GitHub Pages (`.github/workflows/staging-pages.yml`), con ruta base `/prfmn-club/` y solo valores públicos (URL de Supabase y clave *publishable*). Cada push verifica privacidad, lint, tipos y unitarios antes de publicar.
+
+**Motivo**: el repositorio es público, Pages es gratuito, da HTTPS y no exige cuentas ni tokens nuevos. La activación (Settings → Pages → GitHub Actions) solo la puede hacer el propietario.
+
+## 2026-10-02 — Todo `<button>` declara `type`
+
+**Decisión**: regla de lint `no-restricted-syntax` que exige `type` en cada `<button>`.
+
+**Motivo**: los botones de `Segmented` y `Switch` dentro de formularios actuaban como *submit* y guardaban formularios a medias (un gasto se registraba al pulsar «Pendiente de pago»).
+
 ## Pendiente de validación legal/fiscal
 
 **Nota**: el modelo de facturación (`BILLING_SYSTEM.md`) está preparado conceptualmente para normativa española (series, IVA, NIF/CIF) pero no ha sido validado por un asesor fiscal. No se debe emitir facturas reales en producción sin esa validación.

@@ -74,8 +74,11 @@ async function noOverflow(page) {
 }
 const dialog = (page) => page.locator('[role="dialog"]').last();
 async function pickCenter(page, name) {
-  await page.locator('[data-testid="location-switcher"]:visible').first().click();
+  await saved(page); // tras una recarga, la sesión restaura el centro guardado: elegir antes se pisaría
+  const sw = page.locator('[data-testid="location-switcher"]:visible').first();
+  await sw.click();
   await page.getByRole("menu").getByText(name).first().click();
+  await page.waitForFunction((n) => document.querySelector('[data-testid="location-switcher"]')?.textContent?.includes(n), name, { timeout: 10000 });
 }
 async function login(page) {
   await page.goto(BASE + "/");
@@ -246,10 +249,13 @@ await step(page, "gastos: KPIs, filtros, export CSV y Excel", async () => {
   await page.goto(BASE + "/gastos?periodo=ytd");
   // IVA soportado: 210,00 (alquiler) + 21,00 (luz) + 52,50 (gestoría); la anulada no cuenta
   await page.getByText("283,50").first().waitFor();
-  await page.getByLabel("Estado").selectOption({ index: (await page.getByLabel("Estado").locator("option").allTextContents()).findIndex((o) => /Anulad/.test(o)) });
+  await page.getByRole("button", { name: /^Estado/ }).first().click();
+  await page.getByRole("listbox", { name: "Estado" }).getByRole("option", { name: /Anulad/ }).click();
+  await page.keyboard.press("Escape");
   await page.locator("tbody tr", { hasText: "Duplicado E2E" }).waitFor();
   if (await page.locator("tbody tr", { hasText: "Alquiler Centro A" }).count()) throw new Error("el filtro de estado no filtra");
-  await page.getByRole("button", { name: "Quitar filtros" }).first().click();
+  await page.goto(BASE + "/gastos?periodo=ytd"); // sin filtros
+  await page.locator("tbody tr", { hasText: "Alquiler Centro A" }).waitFor();
   const x = await download(page, async () => { await page.getByRole("button", { name: "Exportar" }).click(); await page.getByText("Excel (.xlsx)").click(); });
   const c = await download(page, async () => { await page.getByRole("button", { name: "Exportar" }).click(); await page.getByText("CSV (;)").click(); });
   if (!x.endsWith(".xlsx") || !c.endsWith(".csv")) throw new Error(`${x} ${c}`);

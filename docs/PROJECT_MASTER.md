@@ -342,7 +342,7 @@ Escala: `PLANNED` → `DESIGNED` → `FRONTEND ONLY` → `FUNCTIONAL` (funciona 
 
 | Módulo | Estado | Notas |
 |---|---|---|
-| Esquema SQL + RLS | TESTED | 10 migraciones (0100–0900). 0100–0810 aplicadas en business-os-staging; **0900 validada en stack local equivalente, pendiente de aplicar en staging (requiere `SUPABASE_ACCESS_TOKEN`)**. 41 comprobaciones SQL locales (sección 11: tablas nuevas, borrado solo de líneas en borrador, aislamiento, permisos de empleado) |
+| Esquema SQL + RLS | TESTED | 10 migraciones (0100–0900) aplicadas en business-os-staging (`server_capabilities()` → schema 900). 41 comprobaciones SQL locales (sección 11: tablas nuevas, borrado solo de líneas en borrador, aislamiento, permisos de empleado) |
 | Persistencia en Supabase (sync transaccional por lotes, caché/offline IndexedDB) | TESTED | Validada contra business-os-staging: `test:cloud` 18/18 (4 de integración real, incluida una importación de 1.500 ventas por lotes), E2E persistencia 22/22, E2E multiempresa 7/7. Lotes ≤ 300 filas, reintento idempotente, división ante timeout, cola por pestaña. No es PRODUCTION READY: no existe aún el proyecto de producción |
 | Auth Supabase (registro, login, sesión, logout con borrado de caché) | TESTED | Email + contraseña. Confirmación de email depende de la config del proyecto |
 | Organizaciones, centros, miembros, roles | TESTED | Alta por RPC; equipo por email con `add_member_by_email` / `update_member` (sin claves de servicio) |
@@ -367,8 +367,8 @@ Escala: `PLANNED` → `DESIGNED` → `FRONTEND ONLY` → `FUNCTIONAL` (funciona 
 | Clientes y ficha 360 (notas, timeline, saldo, renovación) | FUNCTIONAL | Bajas coherentes, orígenes traducidos, acciones rápidas, cronología con altas/bajas/cambios de estado; vista móvil en tarjetas |
 | Informes (generación gestoría XLSX/CSV/PDF) | TESTED | Flujo periodo → secciones → formato → vista previa |
 | Ajustes (empresa, centros, métodos de pago, IVA, equipo, módulos) | FUNCTIONAL | |
-| Gastos y proveedores | TESTED | Alta/edición, pagado/pendiente/vencido, anulación con motivo (sin borrado), duplicado de factura de proveedor, filtros, export XLSX/CSV, dashboard. Requiere 0900 en el servidor |
-| Membresías y tarifas | TESTED | Tarifas versionadas, alta con primera cuota, pausa/reanudación, baja, reactivación, cambio de tarifa, cobro de cuota con factura; MRR y evolución. Sin cobro automático (Stripe no conectado). Requiere 0900 |
+| Gastos y proveedores | TESTED | Alta/edición, pagado/pendiente/vencido, anulación con motivo (sin borrado), duplicado de factura de proveedor, filtros, export XLSX/CSV, dashboard. Validado en business-os-staging (integración + E2E de navegador) |
+| Membresías y tarifas | TESTED | Tarifas versionadas, alta con primera cuota, pausa/reanudación, baja, reactivación, cambio de tarifa, cobro de cuota con factura; MRR y evolución. Sin cobro automático (Stripe no conectado). Validado en business-os-staging |
 | Seguimiento / Tareas | FUNCTIONAL | Tareas con vencimiento, posponer, completar; acción siguiente en la ficha. Asistencia: DESIGNED |
 | Inbox / Plantillas / WhatsApp | DESIGNED | |
 | Documentos | DESIGNED | |
