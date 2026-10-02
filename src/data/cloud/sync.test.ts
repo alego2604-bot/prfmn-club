@@ -6,7 +6,8 @@ import type { Ctx } from "../context";
 import { createCategory, createProduct } from "../repos/catalog";
 import { openCashSession } from "../repos/cash";
 import { createSale, voidSale } from "../repos/sales";
-import { updateOrganization } from "../repos/settings";
+import { addTaxRate, setDefaultTaxRate, updateOrganization } from "../repos/settings";
+import { createPlan, updatePlan } from "../repos/memberships";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Workspace } from "../store";
 import { COLLECTIONS, entityToRow, toRow, type Row } from "./mapping";
@@ -103,6 +104,28 @@ function fakeSupabase(state: { server: Workspace; gate?: Promise<void> }): Supab
   };
   return { from: query, rpc: async () => ({ data: [], error: null }) } as unknown as SupabaseClient;
 }
+
+describe("Índices «solo uno vigente»", () => {
+  it("cambiar el precio de una tarifa cierra la versión vieja ANTES de insertar la nueva", async () => {
+    const { ctx, batches } = await setup();
+    const plan = createPlan(ctx, { name: "Mensual", kind: "recurring", billingPeriod: "month", price: 6000, taxRateBp: 2100, openToNew: true });
+    batches.length = 0;
+    updatePlan(ctx, plan.id, { name: "Mensual", kind: "recurring", billingPeriod: "month", price: 6500, taxRateBp: 2100, openToNew: true });
+    const ops = batches[0]!.ops.filter((o) => o.table === "membership_plan_versions").map((o) => o.op);
+    expect(ops).toEqual(["update", "insert"]);
+  });
+
+  it("cambiar el IVA por defecto quita la marca del anterior antes de ponerla en el nuevo", async () => {
+    const { ctx, store, batches } = await setup();
+    addTaxRate(ctx, "Reducido", 1000);
+    const reduced = store.requireWorkspace().taxRates.find((t) => t.rateBp === 1000 && !t.isDefault)!;
+    batches.length = 0;
+    setDefaultTaxRate(ctx, reduced.id);
+    const rows = batches[0]!.ops.filter((o) => o.table === "tax_rates").flatMap((o) => o.rows.map((r) => r.is_default));
+    expect(rows[0]).toBe(false);
+    expect(rows.at(-1)).toBe(true);
+  });
+});
 
 describe("CloudSync.pull", () => {
   it("una descarga lenta no pisa una escritura hecha (y enviada) mientras descargaba", async () => {

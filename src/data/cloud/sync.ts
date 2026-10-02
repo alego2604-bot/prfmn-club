@@ -97,6 +97,18 @@ export function splitBatch(b: BatchBody, maxRows = CHUNK_MAX_ROWS, maxBytes = CH
 // ---------------------------------------------------------------------------------------------------------------------
 // Diferencias
 // ---------------------------------------------------------------------------------------------------------------------
+/**
+ * Tablas con índice único parcial «solo uno vigente» (versión de tarifa vigente, IVA por defecto, caja abierta, cierre
+ * vigente). `sync_push` aplica las filas en orden y PostgreSQL comprueba el índice fila a fila: la fila que libera el
+ * hueco debe llegar antes que la que lo ocupa (cambiar el precio de una tarifa = cerrar la versión vieja + insertar la nueva).
+ */
+const RELEASES: Partial<Record<string, (r: Row) => boolean>> = {
+  membership_plan_versions: (r) => r.valid_to != null,
+  tax_rates: (r) => r.is_default === false || (r.status != null && r.status !== "active"),
+  cash_sessions: (r) => r.status != null && r.status !== "open",
+  cash_closings: (r) => r.superseded_at != null,
+};
+
 export function diffWorkspaces(prev: Workspace, next: Workspace): Omit<Batch, "id" | "createdAt"> | null {
   const orgId = next.organization.id;
   const ops: Op[] = [];
@@ -140,8 +152,12 @@ export function diffWorkspaces(prev: Workspace, next: Workspace): Omit<Batch, "i
       if (key === "products" && keys.every((k) => k === "stock_quantity")) continue;
       updated.push({ id: e.id, ...changed });
     }
+    const release = RELEASES[table];
+    const early = release ? updated.filter(release) : [];
+    const late = release ? updated.filter((r) => !release(r)) : updated;
+    if (early.length) ops.push({ table, op: "update", rows: early });
     if (inserted.length) ops.push({ table, op: "insert", rows: inserted });
-    if (updated.length) updates.push({ table, op: "update", rows: updated });
+    if (late.length) updates.push({ table, op: "update", rows: late });
     if (DELETABLE[key]) {
       const kept = new Set(b.map((e) => e.id));
       const removed = a.filter((e) => !kept.has(e.id)).map((e) => ({ id: e.id }));
