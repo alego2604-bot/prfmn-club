@@ -1,14 +1,14 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { AlertCircle, ArrowLeft, BellOff, CreditCard, Mail, MessageCircle, NotebookPen, Pencil, Pin, Receipt, ShoppingBag, StickyNote, UserX } from "lucide-react";
+import { AlertCircle, ArrowLeft, BellOff, CreditCard, ListTodo, Mail, MessageCircle, MoreHorizontal, NotebookPen, Pencil, Pin, Receipt, Repeat, ShoppingBag, StickyNote, UserPlus, UserX } from "lucide-react";
 import { useCtx, useSession, useWorkspace, usePersonName } from "@/app/session";
-import { Avatar, Badge, Button, Callout, Card, CardHeader, DescriptionList, EmptyState, Field, Input, Mono, Page, Switch, Tabs, Textarea, useToast } from "@/design-system/components";
+import { Avatar, Badge, Button, Callout, Card, CardHeader, DescriptionList, EmptyState, Field, IconButton, Input, Menu, MenuItem, Mono, Page, Switch, Tabs, Textarea, useToast } from "@/design-system/components";
 import { Sparkline } from "@/design-system/components/charts";
 import { addCustomerNote, customerName } from "@/data/repos/customers";
 import { capitalize, daysBetween, formatDate, formatDateTime, relativeDays, toISODate } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/cn";
-import { CustomerForm, CUSTOMER_STATUS } from "./CustomerForm";
+import { CustomerForm, CUSTOMER_STATUS, sourceLabel } from "./CustomerForm";
 import { INVOICE_STATUS } from "../invoices/status";
 
 type Tab = "overview" | "activity" | "invoices" | "purchases" | "notes";
@@ -41,7 +41,15 @@ export default function CustomerDetailPage() {
       ...invoices.map((i) => ({ at: `${i.issueDate}T12:00:00`, kind: "invoice", icon: Receipt, title: `Factura ${i.number ?? i.externalNumber} · ${formatMoney(i.total)}`, sub: `${i.concept ?? ""}${i.servicePeriodStart ? ` · periodo ${formatDate(`${i.servicePeriodStart}T00:00`).slice(3)}` : ""} · ${INVOICE_STATUS[i.status].label}`, to: `/facturas?factura=${i.id}` })),
       ...sales.map((s) => ({ at: s.occurredAt, kind: "purchase", icon: ShoppingBag, title: `Compra #${s.number} · ${formatMoney(s.total)}${s.status === "voided" ? " (anulada)" : ""}`, sub: items.get(s.id) ?? "", to: `/ventas?venta=${s.id}` })),
       ...notes.map((n) => ({ at: n.createdAt, kind: "note", icon: StickyNote, title: "Nota interna", sub: n.body, to: undefined as string | undefined })),
-      ...ws.auditLogs.filter((l) => l.entityId === c.id && l.entityType === "customers" && l.action !== "note").map((l) => ({ at: l.createdAt, kind: "change", icon: Pencil, title: l.action === "insert" ? "Ficha creada" : "Ficha actualizada", sub: `${l.actorName}${l.changes ? ` · ${Object.keys(l.changes).join(", ")}` : ""}`, to: undefined })),
+      ...ws.auditLogs.filter((l) => l.entityId === c.id && l.entityType === "customers" && l.action !== "note").map((l) => {
+        const st = l.changes?.status as { from?: string; to?: string } | undefined;
+        const label = (v?: string) => (v && v in CUSTOMER_STATUS ? CUSTOMER_STATUS[v as keyof typeof CUSTOMER_STATUS].label : v ?? "—");
+        return st
+          ? { at: l.createdAt, kind: "status", icon: Repeat, title: `Estado: ${label(st.from)} → ${label(st.to)}`, sub: l.actorName ?? "", to: undefined }
+          : { at: l.createdAt, kind: "change", icon: Pencil, title: l.action === "insert" ? "Ficha creada" : "Ficha actualizada", sub: `${l.actorName}${l.changes ? ` · ${Object.keys(l.changes).join(", ")}` : ""}`, to: undefined };
+      }),
+      ...(c.joinedAt ? [{ at: `${c.joinedAt}T08:00:00`, kind: "status", icon: UserPlus, title: "Alta como cliente", sub: sourceLabel(c.source) !== "—" ? `Origen: ${sourceLabel(c.source)}` : "", to: undefined as string | undefined }] : []),
+      ...(c.leftAt ? [{ at: `${c.leftAt}T20:00:00`, kind: "status", icon: UserX, title: "Baja", sub: "Deja de facturarse la cuota", to: undefined as string | undefined }] : []),
     ].sort((a, b) => b.at.localeCompare(a.at));
     const now = new Date();
     const monthly = Array.from({ length: 12 }, (_, i) => {
@@ -57,7 +65,7 @@ export default function CustomerDetailPage() {
       pendingAmount: pending.reduce((s, i) => s + i.total - i.amountPaid, 0),
       billed: activeInv.reduce((s, i) => s + i.total, 0),
       spent: sales.filter((s) => s.status !== "voided").reduce((a, s) => a + s.total, 0),
-      lastActivity: timeline.find((t) => t.icon !== StickyNote && t.icon !== Pencil)?.at,
+      lastActivity: timeline.find((t) => t.kind === "purchase" || t.kind === "invoice")?.at,
       silenced: notes.find((n) => n.suppressAlertsUntil && n.suppressAlertsUntil >= new Date().toISOString().slice(0, 10)),
     };
   }, [c, ws]);
@@ -92,6 +100,7 @@ export default function CustomerDetailPage() {
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-3xl font-semibold tracking-[-0.03em]">{name}</h1>
               <Badge tone={CUSTOMER_STATUS[c.status].tone} dot>{CUSTOMER_STATUS[c.status].label}</Badge>
+              {data.lastInvoice?.concept && c.status !== "cancelled" && <Badge>{data.lastInvoice.concept}</Badge>}
               {data.silenced && <Badge tone="info"><BellOff className="h-3 w-3" />Avisos silenciados hasta {formatDate(`${data.silenced.suppressAlertsUntil}T00:00`)}</Badge>}
             </div>
             <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-3">
@@ -102,31 +111,55 @@ export default function CustomerDetailPage() {
             </p>
           </div>
         </div>
+        {/* Acciones rápidas: lo frecuente a la vista; lo que aún no existe, en «Más» y marcado como Pronto */}
         <div className="flex flex-wrap gap-2">
+          {data.pending.length > 0 && can("payments.manage") && <Link to={`/facturas?factura=${data.pending[0]!.id}`}><Button variant="primary" icon={CreditCard}>Registrar cobro</Button></Link>}
+          {can("customers.manage") && <Button icon={NotebookPen} onClick={() => setTab("notes")}>Nota</Button>}
           {waNumber && <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noreferrer" title="Abre WhatsApp con este número (envío manual)"><Button icon={MessageCircle}>Mensaje</Button></a>}
           {c.email && <a href={`mailto:${c.email}`}><Button icon={Mail}>Email</Button></a>}
-          {can("customers.manage") && <Button icon={NotebookPen} onClick={() => setTab("notes")}>Nota</Button>}
-          {data.pending.length > 0 && can("payments.manage") && <Link to={`/facturas?factura=${data.pending[0]!.id}`}><Button icon={CreditCard}>Registrar cobro</Button></Link>}
-          {can("customers.manage") && <Button variant="primary" icon={Pencil} onClick={() => setEditing(true)}>Editar</Button>}
+          {can("customers.manage") && <Button variant={data.pending.length ? "secondary" : "primary"} icon={Pencil} onClick={() => setEditing(true)}>Editar</Button>}
+          <Menu trigger={(_, toggle) => <IconButton icon={MoreHorizontal} label="Más acciones" onClick={toggle} className="border border-line" />}>
+            {() => (
+              <>
+                <MenuItem icon={Receipt} disabled hint="Pronto">Nueva factura</MenuItem>
+                <MenuItem icon={ListTodo} disabled hint="Pronto">Nueva tarea</MenuItem>
+                <MenuItem icon={MessageCircle} disabled hint="Pronto">Mensaje desde la app</MenuItem>
+              </>
+            )}
+          </Menu>
         </div>
       </div>
 
-      <div className="surface-card mb-6 grid overflow-hidden rounded-xl" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
-        {[
-          { label: "Tarifa / último concepto", value: data.lastInvoice?.concept ?? "—", small: true },
+      {(() => {
+        const gone = c.status === "cancelled" || !!c.leftAt;
+        const overdue = !gone && data.renewal && data.renewal < toISODate(new Date());
+        const renewal = c.status === "lead"
+          ? { label: "Próxima renovación", value: "—", sub: "Aún no es cliente" }
+          : gone
+            ? { label: "Baja", value: c.leftAt ? formatDate(`${c.leftAt}T00:00`) : "Dado de baja", sub: "Sin renovación" }
+            : data.renewal
+              ? { label: overdue ? "Renovación pendiente" : "Próxima renovación", value: formatDate(`${data.renewal}T00:00`), sub: overdue ? `Vencida ${relativeDays(`${data.renewal}T00:00`)}` : relativeDays(`${data.renewal}T00:00`), tone: overdue ? "warning" : undefined }
+              : { label: "Próxima renovación", value: "—", sub: "Sin cuota periódica" };
+        const fields: { label: string; value: string; sub?: string; small?: boolean; tone?: string }[] = [
+          { label: gone ? "Última tarifa" : "Tarifa actual", value: data.lastInvoice?.concept ?? "—", small: true, sub: data.lastInvoice ? `${formatMoney(data.lastInvoice.total)} · ${data.lastInvoice.issueDate ? formatDate(`${data.lastInvoice.issueDate}T00:00`) : ""}` : undefined },
           { label: "Última actividad", value: data.lastActivity ? capitalize(relativeDays(data.lastActivity)) : "—", sub: data.lastActivity ? formatDate(data.lastActivity) : undefined },
           { label: "Saldo pendiente", value: formatMoney(data.pendingAmount), sub: data.pending.length ? `${data.pending.length} factura${data.pending.length === 1 ? "" : "s"}` : "Al día", tone: data.pendingAmount > 0 ? "warning" : undefined },
-          { label: "Próxima renovación", value: data.renewal ? formatDate(`${data.renewal}T00:00`) : "—", sub: data.renewal ? relativeDays(`${data.renewal}T00:00`) : "Sin cuota periódica" },
+          renewal,
           { label: "Valor total", value: formatMoney(data.billed + data.spent), sub: `${data.invoices.length} facturas · ${data.sales.length} compras` },
-          { label: "Cliente desde", value: c.joinedAt ? formatDate(`${c.joinedAt}T00:00`) : formatDate(c.createdAt), sub: c.joinedAt ? `${Math.max(0, Math.round(daysBetween(new Date(`${c.joinedAt}T00:00`), new Date()) / 30))} meses` : undefined },
-        ].map((f) => (
-          <div key={f.label} className="-ml-px -mt-px border-l border-t border-line px-5 py-4">
-            <p className="truncate text-xs font-medium text-fg-3">{f.label}</p>
-            <p className={cn("mt-1 truncate font-semibold tracking-[-0.02em]", f.small ? "text-[15px] leading-7" : "text-xl", f.tone === "warning" && "text-warning-fg")} title={String(f.value)}>{f.value}</p>
-            {f.sub && <p className="mt-0.5 truncate text-xs text-fg-3">{f.sub}</p>}
+          { label: "Cliente desde", value: c.joinedAt ? formatDate(`${c.joinedAt}T00:00`) : formatDate(c.createdAt), sub: c.joinedAt ? `${Math.max(0, Math.round(daysBetween(new Date(`${c.joinedAt}T00:00`), new Date(c.leftAt ? `${c.leftAt}T00:00` : Date.now())) / 30))} meses` : undefined },
+        ];
+        return (
+          <div className="surface-card mb-6 grid grid-cols-2 overflow-hidden rounded-xl sm:grid-cols-3 xl:grid-cols-6">
+            {fields.map((f) => (
+              <div key={f.label} className="-ml-px -mt-px border-l border-t border-line px-4 py-3.5 sm:px-5 sm:py-4">
+                <p className="truncate text-xs font-medium text-fg-3">{f.label}</p>
+                <p className={cn("mt-1 truncate font-semibold tracking-[-0.02em]", f.small ? "text-[15px] leading-7" : "text-lg sm:text-xl", f.tone === "warning" && "text-warning-fg")} title={String(f.value)}>{f.value}</p>
+                {f.sub && <p className="mt-0.5 truncate text-xs text-fg-3">{f.sub}</p>}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        );
+      })()}
 
       {c.taxIdValid === false && <Callout tone="warning" className="mb-4" title="NIF no válido">«{c.taxId}» no supera la validación de DNI/NIE/CIF. Corrígelo antes de emitirle facturas nuevas.</Callout>}
 
@@ -172,7 +205,7 @@ export default function CustomerDetailPage() {
                   { label: "Dirección", value: [c.address, c.postalCode, c.city].filter(Boolean).join(", ") || "—" },
                   { label: "Nacimiento", value: c.birthDate ? formatDate(`${c.birthDate}T00:00`) : "—" },
                   { label: "Empresa", value: c.companyName ?? "—" },
-                  { label: "Origen", value: c.source === "import" ? "Importación" : c.source ?? "—" },
+                  { label: "Origen", value: sourceLabel(c.source) },
                   { label: "Baja", value: c.leftAt ? formatDate(`${c.leftAt}T00:00`) : "—" },
                 ]}
               />
@@ -258,6 +291,7 @@ export default function CustomerDetailPage() {
 }
 
 const TL_TONE: Record<string, string> = {
+  status: "bg-ink text-fg-inverse",
   purchase: "bg-accent-soft text-accent-fg",
   invoice: "bg-surface-sunken text-fg-2",
   note: "bg-warning-soft text-warning-fg",

@@ -69,3 +69,15 @@ export function CustomerForm({ customer, onClose, onSaved }: { customer?: Custom
     </Modal>
   );
 }
+
+/** Origen del cliente (cómo nos conoció): valores guardados → texto para el usuario. Sin traducir nunca claves internas. */
+export const CUSTOMER_SOURCE: Record<string, string> = {
+  walk_in: "Vino al centro",
+  instagram: "Instagram",
+  referral: "Recomendación",
+  google: "Google",
+  web: "Web",
+  import: "Importación",
+  pos: "Caja",
+};
+export const sourceLabel = (s?: string) => (s ? CUSTOMER_SOURCE[s] ?? s.replace(/_/g, " ") : "—");
