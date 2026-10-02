@@ -62,11 +62,20 @@ describe.skipIf(!process.env.BOS_SEED || !URL || !KEY)("Siembra de la demo sint�
     await sync2.open(orgId);
     const ws = store2.requireWorkspace();
     console.log(`Demo «${org.name}» (${orgId}) · cuenta ${EMAIL} · ${before.sales.length ? "ya estaba sembrada" : `sembrada en ${progress.length ? progress.at(-1) : "1"} lotes`}`);
-    console.log(`  ${ws.locations.length} centros · ${ws.customers.length} clientes · ${ws.sales.length} ventas · ${ws.invoices.length} facturas · ${ws.cashClosings.length} cierres · ${ws.customerNotes.length} notas · ${ws.imports.length} importación`);
+    console.log(`  ${ws.locations.length} centros · ${ws.customers.length} clientes · ${ws.sales.length} ventas · ${ws.invoices.length} facturas · ${ws.payments.length} cobros · ${ws.cashClosings.length} cierres · ${ws.customerNotes.length} notas · ${ws.imports.length} importación`);
+    console.log(`  ${ws.suppliers.length} proveedores · ${ws.expenses.length} gastos · ${ws.membershipPlans.length} tarifas · ${ws.customerMemberships.length} membresías · ${ws.membershipCharges.length} cuotas · ${ws.tasks.length} tareas · servidor ${ws.server?.schema ?? "?"}`);
     expect(ws.organization.isDemo).toBe(true);
     expect(ws.locations.length).toBe(2);
     expect(ws.sales.length).toBeGreaterThan(3000);
     expect(ws.cashClosings.length).toBeGreaterThan(60);
     expect(ws.customers.every((c) => !c.email || c.email.endsWith("@demo.invalid"))).toBe(true);
+    if ((ws.server?.schema ?? 0) >= 900 && before.sales.length === 0) {
+      // Demo sembrada con la 0900: finanzas y membresías completas
+      expect(ws.suppliers.length).toBeGreaterThan(5);
+      expect(ws.expenses.length).toBeGreaterThan(50);
+      expect(ws.customerMemberships.length).toBeGreaterThan(10);
+      expect(ws.membershipCharges.length).toBeGreaterThan(10);
+      expect(ws.tasks.length).toBeGreaterThan(0);
+    }
   }, 600_000);
 });

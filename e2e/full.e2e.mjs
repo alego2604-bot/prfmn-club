@@ -41,8 +41,9 @@ async function step(page, name, fn) {
     results.push({ name, ok: true, ms: Date.now() - t });
     console.log(`  ✔ ${name}`);
   } catch (e) {
+    const detail = e.message.split("\n").filter((l) => /waiting for|locator\(|getBy|Error|desbord|no |numeración|aparece/.test(l)).slice(0, 2).join(" | ");
     results.push({ name, ok: false, error: e.message.split("\n")[0] });
-    console.log(`  ✘ ${name}: ${e.message.split("\n")[0]}`);
+    console.log(`  ✘ ${name}: ${e.message.split("\n")[0]} ${detail}`);
     await page.screenshot({ path: join(OUT, `full-fail-${name.replace(/\W+/g, "_").slice(0, 60)}.png`), fullPage: true }).catch(() => {});
   }
 }
@@ -533,9 +534,10 @@ await step(pb, "B: entrar y abrir Empresa 1", async () => {
   await pb.getByLabel("Email").fill(EMAIL);
   await pb.getByLabel("Contraseña").fill(PASSWORD);
   await pb.getByRole("button", { name: "Entrar" }).click();
+  // Dispositivo nuevo con dos empresas: se elige (en un dispositivo ya usado se recuerda la última)
+  await pb.getByText("Elige empresa").or(pb.locator('[data-testid="sync-indicator"]')).first().waitFor({ timeout: 30000 });
+  if (await pb.getByText("Elige empresa").count()) await pb.getByText(C1).first().click();
   await pb.locator('[data-testid="sync-indicator"]').waitFor({ timeout: 30000 });
-  await pb.goto(`${BASE}/?empresa=${facts.org1}`);
-  await pb.getByText(C1).first().waitFor({ timeout: 30000 }).catch(() => {});
   await saved(pb);
 });
 await step(pb, "B: gastos, proveedor y categoría persistidos (pagados y anulado)", () => seen("/gastos?periodo=ytd", ["Alquiler Centro A", "Luz Centro B", "Gestoría general", "Duplicado E2E", "283,50"]));
@@ -573,8 +575,9 @@ await step(pa, "A (nueva sesión): ve el gasto y la tarea creados en el iPad", a
   await pa.getByLabel("Email").fill(EMAIL);
   await pa.getByLabel("Contraseña").fill(PASSWORD);
   await pa.getByRole("button", { name: "Entrar" }).click();
+  await pa.getByText("Elige empresa").or(pa.locator('[data-testid="sync-indicator"]')).first().waitFor({ timeout: 30000 });
+  if (await pa.getByText("Elige empresa").count()) await pa.getByText(C1).first().click();
   await pa.locator('[data-testid="sync-indicator"]').waitFor({ timeout: 30000 });
-  await pa.goto(`${BASE}/?empresa=${facts.org1}`);
   await saved(pa);
   await pa.goto(BASE + "/gastos"); await pa.getByText("Gasto desde iPad").first().waitFor({ timeout: 20000 });
   await pa.goto(BASE + "/seguimiento"); await pa.getByText("Tarea desde iPad").first().waitFor({ timeout: 20000 });
@@ -591,8 +594,9 @@ for (const [label, dev] of [["móvil", devices["iPhone 13"]], ["iPad vertical", 
     await p.getByLabel("Email").fill(EMAIL);
     await p.getByLabel("Contraseña").fill(PASSWORD);
     await p.getByRole("button", { name: "Entrar" }).click();
+    await p.getByText("Elige empresa").or(p.locator('[data-testid="sync-indicator"]')).first().waitFor({ state: "attached", timeout: 30000 });
+    if (await p.getByText("Elige empresa").count()) await p.getByText(C1).first().click();
     await p.locator('[data-testid="sync-indicator"]').first().waitFor({ state: "attached", timeout: 30000 });
-    await p.goto(`${BASE}/?empresa=${facts.org1}`);
     await saved(p);
     for (const path of ["/bienvenida", "/gastos", "/facturas", "/membresias", "/finanzas", "/seguimiento"]) {
       await p.goto(BASE + path);

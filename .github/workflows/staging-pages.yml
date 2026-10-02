@@ -23,7 +23,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      BOS_BASE: /${{ github.event.repository.name }}/
       VITE_APP_ENV: staging
       VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://hjuoddtsdavbatepexsz.supabase.co' }}
       VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || 'sb_publishable_5TspNTDtu18i3T-soxodgQ_CWqMXFi5' }}
@@ -39,6 +38,8 @@ jobs:
       - run: npm run typecheck
       - run: npx vitest run --exclude 'src/data/cloud/**'
       - run: npm run build
+        env:
+          BOS_BASE: /${{ github.event.repository.name }}/
       # SPA: cualquier ruta (p. ej. /prfmn-club/gastos al recargar) sirve la app
       - run: cp dist/index.html dist/404.html
       - uses: actions/upload-pages-artifact@v3
