@@ -331,7 +331,7 @@ export function DataTable<T>({
                   >
                     {selectable && (
                       <td className="w-10 px-3" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox checked={selected.has(id)} onChange={(v) => setSelected((s) => { const n = new Set(s); if (v) n.add(id); else n.delete(id); return n; })} />
+                        <Checkbox label="Seleccionar fila" checked={selected.has(id)} onChange={(v) => setSelected((s) => { const n = new Set(s); if (v) n.add(id); else n.delete(id); return n; })} />
                       </td>
                     )}
                     {visible.map((c) => (

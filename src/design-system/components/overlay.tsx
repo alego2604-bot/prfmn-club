@@ -115,7 +115,7 @@ export function Menu({ trigger, children, align = "end", width = 220 }: { trigge
     <div ref={ref} className="relative inline-block">
       {trigger(open, () => setOpen((o) => !o))}
       {open && (
-        <div
+        <div role="menu"
           className={cn("absolute z-40 mt-1.5 animate-pop-in rounded-md border border-line bg-surface p-1 shadow-md", align === "end" ? "right-0" : "left-0")}
           style={{ width }}
         >
@@ -130,6 +130,7 @@ export function MenuItem({ icon: Icon, children, onClick, danger, disabled, hint
   return (
     <button
       type="button"
+      role="menuitem"
       disabled={disabled}
       onClick={onClick}
       className={cn(

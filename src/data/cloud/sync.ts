@@ -315,6 +315,8 @@ export class CloudSync {
   private retryDelay = 2000;
   /** Escrituras locales encoladas: una descarga iniciada antes de la última es una foto vieja. */
   private writes = 0;
+  /** Trozos confirmados por el servidor: si alguno se confirma durante una descarga, la foto puede ser anterior. */
+  private acks = 0;
   /** Grupo al que pertenecerá el próximo lote encolado (importación, demo…). */
   private nextGroup: { id: string; label: string } | null = null;
   private cancelled = new Set<string>();
@@ -456,11 +458,12 @@ export class CloudSync {
     if (!orgId) return;
     this.setStatus({ state: "syncing" });
     const writes = this.writes;
+    const acks = this.acks;
     const ws = await pullWorkspace(this.sb, orgId);
     if (this.orgId !== orgId) return;
     if (this.outbox.length) return this.setStatus({ state: "idle" });
-    // Hubo una escritura mientras se descargaba (y ya se envió): la foto puede no incluirla. Se vuelve a pedir.
-    if (this.writes !== writes) return this.pull();
+    // Una escritura hecha o confirmada mientras se descargaba: la foto puede no incluirla. Se vuelve a pedir.
+    if (this.writes !== writes || this.acks !== acks) return this.pull();
     this.store.setWorkspace(ws);
     this.setStatus({ state: "idle", lastSyncedAt: new Date().toISOString(), error: undefined });
   }
@@ -614,6 +617,7 @@ export class CloudSync {
 
   private async confirm(batch: Batch, result: { table: string; rows: Row[] }[]) {
     this.outbox.shift();
+    this.acks++;
     await this.persist();
     this.applyServerValues(result);
     this.retryDelay = 2000;

@@ -196,3 +196,15 @@ describe("hasRevenueHistory", () => {
     expect(hasRevenueHistory(ds, new Date("2025-12-01T00:00:00"))).toBe(true);
   });
 });
+
+describe("pastDueOwed", () => {
+  it("suma lo pendiente de la cuota emitida o, si no se emitió, el precio del periodo", async () => {
+    const { pastDueOwed } = await import("@/domain/memberships");
+    const base = { organizationId: "o", customerId: "c", planId: "p", planVersionId: "v", autoRenew: true, status: "active" as const, createdAt: "", updatedAt: "" };
+    const noInvoice = { ...base, id: "m1", price: 7260, startDate: "2026-08-01", nextRenewalDate: "2026-08-01" };
+    const partial = { ...base, id: "m2", price: 5000, startDate: "2026-08-01", nextRenewalDate: "2026-08-01" };
+    const upToDate = { ...base, id: "m3", price: 9999, startDate: "2026-10-01", nextRenewalDate: "2026-11-01" };
+    const invoices = [{ customerMembershipId: "m2", status: "partially_paid" as const, total: 5000, amountPaid: 2000 }];
+    expect(pastDueOwed([noInvoice, partial, upToDate] as never, [], invoices, "2026-10-02")).toBe(7260 + 3000);
+  });
+});

@@ -39,6 +39,21 @@ NODE_USE_ENV_PROXY=1 npm run test:cloud                           # el test de f
 ```
 Hasta entonces la app funciona contra staging sin Gastos, Membresías, Seguimiento ni series (aviso «Pendiente de activar en el servidor»).
 
+## Staging público en GitHub Pages (sin terminal)
+
+URL: **https://alego2604-bot.github.io/prfmn-club/** (HTTPS, sin coste: el repositorio es público).
+
+- `.github/workflows/staging-pages.yml`: en cada push a `claude/business-os-fitness-r9jaxb` o `main` ejecuta privacidad, lint, tipos y unitarios, construye con `BOS_BASE=/prfmn-club/` y publica `dist/` (con `404.html` = `index.html` para que las rutas de la SPA funcionen al recargar).
+- Solo valores públicos: URL de business-os-staging y su clave *publishable* (`sb_publishable_…`, la misma que descarga cualquier navegador). Se pueden sustituir con variables del repositorio `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`. Nunca `service_role`.
+- `vite.config.ts` lee `BOS_BASE` (por defecto `/`); el router usa `import.meta.env.BASE_URL` como `basename`. En local no cambia nada.
+
+**Activación (una sola vez, la hace el propietario del repositorio):**
+1. Settings → Pages → *Build and deployment* → Source: **GitHub Actions**.
+2. Settings → Environments → `github-pages` → *Deployment branches and tags*: añadir `claude/business-os-fitness-r9jaxb` (por defecto solo permite la rama por defecto). Alternativa: fusionar en `main`.
+3. Actions → «Staging (GitHub Pages)» → *Re-run* (o cualquier push).
+
+Supabase: con «Confirm email» desactivado no hace falta tocar *Site URL*; si se activa, añadir la URL de Pages a *Redirect URLs* para que los enlaces de confirmación vuelvan a la app.
+
 ## Desarrollo local equivalente a Supabase
 
 `npm run supabase:local` levanta PostgreSQL 16 + Supabase Auth (GoTrue) + PostgREST + pasarela en `http://localhost:54321` y escribe las claves locales en `.local-supabase/env`. Copia las `VITE_*` a `.env.local` para que la app lo use. `reset` recrea la BD desde las migraciones.

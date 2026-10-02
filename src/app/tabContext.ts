@@ -76,5 +76,5 @@ export function writeTabContext(v: TabContext | null, opts: { tab?: StorageLike;
 
 /** URL para abrir una empresa en otra pestaña sin tocar esta. */
 export function urlForOrg(orgId: string, path = "/"): string {
-  return `${path}?${ORG_PARAM}=${encodeURIComponent(orgId)}`;
+  return `${import.meta.env.BASE_URL.replace(/\/$/, "")}${path}?${ORG_PARAM}=${encodeURIComponent(orgId)}`;
 }

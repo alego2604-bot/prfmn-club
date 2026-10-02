@@ -28,7 +28,7 @@ export class RouteErrorBoundary extends Component<{ children: ReactNode; resetKe
           error={error}
           onRetry={() => (chunk ? window.location.reload() : this.setState({ error: null }))}
         />
-        <p className="mt-2 text-center text-sm"><a href="/" className="font-medium text-fg-3 hover:text-fg">Volver al resumen</a></p>
+        <p className="mt-2 text-center text-sm"><a href={import.meta.env.BASE_URL} className="font-medium text-fg-3 hover:text-fg">Volver al resumen</a></p>
       </div>
     );
   }

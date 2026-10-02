@@ -1,0 +1,56 @@
+# Business OS · staging publicado en GitHub Pages (HTTPS, sin coste, sin servidor propio).
+# Cada push a la rama de staging verifica (privacidad, lint, tipos, unitarios), construye y publica.
+# Solo valores PÚBLICOS: URL del proyecto business-os-staging y su clave publishable (la misma que descarga
+# cualquier navegador). Nunca service_role ni secretos: la seguridad la ponen Auth + RLS en Supabase.
+# Se pueden sobrescribir con variables del repositorio (Settings → Secrets and variables → Actions → Variables).
+name: Staging (GitHub Pages)
+
+on:
+  push:
+    branches: [claude/business-os-fitness-r9jaxb, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      BOS_BASE: /${{ github.event.repository.name }}/
+      VITE_APP_ENV: staging
+      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://hjuoddtsdavbatepexsz.supabase.co' }}
+      VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || 'sb_publishable_5TspNTDtu18i3T-soxodgQ_CWqMXFi5' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check:privacy
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npx vitest run --exclude 'src/data/cloud/**'
+      - run: npm run build
+      # SPA: cualquier ruta (p. ej. /prfmn-club/gastos al recargar) sirve la app
+      - run: cp dist/index.html dist/404.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

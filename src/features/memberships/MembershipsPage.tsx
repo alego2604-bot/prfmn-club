@@ -10,7 +10,7 @@ import {
 import { BarList, CountTrend } from "@/design-system/components/charts";
 import { createPlan, setPlanStatus, updatePlan, type PlanInput } from "@/data/repos/memberships";
 import { customerName } from "@/data/repos/customers";
-import { BILLING_PERIOD, currentVersion, MEMBERSHIP_VIEW, membershipEvolution, membershipSummary, membershipView, PLAN_KIND, type MembershipView } from "@/domain/memberships";
+import { BILLING_PERIOD, currentVersion, MEMBERSHIP_VIEW, membershipEvolution, membershipSummary, membershipView, pastDueOwed, PLAN_KIND, type MembershipView } from "@/domain/memberships";
 import type { CustomerMembership, MembershipPlan } from "@/domain/types";
 import { capitalize, formatDate, monthName, monthShort, startOfMonth, toISODate, addMonths } from "@/lib/dates";
 import { formatMoney, formatRate } from "@/lib/money";
@@ -42,7 +42,7 @@ export default function MembershipsPage() {
   const names = useMemo(() => new Map(ws.customers.map((c) => [c.id, customerName(c)])), [ws.customers]);
   const plans = useMemo(() => new Map(ws.membershipPlans.map((p) => [p.id, p])), [ws.membershipPlans]);
   const locName = useMemo(() => new Map(ws.locations.map((l) => [l.id, l.name])), [ws.locations]);
-  const pastDueAmount = useMemo(() => ws.invoices.filter((i) => i.customerMembershipId && (i.status === "issued" || i.status === "partially_paid") && i.dueDate && i.dueDate < today).reduce((t, i) => t + i.total - i.amountPaid, 0), [ws.invoices, today]);
+  const pastDueAmount = useMemo(() => pastDueOwed(ws.customerMemberships, ws.membershipCharges, ws.invoices, today, filterId), [ws.customerMemberships, ws.membershipCharges, ws.invoices, today, filterId]);
   const manage = can("memberships.manage") && ready;
 
   // Una fila por cliente: la membresía de referencia (la viva más reciente)

@@ -8,7 +8,7 @@
 import type { Cents } from "@/lib/money";
 import { splitGross } from "@/lib/money";
 import { addMonths, startOfMonth, toISODate } from "@/lib/dates";
-import type { CustomerMembership, MembershipCharge, MembershipPlan, MembershipPlanVersion } from "./types";
+import type { CustomerMembership, Invoice, MembershipCharge, MembershipPlan, MembershipPlanVersion } from "./types";
 
 export type MembershipView = "ACTIVE" | "PAUSED" | "CANCELLED" | "EXPIRED" | "PENDING" | "PAST_DUE";
 
@@ -179,4 +179,25 @@ export function currentVersion(versions: MembershipPlanVersion[], planId: string
   return versions
     .filter((v) => v.planId === planId && v.validFrom <= at && (!v.validTo || v.validTo >= at))
     .sort((a, b) => b.version - a.version)[0] ?? versions.filter((v) => v.planId === planId).sort((a, b) => b.version - a.version)[0];
+}
+
+/**
+ * Importe que se debe por cuotas vencidas: lo pendiente de las facturas de cuota de cada membresía PAST_DUE y, si la
+ * cuota vencida aún no se ha emitido (ninguna factura pendiente), el precio de un periodo.
+ */
+export function pastDueOwed(
+  list: CustomerMembership[],
+  charges: Pick<MembershipCharge, "customerMembershipId" | "status" | "periodStart">[],
+  invoices: Pick<Invoice, "customerMembershipId" | "status" | "total" | "amountPaid">[],
+  today = toISODate(new Date()),
+  locationId?: string,
+): Cents {
+  let owed = 0;
+  for (const m of list) {
+    if (locationId && m.locationId && m.locationId !== locationId) continue;
+    if (membershipView(m, charges, today) !== "PAST_DUE") continue;
+    const open = invoices.filter((i) => i.customerMembershipId === m.id && (i.status === "issued" || i.status === "partially_paid"));
+    owed += open.length ? open.reduce((t, i) => t + i.total - i.amountPaid, 0) : m.price;
+  }
+  return owed;
 }

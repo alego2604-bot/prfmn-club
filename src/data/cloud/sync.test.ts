@@ -147,6 +147,25 @@ describe("CloudSync.pull", () => {
     expect(sync.pending).toBe(0);
     expect(store.requireWorkspace().cashSessions.map((s) => s.id)).toContain(session.id);
   });
+
+  it("una escritura en cola ANTES de la descarga y confirmada DURANTE ella tampoco se pierde", async () => {
+    const { store, ctx, loc } = await setup();
+    const kv = createMemoryKV();
+    let open!: () => void;
+    const state: { server: Workspace; gate?: Promise<void> } = { server: store.requireWorkspace(), gate: new Promise<void>((r) => (open = r)) };
+    const sync = new CloudSync(fakeSupabase(state), kv, store);
+    (sync as unknown as { orgId: string }).orgId = store.requireWorkspace().organization.id;
+
+    const session = openCashSession(ctx, loc, 0); // en cola, aún sin enviar
+    const pulling = sync.pull(); // la foto se toma antes de que el servidor la tenga
+    await sync.flush(); // se confirma mientras la descarga sigue en curso
+    state.server = store.requireWorkspace();
+    open();
+    await pulling;
+
+    expect(sync.pending).toBe(0);
+    expect(store.requireWorkspace().cashSessions.map((s) => s.id)).toContain(session.id);
+  });
 });
 
 describe("Orden de sincronización (claves foráneas)", () => {
