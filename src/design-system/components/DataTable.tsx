@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Columns3, Download, FileSpreadsheet, Search, X } from "lucide-react";
+import { ScrollFade } from "./layout";
 import { cn } from "@/lib/cn";
 import { formatNumber } from "@/lib/money";
 import { normalizeKey } from "@/lib/text";
@@ -25,6 +26,20 @@ export interface Column<T> {
   /** false = siempre visible */
   hideable?: boolean;
   width?: number | string;
+  /**
+   * Importancia en pantallas medias: "medium" se oculta por debajo de 1024 px y "low" por debajo de 1280 px
+   * (iPad: menos columnas, sin scroll horizontal). Por defecto, siempre visible.
+   */
+  priority?: "high" | "medium" | "low";
+}
+
+/** Fila en formato tarjeta para móvil (<768 px): nombre claro, valor principal, estado y una segunda línea. */
+export interface MobileCard<T> {
+  title: (row: T) => ReactNode;
+  value?: (row: T) => ReactNode;
+  subtitle?: (row: T) => ReactNode;
+  status?: (row: T) => ReactNode;
+  leading?: (row: T) => ReactNode;
 }
 
 export interface DataTableProps<T> {
@@ -46,7 +61,11 @@ export interface DataTableProps<T> {
   rowClassName?: (row: T) => string | undefined;
   footer?: ReactNode;
   dense?: boolean;
+  /** Presentación en móvil. Si no se indica, se deduce de las columnas (primera = título, importe = valor, estado). */
+  mobile?: MobileCard<T>;
 }
+
+const PRIORITY_CLASS = { high: "", medium: "hidden lg:table-cell", low: "hidden xl:table-cell" } as const;
 
 function readHidden(key: string | undefined, cols: { id: string; defaultHidden?: boolean }[]): Set<string> {
   if (key) {
@@ -62,8 +81,9 @@ function readHidden(key: string | undefined, cols: { id: string; defaultHidden?:
 
 export function DataTable<T>({
   rows, columns, getRowId, onRowClick, searchText, searchPlaceholder = "Buscar…", toolbar, selectable, bulkActions, pageSize = 50,
-  exportName, exportCompany = "Business OS", empty, storageKey, initialSort, rowClassName, footer, dense,
+  exportName, exportCompany = "Business OS", empty, storageKey, initialSort, rowClassName, footer, dense, mobile,
 }: DataTableProps<T>) {
+  const [compact, setCompact] = useState<boolean>(() => dense ?? getPref(`table.density.${storageKey ?? "default"}`) === "compact");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<{ id: string; dir: "asc" | "desc" } | null>(initialSort ?? null);
   const [page, setPage] = useState(0);
@@ -76,6 +96,16 @@ export function DataTable<T>({
   }, [hidden, storageKey]);
 
   const visible = columns.filter((c) => !hidden.has(c.id));
+  const card: MobileCard<T> = mobile ?? {
+    title: (r) => visible[0]?.cell(r),
+    subtitle: visible[1] && visible[1].align !== "right" && visible[1].id !== "status" ? (r) => visible[1]!.cell(r) : undefined,
+    value: (() => { const v = [...visible].reverse().find((c) => c.align === "right"); return v ? (r: T) => v.cell(r) : undefined; })(),
+    status: (() => { const st = visible.find((c) => c.id === "status"); return st ? (r: T) => st.cell(r) : undefined; })(),
+  };
+  const setDensity = (c: boolean) => {
+    setCompact(c);
+    setPref(`table.density.${storageKey ?? "default"}`, c ? "compact" : "comfortable");
+  };
 
   const filtered = useMemo(() => {
     const q = normalizeKey(query);
@@ -134,7 +164,11 @@ export function DataTable<T>({
             onChange={(e) => setQuery(e.target.value)}
           />
         )}
-        {toolbar}
+        {toolbar && (
+          <ScrollFade className="w-full sm:w-auto sm:max-w-full" innerClassName="flex items-center gap-2 [&>*]:shrink-0">
+            {toolbar}
+          </ScrollFade>
+        )}
         <div className="ml-auto flex items-center gap-1.5">
           <span className="hidden text-sm text-fg-3 md:inline num">{formatNumber(sorted.length)} {sorted.length === 1 ? "registro" : "registros"}</span>
           <Menu
@@ -143,6 +177,12 @@ export function DataTable<T>({
           >
             {() => (
               <>
+                <MenuLabel>Densidad</MenuLabel>
+                <div className="flex gap-1 px-1.5 pb-1">
+                  {([[false, "Cómoda"], [true, "Compacta"]] as const).map(([v, l]) => (
+                    <button key={l} type="button" onClick={() => setDensity(v)} className={cn("h-7 flex-1 rounded-md text-xs font-medium transition-colors", compact === v ? "bg-ink text-fg-inverse" : "bg-surface-sunken text-fg-2 hover:text-fg")}>{l}</button>
+                  ))}
+                </div>
                 <MenuLabel>Columnas visibles</MenuLabel>
                 {columns.filter((c) => c.hideable !== false).map((c) => (
                   <label key={c.id} className="flex cursor-pointer items-center gap-2.5 rounded px-2.5 py-1.5 text-sm hover:bg-surface-sunken">
@@ -185,9 +225,37 @@ export function DataTable<T>({
       )}
 
       <div className="surface-card overflow-hidden rounded-xl">
-        <div className="scrollbar-thin overflow-x-auto">
+        {/* Móvil: lista de tarjetas */}
+        <ul className="divide-y divide-line md:hidden" data-testid="table-cards">
+          {pageRows.map((r) => {
+            const id = getRowId(r);
+            const Tag = onRowClick ? "button" : "div";
+            return (
+              <li key={id} className={cn(rowClassName?.(r))}>
+                <Tag type={onRowClick ? "button" : undefined} onClick={onRowClick ? () => onRowClick(r) : undefined} className={cn("flex w-full min-w-0 items-center gap-3 px-4 py-3 text-left", onRowClick && "active:bg-surface-sunken")}>
+                  {card.leading?.(r)}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline justify-between gap-3">
+                      <span className="min-w-0 truncate text-[15px] font-medium leading-6 [&_*]:truncate">{card.title(r)}</span>
+                      {card.value && <span className="shrink-0 text-[15px] font-semibold num">{card.value(r)}</span>}
+                    </span>
+                    {(card.subtitle || card.status) && (
+                      <span className="mt-0.5 flex items-center justify-between gap-3 text-[13px] text-fg-3">
+                        <span className="min-w-0 truncate [&_*]:truncate">{card.subtitle?.(r)}</span>
+                        {card.status && <span className="shrink-0">{card.status(r)}</span>}
+                      </span>
+                    )}
+                  </span>
+                  {onRowClick && <ChevronRight className="h-4 w-4 shrink-0 text-fg-3" />}
+                </Tag>
+              </li>
+            );
+          })}
+        </ul>
+        {/* Tablet / escritorio: tabla con cabecera fija (scroll interno cuando hay muchas filas) */}
+        <div className={cn("scrollbar-thin hidden overflow-x-auto md:block", pageRows.length > 14 && "md:max-h-[calc(100dvh-210px)] md:overflow-y-auto")}>
           <table className="w-full border-collapse text-sm">
-            <thead className="sticky top-0 z-10 bg-surface">
+            <thead className="sticky top-0 z-10 bg-surface shadow-[0_1px_0_var(--border)]">
               <tr>
                 {selectable && (
                   <th className="w-10 px-3">
@@ -207,6 +275,7 @@ export function DataTable<T>({
                       style={{ width: c.width }}
                       className={cn(
                         "h-10 whitespace-nowrap px-3 text-xs font-medium text-fg-3 first:pl-4 last:pr-4",
+                        PRIORITY_CLASS[c.priority ?? "high"],
                         c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left",
                       )}
                     >
@@ -249,8 +318,9 @@ export function DataTable<T>({
                       <td
                         key={c.id}
                         className={cn(
-                          dense ? "h-10" : "h-11",
+                          compact ? "h-9" : "h-11",
                           "px-3 align-middle first:pl-4 last:pr-4",
+                          PRIORITY_CLASS[c.priority ?? "high"],
                           c.align === "right" ? "text-right num" : c.align === "center" ? "text-center" : "text-left",
                           c.className,
                         )}

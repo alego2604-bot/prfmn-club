@@ -67,7 +67,7 @@ export default function CustomersPage() {
       ),
     },
     {
-      id: "tax", header: "NIF", sortValue: (c) => c.taxIdNormalized ?? "", exportValue: (c) => c.taxId ?? "",
+      id: "tax", header: "NIF", priority: "low", defaultHidden: !rows.some((c) => c.taxId), sortValue: (c) => c.taxIdNormalized ?? "", exportValue: (c) => c.taxId ?? "",
       cell: (c) =>
         c.taxId ? (
           <span className="flex items-center gap-1.5 font-mono text-xs">
@@ -79,10 +79,10 @@ export default function CustomersPage() {
     { id: "phone", header: "Teléfono", cell: (c) => c.phone ?? <span className="text-fg-3">—</span>, exportValue: (c) => c.phone ?? "", defaultHidden: true },
     { id: "email", header: "Email", cell: (c) => c.email ?? "—", exportValue: (c) => c.email ?? "", defaultHidden: true },
     { id: "status", header: "Estado", sortValue: (c) => c.status, exportValue: (c) => CUSTOMER_STATUS[c.status].label, cell: (c) => <Badge tone={CUSTOMER_STATUS[c.status].tone} dot>{CUSTOMER_STATUS[c.status].label}</Badge> },
-    { id: "joined", header: "Alta", sortValue: (c) => c.joinedAt ?? "", exportValue: (c) => (c.joinedAt ? new Date(`${c.joinedAt}T00:00`) : null), exportFormat: "date", cell: (c) => (c.joinedAt ? formatDate(`${c.joinedAt}T00:00`) : "—") },
-    { id: "invoices", header: "Facturas", align: "right", sortValue: (c) => stats.get(c.id)?.invoices ?? 0, exportValue: (c) => stats.get(c.id)?.invoices ?? 0, exportFormat: "integer", cell: (c) => stats.get(c.id)?.invoices ?? 0 },
+    { id: "joined", header: "Alta", priority: "medium", sortValue: (c) => c.joinedAt ?? "", exportValue: (c) => (c.joinedAt ? new Date(`${c.joinedAt}T00:00`) : null), exportFormat: "date", cell: (c) => (c.joinedAt ? formatDate(`${c.joinedAt}T00:00`) : "—") },
+    { id: "invoices", header: "Facturas", align: "right", priority: "low", sortValue: (c) => stats.get(c.id)?.invoices ?? 0, exportValue: (c) => stats.get(c.id)?.invoices ?? 0, exportFormat: "integer", cell: (c) => stats.get(c.id)?.invoices ?? 0 },
     { id: "total", header: "Total", align: "right", sortValue: (c) => (stats.get(c.id)?.billed ?? 0) + (stats.get(c.id)?.spent ?? 0), exportValue: (c) => ((stats.get(c.id)?.billed ?? 0) + (stats.get(c.id)?.spent ?? 0)) / 100, exportFormat: "money", cell: (c) => <span className="font-medium">{formatMoney((stats.get(c.id)?.billed ?? 0) + (stats.get(c.id)?.spent ?? 0))}</span> },
-    { id: "last", header: "Último movimiento", sortValue: (c) => stats.get(c.id)?.last ?? "", exportValue: (c) => stats.get(c.id)?.last ?? "", cell: (c) => { const l = stats.get(c.id)?.last; return l ? <span className="text-fg-2">{relativeDays(`${l}T12:00`)}</span> : <span className="text-fg-3">—</span>; } },
+    { id: "last", header: "Último movimiento", priority: "medium", sortValue: (c) => stats.get(c.id)?.last ?? "", exportValue: (c) => stats.get(c.id)?.last ?? "", cell: (c) => { const l = stats.get(c.id)?.last; return l ? <span className="text-fg-2">{relativeDays(`${l}T12:00`)}</span> : <span className="text-fg-3">—</span>; } },
   ];
 
   const fiscalIssues = all.filter((c) => c.taxIdValid === false || (!c.taxId && (stats.get(c.id)?.invoices ?? 0) > 0)).length;
@@ -114,6 +114,13 @@ export default function CustomersPage() {
         exportName="Clientes"
         exportCompany={ws.organization.name}
         storageKey="customers"
+        mobile={{
+          leading: (c) => <Avatar name={customerName(c)} size={36} />,
+          title: (c) => customerName(c),
+          value: (c) => { const st = stats.get(c.id); const v = (st?.billed ?? 0) + (st?.spent ?? 0); return v ? formatMoney(v) : null; },
+          subtitle: (c) => { const l = stats.get(c.id)?.last; return l ? `Último movimiento: ${relativeDays(`${l}T12:00`)}` : c.email ?? "Sin actividad"; },
+          status: (c) => (c.status === "active" ? null : <Badge tone={CUSTOMER_STATUS[c.status].tone} dot>{CUSTOMER_STATUS[c.status].label}</Badge>),
+        }}
         toolbar={
           <Segmented
             value={filter}

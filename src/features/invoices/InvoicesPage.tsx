@@ -47,12 +47,12 @@ export default function InvoicesPage() {
     { id: "date", header: "Emisión", sortValue: (i) => i.issueDate ?? "", exportValue: (i) => (i.issueDate ? new Date(`${i.issueDate}T00:00`) : null), exportFormat: "date", cell: (i) => (i.issueDate ? formatDate(`${i.issueDate}T00:00`) : "—") },
     { id: "customer", header: "Cliente", sortValue: (i) => i.customerName ?? "", exportValue: (i) => i.customerName ?? "", cell: (i) => (i.customerId ? <Link to={`/clientes/${i.customerId}`} onClick={(e) => e.stopPropagation()} className="hover:underline">{i.customerName}</Link> : i.customerName) },
     { id: "tax", header: "NIF", exportValue: (i) => i.customerTaxId ?? "", cell: (i) => <span className="font-mono text-xs text-fg-2">{i.customerTaxId ?? "—"}</span>, defaultHidden: true },
-    { id: "concept", header: "Concepto", exportValue: (i) => i.concept ?? "", cell: (i) => <span className="line-clamp-1 max-w-[220px] text-fg-2">{i.concept}</span> },
-    { id: "period", header: "Periodo", exportValue: (i) => (i.servicePeriodStart ? `${i.servicePeriodStart} / ${i.servicePeriodEnd}` : ""), cell: (i) => (i.servicePeriodStart ? <span className="text-fg-2">{new Date(`${i.servicePeriodStart}T00:00`).toLocaleDateString("es-ES", { month: "short", year: "numeric" })}</span> : <span className="text-fg-3">—</span>) },
+    { id: "concept", header: "Concepto", priority: "medium", exportValue: (i) => i.concept ?? "", cell: (i) => <span className="line-clamp-1 max-w-[220px] text-fg-2">{i.concept}</span> },
+    { id: "period", header: "Periodo", priority: "low", exportValue: (i) => (i.servicePeriodStart ? `${i.servicePeriodStart} / ${i.servicePeriodEnd}` : ""), cell: (i) => (i.servicePeriodStart ? <span className="text-fg-2">{new Date(`${i.servicePeriodStart}T00:00`).toLocaleDateString("es-ES", { month: "short", year: "numeric" })}</span> : <span className="text-fg-3">—</span>) },
     { id: "base", header: "Base", align: "right", sortValue: (i) => i.subtotal, exportValue: (i) => i.subtotal / 100, exportFormat: "money", cell: (i) => formatMoney(i.subtotal), defaultHidden: true },
     { id: "vat", header: "IVA", align: "right", sortValue: (i) => i.taxTotal, exportValue: (i) => i.taxTotal / 100, exportFormat: "money", cell: (i) => formatMoney(i.taxTotal), defaultHidden: true },
     { id: "total", header: "Total", align: "right", sortValue: (i) => i.total, exportValue: (i) => i.total / 100, exportFormat: "money", cell: (i) => <span className={i.status === "void" ? "text-fg-3 line-through" : "font-medium"}>{formatMoney(i.total)}</span> },
-    { id: "method", header: "Método", exportValue: (i) => methodName.get(i.paymentMethodId ?? "") ?? "", cell: (i) => <span className="text-fg-2">{methodName.get(i.paymentMethodId ?? "") ?? "—"}</span> },
+    { id: "method", header: "Método", priority: "low", exportValue: (i) => methodName.get(i.paymentMethodId ?? "") ?? "", cell: (i) => <span className="text-fg-2">{methodName.get(i.paymentMethodId ?? "") ?? "—"}</span> },
     { id: "status", header: "Estado", sortValue: (i) => i.status, exportValue: (i) => INVOICE_STATUS[i.status].label, cell: (i) => <Badge tone={INVOICE_STATUS[i.status].tone} dot>{INVOICE_STATUS[i.status].label}</Badge> },
     { id: "paid", header: "Fecha cobro", exportValue: (i) => (i.paidAt ? new Date(i.paidAt) : null), exportFormat: "date", cell: (i) => (i.paidAt ? formatDate(i.paidAt) : "—"), defaultHidden: true },
   ];
@@ -66,13 +66,10 @@ export default function InvoicesPage() {
         actions={<Link to="/importaciones/nueva"><Button icon={Upload}>Importar facturas</Button></Link>}
       />
       <KpiStrip className="mb-5">
-        <Kpi label="Facturación del mes" value={formatMoney(sumIn("month"))} />
-        <Kpi label="Trimestre" value={formatMoney(sumIn("quarter"))} />
-        <Kpi label="Año" value={formatMoney(sumIn("year"))} />
-        <Kpi label="Pendiente de cobro" value={formatMoney(pending.reduce((s, i) => s + i.total - i.amountPaid, 0))} hint={`${pending.length} facturas`} />
-        <Kpi label={`IVA repercutido · ${filter.period?.label ?? "selección"}`} value={formatMoney(valid.reduce((s, i) => s + i.taxTotal, 0))} />
-        <Kpi label="Nº facturas" value={valid.length.toLocaleString("es-ES", NUM)} />
-        <Kpi label="Importe medio" value={valid.length ? formatMoney(Math.round(valid.reduce((s, i) => s + i.total, 0) / valid.length)) : "—"} />
+        <Kpi label="Facturación del mes" value={formatMoney(sumIn("month"))} hint={`Trimestre ${formatMoney(sumIn("quarter"))} · año ${formatMoney(sumIn("year"))}`} />
+        <Kpi label="Pendiente de cobro" value={formatMoney(pending.reduce((s, i) => s + i.total - i.amountPaid, 0))} hint={pending.length === 1 ? "1 factura" : `${pending.length} facturas`} />
+        <Kpi label="IVA repercutido" value={formatMoney(valid.reduce((s, i) => s + i.taxTotal, 0))} hint={filter.period?.label ?? "Selección actual"} />
+        <Kpi label="Facturas" value={valid.length.toLocaleString("es-ES", NUM)} hint={valid.length ? `Importe medio ${formatMoney(Math.round(valid.reduce((s, i) => s + i.total, 0) / valid.length))}` : undefined} />
       </KpiStrip>
       <Callout className="mb-4" icon={Info}>
         La <strong>emisión de facturas propias</strong> (series y numeración legal, rectificativas, Verifactu) se activará tras validarla con tu gestoría. Hoy puedes importar, consultar, registrar cobros y anular.
@@ -88,6 +85,12 @@ export default function InvoicesPage() {
         exportCompany={ws.organization.name}
         storageKey="invoices"
         rowClassName={(i) => (i.status === "void" ? "opacity-60" : undefined)}
+        mobile={{
+          title: (i) => i.customerName ?? "Sin cliente",
+          value: (i) => <span className={i.status === "void" ? "text-fg-3 line-through" : undefined}>{formatMoney(i.total)}</span>,
+          subtitle: (i) => <><span className="font-mono text-[12px]">{i.number ?? i.externalNumber ?? "—"}</span>{i.issueDate ? ` · ${formatDate(i.issueDate)}` : ""}{i.concept ? ` · ${i.concept}` : ""}</>,
+          status: (i) => (i.status === "paid" ? null : <Badge tone={INVOICE_STATUS[i.status].tone} dot>{INVOICE_STATUS[i.status].label}</Badge>),
+        }}
         toolbar={
           <>
             {control}

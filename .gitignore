@@ -25,3 +25,6 @@ expect*.json
 *.bundle
 .local-supabase/
 e2e/results/
+
+# Scripts temporales de revisión visual
+e2e/.*.tmp.mjs

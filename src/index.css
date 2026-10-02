@@ -70,6 +70,10 @@
     scrollbar-width: thin;
     scrollbar-color: var(--border-strong) transparent;
   }
+  /* Pista de scroll horizontal (ScrollFade): se difumina el borde por el que queda contenido */
+  .fade-x-right { mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
+  .fade-x-left { mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); }
+  .fade-x-both { mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
   .no-scrollbar {
     scrollbar-width: none;
   }

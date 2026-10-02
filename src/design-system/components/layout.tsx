@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Children, useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowDownRight, ArrowUpRight, Info, Minus } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Badge, type Tone } from "./primitives";
@@ -22,7 +22,8 @@ export function Page({ children, className, wide }: { children: ReactNode; class
 
 export function Tabs<T extends string>({ value, onChange, items, className }: { value: T; onChange: (v: T) => void; items: { value: T; label: ReactNode; count?: number }[]; className?: string }) {
   return (
-    <div className={cn("no-scrollbar -mx-1 flex gap-1 overflow-x-auto border-b border-line px-1", className)} role="tablist">
+    <ScrollFade className={cn("-mx-1 border-b border-line", className)} innerClassName="flex gap-1 px-1">
+    <div className="contents" role="tablist">
       {items.map((it) => {
         const active = it.value === value;
         return (
@@ -42,15 +43,51 @@ export function Tabs<T extends string>({ value, onChange, items, className }: { 
         );
       })}
     </div>
+    </ScrollFade>
+  );
+}
+
+/**
+ * Fila con scroll horizontal y pista visual: se difuminan los bordes por los que queda contenido (pestañas, filtros,
+ * segmentos en móvil). El elemento activo (`[aria-selected=true]`, `[aria-pressed=true]`, `[data-active]`) se
+ * desplaza a la vista al montar.
+ */
+export function ScrollFade({ children, className, innerClassName }: { children: ReactNode; className?: string; innerClassName?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [fade, setFade] = useState<"none" | "left" | "right" | "both">("none");
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => {
+      const left = el.scrollLeft > 2;
+      const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+      setFade(left && right ? "both" : left ? "left" : right ? "right" : "none");
+    };
+    const active = el.querySelector<HTMLElement>('[aria-selected="true"],[aria-pressed="true"],[data-active="true"]');
+    if (active && (active.offsetLeft + active.offsetWidth > el.clientWidth)) el.scrollLeft = active.offsetLeft - 24;
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
+    ro?.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro?.disconnect();
+    };
+  }, []);
+  return (
+    <div className={cn("relative min-w-0", className)}>
+      <div ref={ref} className={cn("no-scrollbar overflow-x-auto", fade !== "none" && `fade-x-${fade}`, innerClassName)}>{children}</div>
+    </div>
   );
 }
 
 export function Segmented<T extends string>({ value, onChange, items, size = "md", className }: { value: T; onChange: (v: T) => void; items: { value: T; label: ReactNode }[]; size?: "sm" | "md"; className?: string }) {
   return (
-    <div className={cn("no-scrollbar inline-flex max-w-full overflow-x-auto rounded-lg bg-surface-sunken p-0.5", className)}>
+    <ScrollFade className={cn("inline-block max-w-full rounded-lg bg-surface-sunken", className)} innerClassName="flex p-0.5">
       {items.map((it) => (
         <button
           key={it.value}
+          aria-pressed={it.value === value}
           onClick={() => onChange(it.value)}
           className={cn(
             "shrink-0 whitespace-nowrap rounded-md font-medium transition-all duration-150",
@@ -61,7 +98,7 @@ export function Segmented<T extends string>({ value, onChange, items, size = "md
           {it.label}
         </button>
       ))}
-    </div>
+    </ScrollFade>
   );
 }
 
@@ -96,7 +133,7 @@ export function Kpi({ label, value, hint, delta, icon: Icon, className, tooltip,
   footer?: ReactNode;
 }) {
   return (
-    <div className={cn("surface-card flex min-w-0 flex-col rounded-xl p-5", className)}>
+    <div className={cn("surface-card flex min-w-0 flex-col rounded-xl p-4 sm:p-5", className)}>
       <div className="flex items-center gap-1.5 text-xs font-medium text-fg-3">
         {Icon && <Icon className="h-3.5 w-3.5" />}
         <span className="truncate">{label}</span>
@@ -106,11 +143,11 @@ export function Kpi({ label, value, hint, delta, icon: Icon, className, tooltip,
           </span>
         )}
       </div>
-      <div className={cn("mt-1.5 truncate font-semibold tracking-[-0.025em]", emphasis ? "text-3xl" : "text-2xl")}>{value}</div>
+      <div data-kpi-value className={cn("mt-1.5 truncate font-semibold tracking-[-0.025em] num", emphasis ? "text-3xl" : "text-xl sm:text-2xl")}>{value}</div>
       {(delta || hint) && (
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-3">
           {delta}
-          {hint && <span className="truncate">{hint}</span>}
+          {hint && <span className="line-clamp-2 sm:truncate">{hint}</span>}
         </div>
       )}
       {footer && <div className="mt-3 border-t border-line pt-3">{footer}</div>}
@@ -153,15 +190,30 @@ export function DescriptionList({ items, className }: { items: { label: ReactNod
   );
 }
 
-/** Agrupa KPIs en una sola pieza con divisores (evita filas de tarjetas idénticas). */
+/**
+ * Agrupa KPIs en una sola pieza con divisores (evita filas de tarjetas idénticas). Reparto sin huérfanos:
+ *   móvil: 2 columnas (si son impares, el primero ocupa la fila) · tablet: ≤4 en fila, 5 → 2+3, 6 → 3+3 ·
+ *   escritorio (≥1280): todos en una fila. Máximo recomendado: 5 (lo demás, como texto secundario).
+ */
+const STRIP_LAYOUT: Record<number, string> = {
+  1: "grid-cols-1",
+  2: "grid-cols-2",
+  3: "grid-cols-2 [&>*:first-child]:col-span-2 md:grid-cols-3 md:[&>*:first-child]:col-span-1",
+  4: "grid-cols-2 md:grid-cols-4",
+  5: "grid-cols-2 [&>*:first-child]:col-span-2 md:grid-cols-6 md:[&>*]:col-span-2 md:[&>*:nth-child(-n+2)]:col-span-3 xl:grid-cols-5 xl:[&>*]:col-span-1 xl:[&>*:nth-child(-n+2)]:col-span-1",
+  6: "grid-cols-2 md:grid-cols-3 xl:grid-cols-6",
+};
+
 export function KpiStrip({ children, className }: { children: ReactNode; className?: string }) {
+  const n = Children.toArray(children).filter(Boolean).length;
   return (
     <div
       className={cn(
         "surface-card grid overflow-hidden rounded-xl [&>*]:-ml-px [&>*]:-mt-px [&>*]:rounded-none [&>*]:border-0 [&>*]:border-l [&>*]:border-t [&>*]:border-line [&>*]:bg-transparent [&>*]:shadow-none",
+        STRIP_LAYOUT[n] ?? "grid-cols-2 md:grid-cols-4",
+        n >= 5 && "[&_[data-kpi-value]]:text-xl xl:[&_[data-kpi-value]]:text-2xl",
         className,
       )}
-      style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}
     >
       {children}
     </div>

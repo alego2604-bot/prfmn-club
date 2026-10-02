@@ -33,8 +33,8 @@ export default function PaymentsPage() {
     { id: "date", header: "Fecha", sortValue: (p) => p.paidAt, exportValue: (p) => new Date(p.paidAt), exportFormat: "datetime", cell: (p) => formatDateTime(p.paidAt) },
     { id: "kind", header: "Tipo", exportValue: (p) => (p.kind === "refund" ? "Devolución" : "Cobro"), cell: (p) => (p.kind === "refund" ? <Badge tone="danger">Devolución</Badge> : <Badge tone="success" dot>Cobro</Badge>) },
     { id: "method", header: "Método", sortValue: (p) => p.methodKey, exportValue: (p) => methodName.get(p.methodKey) ?? p.methodKey, cell: (p) => methodName.get(p.methodKey) ?? p.methodKey },
-    { id: "ref", header: "Referencia", exportValue: ref, cell: (p) => <Link onClick={(e) => e.stopPropagation()} className="text-accent-fg hover:underline" to={p.saleId ? `/ventas?venta=${p.saleId}` : `/facturas?factura=${p.invoiceId}`}>{ref(p)}</Link> },
-    { id: "source", header: "Origen", exportValue: (p) => SOURCE[p.source], cell: (p) => <span className="text-fg-2">{SOURCE[p.source]}</span> },
+    { id: "ref", header: "Referencia", priority: "medium", exportValue: ref, cell: (p) => <Link onClick={(e) => e.stopPropagation()} className="text-accent-fg hover:underline" to={p.saleId ? `/ventas?venta=${p.saleId}` : `/facturas?factura=${p.invoiceId}`}>{ref(p)}</Link> },
+    { id: "source", header: "Origen", priority: "low", exportValue: (p) => SOURCE[p.source], cell: (p) => <span className="text-fg-2">{SOURCE[p.source]}</span> },
     { id: "amount", header: "Importe", align: "right", sortValue: (p) => (p.kind === "refund" ? -p.amount : p.amount), exportValue: (p) => (p.kind === "refund" ? -p.amount : p.amount) / 100, exportFormat: "money", cell: (p) => <span className={p.kind === "refund" ? "text-danger-fg" : "font-medium"}>{p.kind === "refund" ? "−" : ""}{formatMoney(p.amount)}</span> },
   ];
 

@@ -61,11 +61,11 @@ export default function SalesPage() {
         </span>
       ),
     },
-    { id: "items", header: "Productos", cell: (s) => <span className="line-clamp-1 max-w-[340px] text-fg-2">{summary(s)}</span>, exportValue: summary },
-    { id: "customer", header: "Cliente", cell: (s) => (s.customerId ? <Link onClick={(e) => e.stopPropagation()} to={`/clientes/${s.customerId}`} className="hover:underline">{custName.get(s.customerId)}</Link> : <span className="text-fg-3">—</span>), sortValue: (s) => custName.get(s.customerId ?? "") ?? "", exportValue: (s) => custName.get(s.customerId ?? "") ?? "" },
-    { id: "method", header: "Pago", cell: (s) => <span className="text-fg-2">{methodsOf(s)}</span>, exportValue: methodsOf },
-    { id: "location", header: "Centro", cell: (s) => locName.get(s.locationId), exportValue: (s) => locName.get(s.locationId) ?? "", defaultHidden: ws.locations.length < 2 },
-    { id: "source", header: "Origen", cell: (s) => <Badge tone={s.source === "import" ? "info" : "neutral"}>{SOURCE_LABEL[s.source]}{s.granularity === "aggregate" ? " · resumen" : ""}</Badge>, exportValue: (s) => SOURCE_LABEL[s.source], sortValue: (s) => s.source },
+    { id: "items", header: "Productos", priority: "high", cell: (s) => <span className="line-clamp-1 max-w-[340px] text-fg-2">{summary(s)}</span>, exportValue: summary },
+    { id: "customer", header: "Cliente", priority: "medium", cell: (s) => (s.customerId ? <Link onClick={(e) => e.stopPropagation()} to={`/clientes/${s.customerId}`} className="hover:underline">{custName.get(s.customerId)}</Link> : <span className="text-fg-3">—</span>), sortValue: (s) => custName.get(s.customerId ?? "") ?? "", exportValue: (s) => custName.get(s.customerId ?? "") ?? "" },
+    { id: "method", header: "Pago", priority: "low", cell: (s) => <span className="text-fg-2">{methodsOf(s)}</span>, exportValue: methodsOf },
+    { id: "location", header: "Centro", priority: "medium", cell: (s) => locName.get(s.locationId), exportValue: (s) => locName.get(s.locationId) ?? "", defaultHidden: ws.locations.length < 2 },
+    { id: "source", header: "Origen", priority: "low", cell: (s) => <Badge tone={s.source === "import" ? "info" : "neutral"}>{SOURCE_LABEL[s.source]}{s.granularity === "aggregate" ? " · resumen" : ""}</Badge>, exportValue: (s) => SOURCE_LABEL[s.source], sortValue: (s) => s.source },
     { id: "base", header: "Base", align: "right", cell: (s) => formatMoney(s.subtotal), sortValue: (s) => s.subtotal, exportValue: (s) => s.subtotal / 100, exportFormat: "money", defaultHidden: true },
     { id: "tax", header: "IVA", align: "right", cell: (s) => formatMoney(s.taxTotal), sortValue: (s) => s.taxTotal, exportValue: (s) => s.taxTotal / 100, exportFormat: "money", defaultHidden: true },
     {
@@ -104,6 +104,12 @@ export default function SalesPage() {
         exportCompany={ws.organization.name}
         storageKey="sales"
         rowClassName={(s) => (s.status === "voided" ? "opacity-60" : undefined)}
+        mobile={{
+          title: (s) => summary(s),
+          value: (s) => <span className={s.status === "voided" ? "text-fg-3 line-through" : undefined}>{formatMoney(s.total)}</span>,
+          subtitle: (s) => `#${s.number} · ${formatDateTime(s.occurredAt)}${s.customerId ? ` · ${custName.get(s.customerId) ?? ""}` : ` · ${methodsOf(s)}`}`,
+          status: (s) => (s.status === "voided" ? <Badge tone="danger">Anulada</Badge> : s.status === "pending_payment" ? <Badge tone="warning">Pendiente</Badge> : null),
+        }}
         toolbar={
           <>
             {control}
