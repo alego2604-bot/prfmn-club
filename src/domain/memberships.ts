@@ -39,15 +39,22 @@ export const PLAN_KIND: Record<MembershipPlan["kind"], string> = {
 
 const D = (iso: string) => new Date(`${iso}T00:00:00`);
 
+/** Suma meses conservando el día (31 ene + 1 mes → 28/29 feb). `addMonths` de lib/dates devuelve el día 1. */
+export function addMonthsKeepDay(d: Date, n: number): Date {
+  const target = new Date(d.getFullYear(), d.getMonth() + n, 1);
+  const last = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  return new Date(target.getFullYear(), target.getMonth(), Math.min(d.getDate(), last));
+}
+
 /** Fin (exclusivo) de un periodo que empieza en `startIso`. Bonos sin periodo: `durationDays` o 30 días. */
 export function periodEnd(startIso: string, period: MembershipPlan["billingPeriod"], durationDays?: number): string {
   const d = D(startIso);
   switch (period) {
     case "week": d.setDate(d.getDate() + 7); break;
-    case "month": return toISODate(addMonths(d, 1));
-    case "quarter": return toISODate(addMonths(d, 3));
-    case "semester": return toISODate(addMonths(d, 6));
-    case "year": return toISODate(addMonths(d, 12));
+    case "month": return toISODate(addMonthsKeepDay(d, 1));
+    case "quarter": return toISODate(addMonthsKeepDay(d, 3));
+    case "semester": return toISODate(addMonthsKeepDay(d, 6));
+    case "year": return toISODate(addMonthsKeepDay(d, 12));
     case "none": d.setDate(d.getDate() + (durationDays ?? 30)); break;
   }
   return toISODate(d);

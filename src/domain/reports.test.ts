@@ -38,3 +38,20 @@ describe("Informes", () => {
     expect(rep.notes.join(" ")).toMatch(/Gastos generales/);
   });
 });
+
+describe("Periodos en curso", () => {
+  it("se miden hasta hoy y se comparan con los mismos días del periodo anterior", async () => {
+    const { toDate, comparableOf } = await import("./reports");
+    const now = new Date(2026, 9, 2, 12);
+    const q = { preset: "quarter" as const, start: new Date(2026, 9, 1), end: new Date(2027, 0, 1), label: "T4 2026" };
+    const { period, partial } = toDate(q, now);
+    expect(partial).toBe(true);
+    expect(period.end).toEqual(new Date(2026, 9, 3));
+    const c = comparableOf(q, period, "previous");
+    expect(c.start).toEqual(new Date(2026, 6, 1));
+    expect(c.end.getTime() - c.start.getTime()).toBe(period.end.getTime() - period.start.getTime());
+    expect(comparableOf(q, period, "year").end).toEqual(new Date(2025, 9, 3));
+    const closed = toDate({ ...q, start: new Date(2026, 3, 1), end: new Date(2026, 6, 1) }, now);
+    expect(closed.partial).toBe(false);
+  });
+});

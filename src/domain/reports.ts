@@ -338,8 +338,29 @@ export function reportPeriod(preset: "today" | "week" | "month" | "quarter" | "y
   }
 }
 
+/**
+ * Periodo en curso: se mide hasta hoy (incluido) y la comparación cubre los mismos días del periodo anterior.
+ * Comparar 2 días de trimestre con un trimestre completo daría un −85 % engañoso.
+ */
+export function toDate(p: Period, now = new Date()): { period: Period; partial: boolean } {
+  const end = addDays(new Date(now.getFullYear(), now.getMonth(), now.getDate()), 1);
+  if (p.end <= end) return { period: p, partial: false };
+  if (p.start >= end) return { period: p, partial: false };
+  return { period: { ...p, end, label: `${p.label} (hasta hoy)` }, partial: true };
+}
+
+export function comparableOf(original: Period, effective: Period, mode: "previous" | "year"): Period {
+  const base = previousOf(original, mode);
+  const elapsed = effective.end.getTime() - effective.start.getTime();
+  if (effective.end.getTime() === original.end.getTime()) return base;
+  const e = effective.end;
+  const end = mode === "year" ? new Date(e.getFullYear() - 1, e.getMonth(), e.getDate()) : new Date(base.start.getTime() + elapsed);
+  return { ...base, end, label: `${base.label} (mismos días)` };
+}
+
 export function previousOf(p: Period, mode: "previous" | "year"): Period {
-  if (mode === "year") return { preset: "custom", start: addMonths(p.start, -12), end: addMonths(p.end, -12), label: "mismo periodo del año anterior" };
+  const yearAgo = (d: Date) => new Date(d.getFullYear() - 1, d.getMonth(), d.getDate());
+  if (mode === "year") return { preset: "custom", start: yearAgo(p.start), end: yearAgo(p.end), label: "mismo periodo del año anterior" };
   const len = p.end.getTime() - p.start.getTime();
   const sameMonths = p.start.getDate() === 1 && p.end.getDate() === 1;
   if (sameMonths) {

@@ -139,6 +139,15 @@ describe("Membresías", () => {
     expect(() => assignMembership(as("employee"), { customerId: c.id, planId: plan.id, startDate: today })).toThrow(/permiso/);
   });
 
+  it("los periodos conservan el día de inicio (y el fin de mes)", () => {
+    expect(periodEnd("2026-01-15", "month")).toBe("2026-02-15");
+    expect(periodEnd("2026-01-31", "month")).toBe("2026-02-28");
+    expect(periodEnd("2026-03-10", "quarter")).toBe("2026-06-10");
+    expect(periodEnd("2024-02-29", "year")).toBe("2025-02-28");
+    expect(periodEnd("2026-01-15", "week")).toBe("2026-01-22");
+    expect(periodEnd("2026-01-15", "none", 60)).toBe("2026-03-16");
+  });
+
   it("cuota vencida sin cobrar → PAST_DUE", () => {
     expect(membershipView({ id: "m", status: "active", startDate: "2020-01-01", nextRenewalDate: "2020-02-01", autoRenew: true }, [], "2020-03-01")).toBe("PAST_DUE");
     expect(membershipView({ id: "m", status: "active", startDate: "2020-01-01", nextRenewalDate: "2020-02-01", autoRenew: true }, [{ customerMembershipId: "m", status: "paid", periodStart: "2020-02-01" }], "2020-03-01")).toBe("ACTIVE");

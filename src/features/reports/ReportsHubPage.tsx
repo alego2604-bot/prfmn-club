@@ -7,7 +7,7 @@ import {
 import { useLocationScope, useWorkspace } from "@/app/session";
 import { Button, Card, CardHeader, DeltaChip, EmptyState, FilterBar, FilterSelect, Input, Menu, MenuItem, Page, PageHeader, Segmented } from "@/design-system/components";
 import { ColumnChart, compactMoney } from "@/design-system/components/charts";
-import { buildReport, kpiDelta, previousOf, REPORTS, reportPeriod, type ReportKey } from "@/domain/reports";
+import { buildReport, comparableOf, kpiDelta, REPORTS, reportPeriod, toDate, type ReportKey } from "@/domain/reports";
 import { addDays, toISODate, type Period } from "@/lib/dates";
 import { downloadCsv, downloadXlsx, euros, triggerDownload, type ExportSheet } from "@/lib/export";
 import { cn } from "@/lib/cn";
@@ -83,8 +83,10 @@ function ReportView({ reportKey }: { reportKey: ReportKey }) {
   const period: Period = useMemo(() => preset === "custom"
     ? { preset: "custom", start: new Date(`${custom.start}T00:00`), end: addDays(new Date(`${custom.end}T00:00`), 1), label: `${custom.start.split("-").reverse().join("/")} – ${custom.end.split("-").reverse().join("/")}` }
     : reportPeriod(preset, now), [preset, custom, now]);
-  const cmpPeriod = compare === "none" ? null : previousOf(period, compare);
-  const report = useMemo(() => buildReport(ws, reportKey, { period, compare: cmpPeriod, locationId: loc || undefined, categoryId: category || undefined, methodKey: method || undefined }), [ws, reportKey, period, cmpPeriod?.start.getTime(), loc, category, method]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Periodo en curso: hasta hoy, y la comparación con los mismos días (nunca un periodo completo contra uno a medias)
+  const { period: effective } = useMemo(() => toDate(period, now), [period, now]);
+  const cmpPeriod = compare === "none" ? null : comparableOf(period, effective, compare);
+  const report = useMemo(() => buildReport(ws, reportKey, { period: effective, compare: cmpPeriod, locationId: loc || undefined, categoryId: category || undefined, methodKey: method || undefined }), [ws, reportKey, effective, cmpPeriod?.start.getTime(), cmpPeriod?.end.getTime(), loc, category, method]); // eslint-disable-line react-hooks/exhaustive-deps
   const scope = loc ? locations.find((l) => l.id === loc)?.name ?? "" : canSeeAll ? "Todos los centros (consolidado)" : current?.name ?? "";
   const fileBase = `Informe_${report.meta.title}_${period.label}`.replace(/[^\p{L}\p{N}]+/gu, "_");
   const sheet = (): ExportSheet => ({
@@ -97,6 +99,7 @@ function ReportView({ reportKey }: { reportKey: ReportKey }) {
   });
   const Icon = ICON[reportKey];
   const cmpLabel = compare === "year" ? "año anterior" : "periodo anterior";
+  const sameDays = cmpPeriod?.label.includes("mismos días");
 
   return (
     <Page wide>
@@ -105,7 +108,7 @@ function ReportView({ reportKey }: { reportKey: ReportKey }) {
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-fg"><Icon className="h-5 w-5" /></span>
           <div className="min-w-0">
-            <p className="text-sm text-fg-3">{period.label} · {scope}</p>
+            <p className="text-sm text-fg-3">{effective.label} · {scope}{sameDays ? " · comparado con los mismos días" : ""}</p>
             <h1 className="text-[28px] font-semibold leading-9 tracking-[-0.03em]">{report.meta.title}</h1>
           </div>
         </div>
@@ -152,10 +155,10 @@ function ReportView({ reportKey }: { reportKey: ReportKey }) {
 
       {report.series && report.series.points.length > 1 && (
         <Card className="mb-5">
-          <CardHeader title={report.series.label} description={compare === "none" ? period.label : `${period.label} frente a ${cmpPeriod?.label}`} action={<BarChart3 className="h-4 w-4 text-fg-3" />} />
+          <CardHeader title={report.series.label} description={compare === "none" ? effective.label : `${effective.label} frente a ${cmpPeriod?.label}`} action={<BarChart3 className="h-4 w-4 text-fg-3" />} />
           <ColumnChart
             height={240}
-            currentLabel={period.label}
+            currentLabel={effective.label}
             previousLabel={compare === "none" ? undefined : cmpLabel}
             axisFormat={report.series.format === "money" ? compactMoney : (v) => String(v)}
             data={report.series.points.map((p) => ({ key: p.key, label: p.label.replace(/^Semana del /, ""), tooltipLabel: p.label, current: p.current, previous: compare === "none" ? undefined : p.previous }))}
