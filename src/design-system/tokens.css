@@ -51,6 +51,8 @@
   /* Gráficas: serie principal = acento; comparación = gris recesivo; rejilla casi invisible */
   --chart-1: #3646f5;
   --chart-1-soft: #c9cdfd;
+  /* Segunda serie de un apilado (parte del mismo total): cobalto medio, nunca gris de «desactivado» */
+  --chart-1-mid: #9ba4fb;
   --chart-2: #a9a8a1;
   --chart-2-bar: #dcdbd5;
   --chart-grid: #efeee9;
@@ -111,6 +113,7 @@
 
   --chart-1: #7c89ff;
   --chart-1-soft: #333a7a;
+  --chart-1-mid: #4b56c8;
   --chart-2: #5c5b55;
   --chart-2-bar: #2e2e2b;
   --chart-grid: #1f1f1d;

@@ -5,7 +5,7 @@ import type { PeriodKpis } from "./analytics";
 const plain = (s: string) => s.replace(/[\u00a0\u202f]/g, " ");
 
 const base: PeriodKpis = {
-  revenue: 0, salesRevenue: 0, invoiceRevenue: 0, operations: 0, avgTicket: null, units: 0, byMethod: [], byCategory: [], byProduct: [],
+  revenue: 0, salesRevenue: 0, invoiceRevenue: 0, operations: 0, avgTicket: null, units: 0, byMethod: [], uncollected: 0, byCategory: [], byProduct: [],
   dropIns: { units: 0, amount: 0 }, vatCollected: 0, pendingInvoices: { count: 0, amount: 0 }, hasAggregates: false, hasUnknownTime: false,
 };
 
@@ -28,7 +28,7 @@ describe("insights (lectura automática, solo con datos reales)", () => {
       byCategory: [{ id: "a", name: "Bebidas", color: "", amount: 1_400, units: 10 }, { id: "b", name: "Merch", color: "", amount: 1_400, units: 2 }],
       byMethod: [{ key: "card", name: "Tarjeta", amount: 6_400 }, { key: "cash", name: "Efectivo", amount: 3_600 }],
     };
-    const r = buildInsights({ k, prev: base, customers: { total: 50, active: 40, newInPeriod: 3, retention: 0.81 } });
+    const r = buildInsights({ k, prev: base, customers: { total: 50, active: 40, newInPeriod: 3, retention: 0.81, firstTimeBuyers: 3, returningBuyers: 37 } });
     const t = r.map((i) => plain(i.text));
     expect(t).toContain("Las cuotas y facturas suponen el 72 % de la facturación; la caja, el 28 %.");
     expect(t).toContain("Bebidas concentra el 50 % de las ventas de caja.");

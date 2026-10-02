@@ -137,9 +137,11 @@ describe("KPIs", () => {
     expect(k.hasAggregates).toBe(true);
   });
 
-  it("métodos de pago: cobrado, desconocido y pendiente", () => {
-    const byKey = Object.fromEntries(computeKpis(ds, p).byMethod.map((m) => [m.key, m.amount]));
-    expect(byKey).toEqual({ cash: 1000, card: 3000, unknown: 9000 + 7300, pending: 6200 });
+  it("métodos de pago: solo lo cobrado; lo pendiente va aparte (no es un método)", () => {
+    const k = computeKpis(ds, p);
+    const byKey = Object.fromEntries(k.byMethod.map((m) => [m.key, m.amount]));
+    expect(byKey).toEqual({ cash: 1000, card: 3000, unknown: 9000 + 7300 });
+    expect(k.uncollected).toBe(6200);
   });
 
   it("serie diaria del mes", () => {

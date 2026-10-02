@@ -39,7 +39,10 @@ export interface PeriodKpis {
   operations: number; // solo ventas "transaction"
   avgTicket: Cents | null; // null si no hay operaciones individuales
   units: number;
+  /** Cobrado por método de pago. Lo pendiente NO es un método: va en `uncollected`. */
   byMethod: { key: string; name: string; amount: Cents }[];
+  /** Facturación del periodo aún sin cobrar (ventas pendientes de pago + facturas emitidas sin cobrar). */
+  uncollected: Cents;
   byCategory: { id: string; name: string; color: string; amount: Cents; units: number }[];
   byProduct: { key: string; name: string; amount: Cents; units: number }[];
   dropIns: { units: number; amount: Cents };
@@ -70,19 +73,26 @@ export function computeKpis(ds: Dataset, p: Period, locationId?: string): Period
     byMethodMap.set(pay.methodKey, (byMethodMap.get(pay.methodKey) ?? 0) + v);
     paidSaleAmount.set(pay.saleId, (paidSaleAmount.get(pay.saleId) ?? 0) + v);
   }
+  let uncollected = 0;
   for (const s of sales) {
     const gap = s.total - (paidSaleAmount.get(s.id) ?? 0);
-    if (gap > 0) byMethodMap.set(s.status === "pending_payment" ? "pending" : "unknown", (byMethodMap.get(s.status === "pending_payment" ? "pending" : "unknown") ?? 0) + gap);
+    if (gap <= 0) continue;
+    if (s.status === "pending_payment") uncollected += gap;
+    else byMethodMap.set("unknown", (byMethodMap.get("unknown") ?? 0) + gap);
   }
   const methodIdToKey = new Map(ds.paymentMethods.map((m) => [m.id, m.key]));
   for (const inv of invoices) {
+    if (inv.status === "issued" || inv.status === "partially_paid") {
+      uncollected += inv.total - (inv.amountPaid ?? 0);
+      if (!inv.amountPaid) continue;
+    }
     const key = (inv.paymentMethodId && methodIdToKey.get(inv.paymentMethodId)) || "unknown";
-    const k = inv.status === "issued" ? "pending" : key;
-    byMethodMap.set(k, (byMethodMap.get(k) ?? 0) + inv.total);
+    const amount = inv.status === "partially_paid" ? inv.amountPaid ?? 0 : inv.total;
+    byMethodMap.set(key, (byMethodMap.get(key) ?? 0) + amount);
   }
   const byMethod = [...byMethodMap.entries()]
     .filter(([, v]) => v !== 0)
-    .map(([key, amount]) => ({ key, name: key === "pending" ? "Pendiente de cobro" : methodName.get(key) ?? "Desconocido", amount }))
+    .map(([key, amount]) => ({ key, name: methodName.get(key) ?? "Desconocido", amount }))
     .sort((a, b) => b.amount - a.amount);
 
   const catColor = new Map(ds.categories.map((c) => [c.id, c.color]));
@@ -114,6 +124,7 @@ export function computeKpis(ds: Dataset, p: Period, locationId?: string): Period
   const pending = ds.invoices.filter((i) => (i.status === "issued" || i.status === "partially_paid") && within(invoiceDate(i), p));
 
   return {
+    uncollected,
     revenue: salesRevenue + invoiceRevenue,
     salesRevenue,
     invoiceRevenue,
@@ -265,6 +276,9 @@ export interface CustomerStats {
   total: number;
   active: number;
   newInPeriod: number;
+  /** Clientes activos en el periodo cuya primera actividad es de este periodo (nuevos) o de antes (recurrentes). */
+  firstTimeBuyers: number;
+  returningBuyers: number;
   /** % de clientes activos en el periodo anterior que siguen activos en este (null sin base). */
   retention: number | null;
 }
@@ -275,7 +289,14 @@ export function customerStats(ds: Dataset, customers: CustomerLike[], p: Period,
   const before = activeCustomerIds(ds, prev, locationId);
   const kept = [...before].filter((id) => active.has(id)).length;
   const joined = (c: CustomerLike) => new Date(c.joinedAt ? `${c.joinedAt}T00:00:00` : c.createdAt).getTime();
+  const firstActivity = new Map<string, number>();
+  const mark = (id: string | undefined, t: number) => { if (id && (!firstActivity.has(id) || t < firstActivity.get(id)!)) firstActivity.set(id, t); };
+  for (const s of ds.sales) if (s.status !== "voided" && (!locationId || s.locationId === locationId)) mark(s.customerId, new Date(s.occurredAt).getTime());
+  for (const i of ds.invoices) if (i.status !== "void" && i.issueDate && (!locationId || i.locationId === locationId)) mark(i.customerId, new Date(`${i.issueDate}T00:00:00`).getTime());
+  const firstTimeBuyers = [...active].filter((id) => (firstActivity.get(id) ?? 0) >= p.start.getTime()).length;
   return {
+    firstTimeBuyers,
+    returningBuyers: active.size - firstTimeBuyers,
     total: live.filter((c) => c.status !== "lead").length,
     active: active.size,
     newInPeriod: live.filter((c) => c.status !== "lead" && joined(c) >= p.start.getTime() && joined(c) < p.end.getTime()).length,
@@ -312,4 +333,51 @@ export function recurringSeries(ds: Dataset, end: Date, months = 12): { date: Da
     if (i.customerId) r.members.add(i.customerId);
   }
   return rows.map((r) => ({ date: r.date, amount: r.amount, members: r.members.size }));
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Comparaciones honestas
+// ---------------------------------------------------------------------------------------------------------------------
+export interface TodayComparison {
+  /** Ventas de caja de hoy hasta ahora (las cuotas se emiten en lote y no se comparan día a día). */
+  today: Cents;
+  operations: number;
+  /** Mismo día de la semana pasada hasta la misma hora; null si no hay base comparable. */
+  reference: Cents | null;
+  referenceLabel: string;
+  /** Cuotas/facturas emitidas hoy (se muestran aparte, nunca mezcladas en la comparación). */
+  invoicesToday: Cents;
+}
+
+/**
+ * «Hoy» frente a una referencia equivalente: el mismo día de la semana anterior hasta la misma hora y solo ventas
+ * de caja. Evita alarmas falsas como «−100 % vs ayer» cuando ayer fue día de emisión de cuotas.
+ */
+export function todayComparison(ds: Dataset, now: Date, locationId?: string): TodayComparison {
+  const start = startOfDay(now);
+  const refStart = addDays(start, -7);
+  const refEnd = new Date(now.getTime() - 7 * 86_400_000);
+  const inRange = (t: number, a: Date, b: Date) => t >= a.getTime() && t < b.getTime();
+  let today = 0, operations = 0, ref = 0, refOps = 0, invoicesToday = 0;
+  for (const s of ds.sales) {
+    if (s.status === "voided" || (locationId && s.locationId !== locationId)) continue;
+    const t = new Date(s.occurredAt).getTime();
+    if (inRange(t, start, now) || t === now.getTime()) { today += s.total; operations++; }
+    else if (inRange(t, refStart, refEnd)) { ref += s.total; refOps++; }
+  }
+  const todayIso = toISODate(now);
+  for (const i of ds.invoices) if (i.status !== "void" && i.status !== "draft" && i.issueDate === todayIso && (!locationId || i.locationId === locationId)) invoicesToday += i.total;
+  const weekday = refStart.toLocaleDateString("es-ES", { weekday: "long" });
+  return { today, operations, reference: refOps ? ref : null, referenceLabel: `el ${weekday} pasado a esta hora`, invoicesToday };
+}
+
+/** Facturación por centro en el periodo (comparación entre centros, solo con «Todos los centros»). */
+export function locationBreakdown(ds: Dataset, locations: { id: string; name: string; status: string }[], p: Period): { id: string; name: string; revenue: Cents; salesRevenue: Cents; operations: number }[] {
+  return locations
+    .filter((l) => l.status === "active")
+    .map((l) => {
+      const k = computeKpis(ds, p, l.id);
+      return { id: l.id, name: l.name, revenue: k.revenue, salesRevenue: k.salesRevenue, operations: k.operations };
+    })
+    .sort((a, b) => b.revenue - a.revenue);
 }

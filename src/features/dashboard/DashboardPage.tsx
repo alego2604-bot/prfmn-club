@@ -1,20 +1,20 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AlertTriangle, ArrowRight, CheckCircle2, CircleDot, Package, Plus, Receipt, Store, Upload, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, CircleDot, FileText, Package, Plus, Receipt, Store, Upload, Wallet } from "lucide-react";
 import { useLocationScope, useSession, useWorkspace } from "@/app/session";
 import {
   Badge, Button, Card, CardHeader, DeltaChip, HeroMetric, InsightList, Page, RangeSelector, Segmented, StatStrip, type StatItem,
 } from "@/design-system/components";
-import { BarList, ColumnChart, Legend, TrendChart, type TrendPoint } from "@/design-system/components/charts";
+import { BarList, ColumnChart, Legend, StackedColumnChart, TrendChart, type TrendPoint } from "@/design-system/components/charts";
 import {
-  computeKpis, customerGrowth, customerStats, percentChange, recurringSeries, revenueSeries, type Dataset, type Granularity,
+  computeKpis, customerGrowth, customerStats, locationBreakdown, percentChange, recurringSeries, revenueSeries, todayComparison, type Dataset, type Granularity,
 } from "@/domain/analytics";
 import { buildInsights } from "@/domain/insights";
 import { computeAlerts } from "@/domain/alerts";
 import { sessionSummary } from "@/data/repos/cash";
 import { openSessionFor } from "@/data/repos/sales";
 import {
-  addDays, capitalize, formatDate, formatDateLong, makePeriod, monthName, monthShort, previousPeriod, toISODate, type Period, type PeriodPreset,
+  addDays, addMonths, capitalize, formatDate, formatDateLong, makePeriod, monthName, monthShort, previousPeriod, startOfMonth, toISODate, type Period, type PeriodPreset,
 } from "@/lib/dates";
 import { formatMoney, NUM } from "@/lib/money";
 import { cn } from "@/lib/cn";
@@ -68,12 +68,6 @@ export default function DashboardPage() {
 
   const k = useMemo(() => computeKpis(ds, period, filterId), [ds, period, filterId]);
   const kPrev = useMemo(() => computeKpis(ds, prev, filterId), [ds, prev, filterId]);
-  const today = useMemo(() => computeKpis(ds, makePeriod("today", now), filterId), [ds, now, filterId]);
-  // Ayer hasta la misma hora: comparación justa con un día en curso
-  const yesterday = useMemo(() => {
-    const y = makePeriod("today", addDays(now, -1));
-    return computeKpis(ds, { ...y, end: new Date(now.getTime() - 86_400_000) }, filterId);
-  }, [ds, now, filterId]);
   const cust = useMemo(() => customerStats(ds, ws.customers, period, prev, filterId), [ds, ws.customers, period, prev, filterId]);
   const custPrev = useMemo(() => customerStats(ds, ws.customers, prev, previousPeriod(prev), filterId), [ds, ws.customers, prev, filterId]);
   const alerts = useMemo(() => computeAlerts(ws, now, filterId).filter((a) => a.id !== "cash-closed"), [ws, now, filterId]);
@@ -89,8 +83,7 @@ export default function DashboardPage() {
     previous: prevSeries[i]?.total ?? null,
     previousLabel: prevSeries[i] ? pointTitle(prevSeries[i]!.date, granularity).toLowerCase() : undefined,
   }));
-  const spark = (pick: (p: (typeof series)[number]) => number) => series.filter((p) => p.date <= now).map(pick);
-
+  
   const insights = useMemo(() => buildInsights({ k, prev: kPrev, daily, customers: cust, prevLabel: prev.label === "Periodo anterior" ? undefined : prev.label }).slice(0, 4), [k, kPrev, daily, cust, prev.label]);
   const growth = useMemo(() => customerGrowth(ws.customers, now), [ws.customers, now]);
   const recurring = useMemo(() => recurringSeries(ds, now), [ds, now]);
@@ -117,15 +110,34 @@ export default function DashboardPage() {
   const empty = ws.sales.length === 0 && ws.invoices.length === 0;
   const prevRange = `${formatDate(prev.start)} – ${formatDate(addDays(prev.end, -1))}`;
   const productPrev = new Map(kPrev.byProduct.map((p) => [p.key, p.amount]));
+  const todayCmp = useMemo(() => todayComparison(ds, now, filterId), [ds, now, filterId]);
+  const monthK = useMemo(() => computeKpis(ds, makePeriod("month", now), filterId), [ds, now, filterId]);
+  const byLocation = useMemo(() => (!filterId && ws.locations.length > 1 ? locationBreakdown(ds, ws.locations, period) : []), [ds, ws.locations, period, filterId]);
+  // Recurrente (cuotas, por emisión) frente a puntual (caja), 12 meses: IVA incluido, como la facturación
+  const split12 = useMemo(() => {
+    const p12 = makePeriod("custom", now, { start: addMonths(startOfMonth(now), -11), end: now });
+    return revenueSeries(ds, p12, "month", filterId).map((m) => ({
+      key: m.key, label: capitalize(monthShort(m.date.getMonth())), tooltipLabel: capitalize(`${monthName(m.date.getMonth())} ${m.date.getFullYear()}`), a: m.invoices, b: m.sales,
+    }));
+  }, [ds, now, filterId]);
+  const split12Total = split12.reduce((t, m) => t + m.a + m.b, 0);
+  const recurringShare = split12Total ? Math.round((split12.reduce((t, m) => t + m.a, 0) / split12Total) * 100) : null;
+
+  // Tendencia: por días, la caja (las cuotas se emiten en lote el día 1 y aplastarían la escala). «Todo» siempre disponible.
+  const [mode, setMode] = useState<"auto" | "caja" | "todo">("auto");
+  const trendMode = mode === "auto" ? (granularity === "day" && k.invoiceRevenue > 0 ? "caja" : "todo") : mode;
+  const trendData: TrendPoint[] = trendMode === "caja"
+    ? series.map((p, i) => ({ ...trend[i]!, current: p.date > now ? null : p.sales, previous: prevSeries[i]?.sales ?? null }))
+    : trend;
+  const trendHasData = trendData.some((t) => (t.current ?? 0) > 0 || (t.previous ?? 0) > 0);
 
   const stats: StatItem[] = [
-    { key: "tx", label: "Transacciones", value: k.operations.toLocaleString("es-ES", NUM), delta: percentChange(k.operations, kPrev.operations), spark: spark((p) => p.operations), tooltip: "Ventas individuales de caja. Los resúmenes mensuales importados no cuentan.", onClick: () => navigate("/ventas") },
-    { key: "ticket", label: "Ticket medio", value: k.avgTicket !== null ? formatMoney(k.avgTicket) : "—", delta: k.avgTicket !== null && kPrev.avgTicket !== null ? percentChange(k.avgTicket, kPrev.avgTicket) : null },
-    { key: "customers", label: "Clientes activos", value: cust.active.toLocaleString("es-ES", NUM), delta: percentChange(cust.active, custPrev.active), hint: cust.retention !== null ? `${Math.round(cust.retention * 100)} % retención` : undefined, tooltip: "Clientes distintos con una venta o factura en el periodo. Retención: activos del periodo anterior que repiten.", onClick: () => navigate("/clientes") },
+    { key: "tx", label: "Transacciones", value: k.operations.toLocaleString("es-ES", NUM), delta: percentChange(k.operations, kPrev.operations), spark: weekly(series, now, (p) => p.operations), tooltip: "Ventas individuales de caja. Los resúmenes mensuales importados no cuentan.", onClick: () => navigate("/ventas") },
+    { key: "ticket", label: "Ticket medio", value: k.avgTicket !== null ? formatMoney(k.avgTicket) : "—", delta: k.avgTicket !== null && kPrev.avgTicket !== null ? percentChange(k.avgTicket, kPrev.avgTicket) : null, tooltip: "Media de las ventas individuales de caja del periodo." },
+    { key: "customers", label: "Clientes activos", value: cust.active.toLocaleString("es-ES", NUM), delta: percentChange(cust.active, custPrev.active), hint: cust.active ? `${cust.firstTimeBuyers.toLocaleString("es-ES", NUM)} nuevos · ${cust.returningBuyers.toLocaleString("es-ES", NUM)} recurrentes` : undefined, tooltip: "Clientes distintos con una venta o factura en el periodo. Nuevos: su primera actividad es de este periodo.", onClick: () => navigate("/clientes") },
     hasRecurring
       ? { key: "mrr", label: "Ingresos recurrentes", value: formatMoney(recurringNow), delta: percentChange(recurringNow, recurringPrev), hint: "este mes · sin IVA", spark: recurring.map((r) => r.amount), tooltip: "Base imponible de las cuotas cuyo periodo de servicio cae en el mes en curso (MRR)." }
       : { key: "units", label: "Unidades vendidas", value: k.units.toLocaleString("es-ES", NUM), delta: percentChange(k.units, kPrev.units) },
-    { key: "pending", label: "Pendiente de cobro", value: formatMoney(k.pendingInvoices.amount), hint: k.pendingInvoices.count ? `${k.pendingInvoices.count} factura${k.pendingInvoices.count === 1 ? "" : "s"}` : "Todo cobrado", onClick: () => navigate("/facturas?estado=pendiente") },
   ];
 
   return (
@@ -144,10 +156,10 @@ export default function DashboardPage() {
 
       {empty && <Onboarding />}
 
-      <div className="stagger grid gap-4 xl:grid-cols-12 [&>*]:min-w-0">
-        {/* Facturación + tendencia */}
-        <Card className="xl:col-span-8" padded={false}>
-          <div className="flex flex-col gap-5 p-6 pb-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="stagger grid gap-4 md:grid-cols-12 [&>*]:min-w-0">
+        {/* PRINCIPAL · Facturación + tendencia */}
+        <Card className="md:col-span-12 xl:col-span-8" padded={false}>
+          <div className="flex flex-col gap-5 p-5 pb-2 sm:p-6 sm:pb-2 lg:flex-row lg:items-start lg:justify-between">
             <HeroMetric
               label="Facturación"
               tooltip="Ventas de caja no anuladas + facturas no ligadas a una venta (por fecha de emisión). IVA incluido."
@@ -155,51 +167,64 @@ export default function DashboardPage() {
               delta={<DeltaChip size="md" value={percentChange(k.revenue, kPrev.revenue)} label={<span title={prevRange}>vs {prev.label === "Periodo anterior" ? "periodo anterior" : prev.label.toLowerCase()}</span>} />}
               sub={<span className="text-sm text-fg-3">{period.label}</span>}
             />
-            <dl className="grid shrink-0 grid-cols-2 gap-x-8 gap-y-1 text-sm sm:text-right">
-              <dt className="text-fg-3">Caja / TPV</dt><dd className="font-medium num sm:order-none">{formatMoney(k.salesRevenue)}</dd>
-              <dt className="text-fg-3">Cuotas y facturas</dt><dd className="font-medium num">{formatMoney(k.invoiceRevenue)}</dd>
-              <dt className="text-fg-3">IVA repercutido</dt><dd className="font-medium num">{formatMoney(k.vatCollected)}</dd>
+            <dl className="grid shrink-0 grid-cols-[auto_auto] gap-x-8 gap-y-1 text-sm lg:text-right">
+              <dt className="text-fg-3">Caja / TPV</dt><dd className="text-right font-medium num">{formatMoney(k.salesRevenue)}</dd>
+              <dt className="text-fg-3">Cuotas y facturas</dt><dd className="text-right font-medium num">{formatMoney(k.invoiceRevenue)}</dd>
+              <dt className="text-fg-3">IVA repercutido</dt><dd className="text-right font-medium num">{formatMoney(k.vatCollected)}</dd>
             </dl>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-3">
-            <Legend items={[{ label: period.label, color: "var(--chart-1)" }, { label: prev.label === "Periodo anterior" ? "Periodo anterior" : prev.label, color: "var(--chart-2)", dashed: true }]} />
-            {granOptions.length > 1 && (
-              <Segmented size="sm" value={granularity} onChange={(g) => setGranOverride(g)} items={granOptions.map(([value, label]) => ({ value, label }))} />
-            )}
+          <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-3 sm:px-6">
+            <Legend items={[{ label: trendMode === "caja" ? `Caja · ${period.label.toLowerCase()}` : period.label, color: "var(--chart-1)" }, { label: prev.label === "Periodo anterior" ? "Periodo anterior" : prev.label, color: "var(--chart-2)", dashed: true }]} />
+            <div className="flex flex-wrap items-center gap-2">
+              {k.invoiceRevenue > 0 && (
+                <Segmented size="sm" value={trendMode} onChange={(m) => setMode(m)} items={[{ value: "caja", label: "Caja" }, { value: "todo", label: "Todo" }]} />
+              )}
+              {granOptions.length > 1 && (
+                <Segmented size="sm" value={granularity} onChange={(g) => setGranOverride(g)} items={granOptions.map(([value, label]) => ({ value, label }))} />
+              )}
+            </div>
           </div>
-          <div className="px-3 pb-4 pt-2 sm:px-4">
-            {k.revenue || kPrev.revenue ? (
-              <TrendChart data={trend} currentLabel={period.label} previousLabel={prev.label} height={280} />
+          <div className="px-3 pb-3 pt-2 sm:px-4">
+            {trendHasData ? (
+              <TrendChart data={trendData} currentLabel={period.label} previousLabel={prev.label} height={300} />
             ) : (
-              <div className="flex h-[280px] flex-col items-center justify-center text-center">
+              <div className="flex h-[260px] flex-col items-center justify-center text-center">
                 <p className="text-sm font-medium">Sin facturación en este periodo</p>
                 <p className="mt-1 text-sm text-fg-3">Elige un periodo más amplio o registra tu primera venta.</p>
               </div>
             )}
+            {trendMode === "caja" && (
+              <p className="px-2 pb-1 text-xs text-fg-3">Ventas de caja. Las cuotas se emiten en lote a principio de mes: míralas en «Todo» o en «Recurrente frente a puntual».</p>
+            )}
           </div>
         </Card>
 
-        {/* Hoy + atención */}
-        <div className="flex flex-col gap-4 xl:col-span-4">
+        {/* OPERATIVA · Hoy + atención */}
+        <div className="grid gap-4 md:col-span-12 md:grid-cols-2 xl:col-span-4 xl:grid-cols-1 [&>*]:min-w-0">
           <Card>
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-fg-2">Hoy</p>
+              <p className="text-sm font-medium text-fg-2">Caja de hoy</p>
               {session ? <Badge tone="success" dot>Caja abierta</Badge> : <Badge dot>Caja cerrada</Badge>}
             </div>
             <div className="mt-3 flex items-end justify-between gap-3">
-              <div>
-                <p className="figure text-4xl leading-none">{formatMoney(today.revenue)}</p>
-                <div className="mt-2.5"><DeltaChip value={percentChange(today.revenue, yesterday.revenue)} label={`ayer a esta hora ${formatMoney(yesterday.revenue)}`} /></div>
+              <div className="min-w-0">
+                <p className="figure text-4xl leading-none">{formatMoney(todayCmp.today)}</p>
+                <div className="mt-2.5 text-xs">
+                  {todayCmp.reference !== null
+                    ? <DeltaChip value={percentChange(todayCmp.today, todayCmp.reference)} label={`vs ${todayCmp.referenceLabel} (${formatMoney(todayCmp.reference)})`} />
+                    : <span className="text-fg-3">Sin referencia comparable ({todayCmp.referenceLabel} no hubo ventas)</span>}
+                </div>
               </div>
-              <div className="text-right text-sm">
-                <p className="font-semibold num">{today.operations}</p>
+              <div className="shrink-0 text-right text-sm">
+                <p className="font-semibold num">{todayCmp.operations.toLocaleString("es-ES", NUM)}</p>
                 <p className="text-xs text-fg-3">ventas</p>
               </div>
             </div>
-            <div className="mt-5 flex items-center justify-between rounded-lg bg-surface-sunken px-3.5 py-3">
-              <span className="flex items-center gap-2 text-sm text-fg-2"><Wallet className="h-4 w-4 text-fg-3" />Efectivo en caja</span>
-              {cash ? <span className="text-sm font-semibold num">{formatMoney(cash.expectedCash)}</span> : <span className="text-sm text-fg-3">—</span>}
-            </div>
+            <dl className="mt-4 divide-y divide-line rounded-lg bg-surface-sunken/70 px-3.5 text-sm">
+              <div className="flex items-center justify-between py-2.5"><dt className="flex items-center gap-2 text-fg-2"><Wallet className="h-4 w-4 text-fg-3" />Efectivo en caja</dt><dd className="font-semibold num">{cash ? formatMoney(cash.expectedCash) : "—"}</dd></div>
+              <button type="button" onClick={() => navigate("/facturas?estado=pendiente")} className="flex w-full items-center justify-between py-2.5 text-left"><dt className="flex items-center gap-2 text-fg-2"><Receipt className="h-4 w-4 text-fg-3" />Pendiente de cobro</dt><dd className="font-semibold num">{formatMoney(k.pendingInvoices.amount)}{k.pendingInvoices.count ? <span className="ml-1.5 text-xs font-normal text-fg-3">{k.pendingInvoices.count} fact.</span> : null}</dd></button>
+              <div className="flex items-center justify-between py-2.5"><dt className="flex items-center gap-2 text-fg-2"><FileText className="h-4 w-4 text-fg-3" />Facturado este mes</dt><dd className="font-semibold num">{formatMoney(monthK.invoiceRevenue)}{todayCmp.invoicesToday ? <span className="ml-1.5 text-xs font-normal text-fg-3">hoy {formatMoney(todayCmp.invoicesToday)}</span> : null}</dd></div>
+            </dl>
             {can("pos.sell") && (
               <Link to="/caja" className="mt-3 flex h-10 items-center justify-center gap-2 rounded-lg border border-line text-sm font-medium transition-colors hover:border-line-strong hover:bg-surface-2">
                 <Store className="h-4 w-4" />{session ? "Ir a la caja" : "Abrir caja"}
@@ -207,7 +232,7 @@ export default function DashboardPage() {
             )}
           </Card>
 
-          <Card className="flex-1">
+          <Card className="xl:flex-1">
             <CardHeader className="mb-2" title="Requiere atención" action={alerts.length ? <span className="text-xs font-medium text-fg-3 num">{alerts.length}</span> : undefined} />
             {alerts.length === 0 ? (
               <div className="flex items-center gap-3 rounded-lg bg-success-soft px-3.5 py-3 text-sm text-success-fg"><CheckCircle2 className="h-4 w-4 shrink-0" />Todo en orden. Nada pendiente ahora mismo.</div>
@@ -232,25 +257,59 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Indicadores secundarios */}
-        <StatStrip className="xl:col-span-12" items={stats} />
+        {/* SECUNDARIOS */}
+        <StatStrip className="md:col-span-12" items={stats} />
 
-        {/* Lectura + mix */}
-        <Card className="xl:col-span-5">
+        {/* Recurrente frente a puntual + lectura */}
+        <Card className="md:col-span-12 xl:col-span-8">
+          <CardHeader
+            title="Recurrente frente a puntual"
+            description={`Cuotas y facturas frente a ventas de caja · últimos 12 meses${recurringShare !== null ? ` · el ${recurringShare} % es recurrente` : ""}`}
+            action={<Legend items={[{ label: "Cuotas y facturas", color: "var(--chart-1)", shape: "bar" }, { label: "Caja", color: "var(--chart-1-mid)", shape: "bar" }]} />}
+          />
+          {split12Total ? <StackedColumnChart data={split12} aLabel="Cuotas y facturas" bLabel="Caja" height={230} partialLast /> : <p className="py-16 text-center text-sm text-fg-3">Sin facturación en los últimos 12 meses</p>}
+        </Card>
+        <Card className="md:col-span-12 xl:col-span-4">
           <CardHeader title="Lo que dicen tus datos" description={`${period.label} frente a ${prev.label === "Periodo anterior" ? "el periodo anterior" : prev.label.toLowerCase()}`} />
           <InsightList items={insights} />
         </Card>
-        <Card className="xl:col-span-4">
+
+        {/* Mix */}
+        <Card className="md:col-span-6 xl:col-span-4">
           <CardHeader title="Ingresos por categoría" description="Ventas de caja del periodo" />
           <BarList rows={k.byCategory.filter((c) => c.id !== "invoices").map((c) => ({ key: c.id, label: c.name, value: c.amount }))} max={6} emptyText="Sin ventas de caja en este periodo" />
         </Card>
-        <Card className="xl:col-span-3">
+        <Card className="md:col-span-6 xl:col-span-4">
           <CardHeader title="Métodos de pago" description="Cobrado en el periodo" />
-          <BarList rows={k.byMethod.filter((m) => m.amount > 0).map((m) => ({ key: m.key, label: m.key === "pending" ? "Pendiente" : m.name, value: m.amount }))} max={5} emptyText="Sin cobros en este periodo" />
+          <BarList rows={k.byMethod.filter((m) => m.amount > 0).map((m) => ({ key: m.key, label: m.name, value: m.amount }))} max={5} emptyText="Sin cobros en este periodo" />
+          {k.uncollected > 0 && (
+            <button type="button" onClick={() => navigate("/facturas?estado=pendiente")} className="mt-4 flex w-full items-center justify-between rounded-lg border border-dashed border-line-strong px-3 py-2 text-left text-sm transition-colors hover:bg-surface-2">
+              <span className="text-fg-2">Aún sin cobrar del periodo</span>
+              <span className="font-semibold num">{formatMoney(k.uncollected)}</span>
+            </button>
+          )}
+        </Card>
+        <Card className="md:col-span-12 xl:col-span-4">
+          <CardHeader title="Clientes" description="Altas por mes · últimos 12 meses" />
+          <div className="grid grid-cols-3 gap-3">
+            <div><p className="figure text-2xl leading-none">{(growth.at(-1)?.total ?? 0).toLocaleString("es-ES", NUM)}</p><p className="mt-1.5 text-xs text-fg-3">en total</p></div>
+            <div><p className="text-xl font-semibold leading-none num">{cust.firstTimeBuyers.toLocaleString("es-ES", NUM)}</p><p className="mt-1.5 text-xs text-fg-3">nuevos activos</p></div>
+            <div><p className="text-xl font-semibold leading-none num">{cust.returningBuyers.toLocaleString("es-ES", NUM)}</p><p className="mt-1.5 text-xs text-fg-3">recurrentes</p></div>
+          </div>
+          <div className="mt-4">
+            <ColumnChart
+              height={140}
+              partialLast
+              currentLabel="Altas"
+              format={(v) => `${v.toLocaleString("es-ES", NUM)} altas`}
+              axisFormat={(v) => String(v)}
+              data={growth.map((g) => ({ key: toISODate(g.date), label: capitalize(monthShort(g.date.getMonth())).slice(0, 1), tooltipLabel: capitalize(`${monthName(g.date.getMonth())} ${g.date.getFullYear()}`), current: g.added }))}
+            />
+          </div>
         </Card>
 
-        {/* Productos + clientes */}
-        <Card className="xl:col-span-8" padded={false}>
+        {/* Productos + centros / año */}
+        <Card className="md:col-span-12 xl:col-span-8" padded={false}>
           <div className="flex items-start justify-between gap-3 p-5 pb-3">
             <CardHeader className="mb-0" title="Rendimiento de productos" description="Por facturación en el periodo, con variación frente al anterior" />
             <Link to="/catalogo" className="shrink-0 text-sm font-medium text-fg-3 hover:text-fg">Catálogo →</Link>
@@ -296,60 +355,34 @@ export default function DashboardPage() {
             </div>
           )}
         </Card>
-        <Card className="xl:col-span-4">
-          <CardHeader title="Crecimiento de clientes" description="Altas por mes · últimos 12 meses" />
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <p className="figure text-3xl leading-none">{(growth.at(-1)?.total ?? 0).toLocaleString("es-ES", NUM)}</p>
-              <p className="mt-1.5 text-xs text-fg-3">clientes en total</p>
-            </div>
-            <div className="text-right">
-              <p className="text-lg font-semibold num">+{(growth.at(-1)?.added ?? 0).toLocaleString("es-ES", NUM)}</p>
-              <p className="text-xs text-fg-3">este mes</p>
-            </div>
-          </div>
-          <div className="mt-4">
-            <ColumnChart
-              height={150}
-              highlightLast
-              currentLabel="Altas"
-              format={(v) => `${v.toLocaleString("es-ES", NUM)} altas`}
-              axisFormat={(v) => String(v)}
-              data={growth.map((g) => ({ key: toISODate(g.date), label: capitalize(monthShort(g.date.getMonth())).slice(0, 1), tooltipLabel: capitalize(`${monthName(g.date.getMonth())} ${g.date.getFullYear()}`), current: g.added }))}
+        {byLocation.length > 1 ? (
+          <Card className="md:col-span-12 xl:col-span-4">
+            <CardHeader title="Comparativa de centros" description={`Facturación · ${period.label.toLowerCase()}`} />
+            <BarList rows={byLocation.map((l) => ({ key: l.id, label: l.name, value: l.revenue, sub: `${l.operations} ventas` }))} />
+            <p className="mt-4 text-xs text-fg-3">Elige un centro arriba para ver solo sus cifras.</p>
+          </Card>
+        ) : (
+          <Card className="md:col-span-12 xl:col-span-4">
+            <CardHeader
+              title={`${now.getFullYear()} frente a ${now.getFullYear() - 1}`}
+              description="Facturación mensual"
+              action={<Legend items={[{ label: String(now.getFullYear()), color: "var(--chart-1)", shape: "bar" }, { label: String(now.getFullYear() - 1), color: "var(--chart-2-bar)", shape: "bar" }]} />}
             />
-          </div>
-        </Card>
-
-        {/* Recurrente + año */}
-        {hasRecurring && (
-          <Card className="xl:col-span-5">
-            <CardHeader title="Ingresos recurrentes" description="Cuotas por mes de servicio · base imponible" />
-            <div className="flex items-end gap-3">
-              <p className="figure text-3xl leading-none">{formatMoney(recurringNow)}</p>
-              <DeltaChip value={percentChange(recurringNow, recurringPrev)} label="vs mes anterior" />
-            </div>
-            <p className="mt-1.5 text-xs text-fg-3">{(recurring.at(-1)?.members ?? 0).toLocaleString("es-ES", NUM)} clientes con cuota este mes</p>
-            <div className="mt-4">
-              <ColumnChart
-                height={170}
-                highlightLast
-                currentLabel="Recurrente"
-                data={recurring.map((r) => ({ key: toISODate(r.date), label: capitalize(monthShort(r.date.getMonth())), tooltipLabel: capitalize(`${monthName(r.date.getMonth())} ${r.date.getFullYear()}`), current: r.amount }))}
-              />
-            </div>
+            <ColumnChart data={yearMonths} currentLabel={String(now.getFullYear())} previousLabel={String(now.getFullYear() - 1)} height={200} />
           </Card>
         )}
-        <Card className={hasRecurring ? "xl:col-span-7" : "xl:col-span-12"}>
-          <CardHeader
-            title={`Año ${now.getFullYear()} frente a ${now.getFullYear() - 1}`}
-            description="Facturación mensual"
-            action={<Legend items={[{ label: String(now.getFullYear()), color: "var(--chart-1)", shape: "bar" }, { label: String(now.getFullYear() - 1), color: "var(--chart-2-bar)", shape: "bar" }]} />}
-          />
-          <ColumnChart data={yearMonths} currentLabel={String(now.getFullYear())} previousLabel={String(now.getFullYear() - 1)} height={hasRecurring ? 226 : 240} />
-        </Card>
       </div>
     </Page>
   );
+}
+
+/** Miniatura semanal (la diaria es ruido a ese tamaño). */
+function weekly(series: { date: Date; operations: number; total: number }[], now: Date, pick: (p: { operations: number; total: number }) => number): number[] {
+  const past = series.filter((p) => p.date <= now);
+  if (past.length <= 14) return past.map(pick);
+  const out: number[] = [];
+  for (let i = 0; i < past.length; i += 7) out.push(past.slice(i, i + 7).reduce((t, p) => t + pick(p), 0));
+  return out;
 }
 
 function Onboarding() {

@@ -176,16 +176,19 @@ export interface ColumnPoint {
   previousLabel?: string;
 }
 
-/** Columnas por periodo: actual (acento) y, opcional, comparación (gris). ≤ 24px, extremo redondeado, 2px de aire. */
-export function ColumnChart({ data, currentLabel, previousLabel, height = 220, format = formatMoney, axisFormat = compactMoney, highlightLast }: {
+/**
+ * Columnas por periodo: actual (acento) y, opcional, comparación (gris). ≤ 24px, extremo redondeado, 2px de aire.
+ * `partialLast`: el último periodo está en curso (incompleto) y se dibuja atenuado; el histórico, completo, en sólido.
+ */
+export function ColumnChart({ data, currentLabel, previousLabel, height = 220, format = formatMoney, axisFormat = compactMoney, partialLast }: {
   data: ColumnPoint[];
   currentLabel: string;
   previousLabel?: string;
   height?: number;
   format?: (v: number) => string;
   axisFormat?: (v: number) => string;
-  /** Resalta solo la última columna (periodo en curso) y atenúa el resto */
-  highlightLast?: boolean;
+  /** El último periodo está en curso: se atenúa (dato parcial) */
+  partialLast?: boolean;
 }) {
   const hasPrev = data.some((d) => d.previous !== undefined && d.previous !== null);
   return (
@@ -201,9 +204,10 @@ export function ColumnChart({ data, currentLabel, previousLabel, height = 220, f
             content={({ active, payload }) => {
               if (!active || !payload?.length) return null;
               const p = payload[0]!.payload as ColumnPoint;
+              const partial = partialLast && p.key === data[data.length - 1]?.key;
               return (
                 <ChartTooltip
-                  title={p.tooltipLabel}
+                  title={partial ? `${p.tooltipLabel} · en curso` : p.tooltipLabel}
                   value={format(p.current)}
                   delta={hasPrev ? deltaText(p.current, p.previous) : null}
                   deltaLabel={hasPrev ? `vs ${p.previousLabel ?? previousLabel ?? "anterior"}` : undefined}
@@ -214,7 +218,64 @@ export function ColumnChart({ data, currentLabel, previousLabel, height = 220, f
           />
           {hasPrev && <Bar dataKey="previous" fill="var(--chart-2-bar)" radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!reduced} animationDuration={400} />}
           <Bar dataKey="current" name={currentLabel} fill="var(--chart-1)" radius={[4, 4, 0, 0]} maxBarSize={hasPrev ? 18 : 24} isAnimationActive={!reduced} animationDuration={450}>
-            {highlightLast && data.map((d, i) => <Cell key={d.key} fill={i === data.length - 1 ? "var(--chart-1)" : "var(--chart-1-soft)"} />)}
+            {partialLast && data.map((d, i) => <Cell key={d.key} fill="var(--chart-1)" fillOpacity={i === data.length - 1 ? 0.42 : 1} />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+export interface StackPoint {
+  key: string;
+  label: string;
+  tooltipLabel: string;
+  a: number;
+  b: number;
+}
+
+/**
+ * Columnas apiladas de dos partes de un mismo total (p. ej. recurrente + puntual). Un solo tono (acento y acento
+ * medio), leyenda obligatoria y tooltip con el total y cada parte. `partialLast` atenúa el periodo en curso.
+ */
+export function StackedColumnChart({ data, aLabel, bLabel, height = 220, format = formatMoney, axisFormat = compactMoney, partialLast }: {
+  data: StackPoint[];
+  aLabel: string;
+  bLabel: string;
+  height?: number;
+  format?: (v: number) => string;
+  axisFormat?: (v: number) => string;
+  partialLast?: boolean;
+}) {
+  const lastKey = data[data.length - 1]?.key;
+  return (
+    <div style={{ height }} className="w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 10, right: 8, left: 0, bottom: 0 }} barCategoryGap="30%">
+          <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
+          <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} dy={6} interval="preserveStartEnd" minTickGap={8} />
+          <YAxis tick={axisTick} tickLine={false} axisLine={false} tickFormatter={axisFormat} width={52} tickCount={4} allowDecimals={false} />
+          <Tooltip
+            cursor={{ fill: "var(--surface-sunken)", radius: 6 }}
+            isAnimationActive={false}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const p = payload[0]!.payload as StackPoint;
+              const partial = partialLast && p.key === lastKey;
+              return (
+                <ChartTooltip
+                  title={partial ? `${p.tooltipLabel} · en curso` : p.tooltipLabel}
+                  value={format(p.a + p.b)}
+                  rows={[{ label: aLabel, value: format(p.a), color: "var(--chart-1)" }, { label: bLabel, value: format(p.b), color: "var(--chart-1-mid)" }]}
+                />
+              );
+            }}
+          />
+          <Bar dataKey="a" stackId="s" name={aLabel} fill="var(--chart-1)" maxBarSize={24} isAnimationActive={!reduced} animationDuration={400}>
+            {data.map((d) => <Cell key={d.key} fillOpacity={partialLast && d.key === lastKey ? 0.42 : 1} />)}
+          </Bar>
+          <Bar dataKey="b" stackId="s" name={bLabel} fill="var(--chart-1-mid)" radius={[4, 4, 0, 0]} maxBarSize={24} isAnimationActive={!reduced} animationDuration={450}>
+            {data.map((d) => <Cell key={d.key} fillOpacity={partialLast && d.key === lastKey ? 0.42 : 1} />)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
