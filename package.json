@@ -14,8 +14,9 @@
     "db:test": "./scripts/db-test.sh",
     "check:privacy": "node scripts/check-privacy.mjs",
     "supabase:local": "./scripts/local-supabase/start.sh",
-    "test:cloud": "vitest run src/data/cloud",
-    "e2e": "node e2e/persistence.e2e.mjs"
+    "test:cloud": "vitest run src/data/cloud --exclude src/data/cloud/seed.staging.test.ts",
+    "e2e": "node e2e/persistence.e2e.mjs",
+    "seed:demo": "BOS_SEED=1 vitest run src/data/cloud/seed.staging.test.ts"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
