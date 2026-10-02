@@ -342,7 +342,7 @@ Escala: `PLANNED` → `DESIGNED` → `FRONTEND ONLY` → `FUNCTIONAL` (funciona 
 
 | Módulo | Estado | Notas |
 |---|---|---|
-| Esquema SQL + RLS | TESTED | 9 migraciones (0100–0810) aplicadas en business-os-staging (50 tablas, RLS en todas). 37 comprobaciones SQL locales. Validado por API pública: RLS oculta datos sin sesión, escritura anónima y RPC denegadas. **Pendiente (requiere credencial admin): batería SQL y `apply.mjs --status` contra staging** |
+| Esquema SQL + RLS | TESTED | 10 migraciones (0100–0900). 0100–0810 aplicadas en business-os-staging; **0900 validada en stack local equivalente, pendiente de aplicar en staging (requiere `SUPABASE_ACCESS_TOKEN`)**. 41 comprobaciones SQL locales (sección 11: tablas nuevas, borrado solo de líneas en borrador, aislamiento, permisos de empleado) |
 | Persistencia en Supabase (sync transaccional por lotes, caché/offline IndexedDB) | TESTED | Validada contra business-os-staging: `test:cloud` 18/18 (4 de integración real, incluida una importación de 1.500 ventas por lotes), E2E persistencia 22/22, E2E multiempresa 7/7. Lotes ≤ 300 filas, reintento idempotente, división ante timeout, cola por pestaña. No es PRODUCTION READY: no existe aún el proyecto de producción |
 | Auth Supabase (registro, login, sesión, logout con borrado de caché) | TESTED | Email + contraseña. Confirmación de email depende de la config del proyecto |
 | Organizaciones, centros, miembros, roles | TESTED | Alta por RPC; equipo por email con `add_member_by_email` / `update_member` (sin claves de servicio) |
@@ -354,9 +354,9 @@ Escala: `PLANNED` → `DESIGNED` → `FRONTEND ONLY` → `FUNCTIONAL` (funciona 
 | Tablas responsive (DataTable) | FUNCTIONAL | Tarjetas en móvil, prioridad de columnas en tablet, cabecera fija, densidad; verificado visualmente en 390/820/1180/1440 |
 | Módulos verticales (core / fitness) | TESTED | Activables por empresa (persistido en `organization_modules`) |
 | Shell, navegación V2, ⌘K, selector de empresa y centro, tema | TESTED | Grupos por tarea, carril de iconos en iPad, empresa activa siempre visible, contexto por pestaña (E2E multiempresa) |
-| Design System V2 | FUNCTIONAL | Tokens, tipografía, componentes de métricas y gráficas; ver DESIGN_SYSTEM.md |
+| Design System V3 (Graphite & Cobalt) | FUNCTIONAL | Patrones (SubNav, FilterBar, Ledger, Amount, Combobox…), tokens categóricos, modo oscuro; revisión visual en 1440/1180/820/390 |
 | Resumen (dashboard ejecutivo) | TESTED | Tendencia Caja/Todo, «hoy» vs mismo día de la semana anterior, recurrente vs puntual, nuevos vs recurrentes, comparativa de centros; layout tablet de 2 columnas |
-| Resumen financiero | FUNCTIONAL | Extracto con una cifra protagonista; secciones Ingresos / Caja / Facturación / Impuestos; gastos y neto «con el módulo de Gastos» (nunca estimados) |
+| Finanzas (Resumen, Flujo de caja, Impuestos) | TESTED | Resultado = ingresos netos − gastos netos; cashflow por cobros y pagos; IVA repercutido / soportado parametrizable; comparaciones solo con historia comparable. Tests de dominio + E2E de negocio. Orientativo: no sustituye a la asesoría |
 | Catálogo (productos, categorías, precios con vigencia) | TESTED | Histórico de precios en servidor |
 | Caja (TPV táctil, multi-pago) | TESTED | Rediseñada para iPad; E2E en navegador |
 | Ventas (listado, filtros, anulación, export) | TESTED | |
@@ -367,11 +367,12 @@ Escala: `PLANNED` → `DESIGNED` → `FRONTEND ONLY` → `FUNCTIONAL` (funciona 
 | Clientes y ficha 360 (notas, timeline, saldo, renovación) | FUNCTIONAL | Bajas coherentes, orígenes traducidos, acciones rápidas, cronología con altas/bajas/cambios de estado; vista móvil en tarjetas |
 | Informes (generación gestoría XLSX/CSV/PDF) | TESTED | Flujo periodo → secciones → formato → vista previa |
 | Ajustes (empresa, centros, métodos de pago, IVA, equipo, módulos) | FUNCTIONAL | |
-| Gastos | PLANNED | |
-| Membresías de clientes | DESIGNED | Tablas listas; UI pendiente |
-| Asistencia / Seguimiento / Tareas | DESIGNED | Tablas listas; UI pendiente |
+| Gastos y proveedores | TESTED | Alta/edición, pagado/pendiente/vencido, anulación con motivo (sin borrado), duplicado de factura de proveedor, filtros, export XLSX/CSV, dashboard. Requiere 0900 en el servidor |
+| Membresías y tarifas | TESTED | Tarifas versionadas, alta con primera cuota, pausa/reanudación, baja, reactivación, cambio de tarifa, cobro de cuota con factura; MRR y evolución. Sin cobro automático (Stripe no conectado). Requiere 0900 |
+| Seguimiento / Tareas | FUNCTIONAL | Tareas con vencimiento, posponer, completar; acción siguiente en la ficha. Asistencia: DESIGNED |
 | Inbox / Plantillas / WhatsApp | DESIGNED | |
 | Documentos | DESIGNED | |
+| Puesta en marcha (onboarding guiado) | FUNCTIONAL | 10 pasos con progreso persistido en `organization_settings.onboarding` |
 | Analytics avanzados | PLANNED | |
 | Copilot IA | PLANNED | |
 | Conciliación bancaria | PLANNED | |

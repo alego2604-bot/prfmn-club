@@ -207,6 +207,42 @@ La paleta de 8 colores de categoría no supera la validación de daltonismo (ski
 
 **Motivo**: eliminar alarmas engañosas («−100 % vs ayer» cuando ayer fue día de cuotas) sin manipular ni ocultar datos.
 
+## 2026-10-02 — Migración 0900 con detección de capacidades del servidor
+
+**Decisión**: las tablas de gastos, proveedores, membresías, cargos de cuota, tareas y series ya existían (0100–0810) pero no eran sincronizables. La migración nueva `20261002000900_finance_memberships_sync.sql` (forward-only, no destructiva, con rollback en `supabase/rollbacks/`) las añade a `sync_push`, añade columnas opcionales (`expenses.notes`, `invoice_items.discount`, `invoices.discount_total`, pausa de membresías, `organization_settings.onboarding`) y expone `public.server_capabilities()` (solo `authenticated`). El cliente consulta esa función: si no existe (servidor en 0810), las pantallas de Gastos, Membresías, Seguimiento y series muestran «Pendiente de activar en el servidor» y no escriben (`useServerReady`), y la demo solo siembra lo que el servidor admite.
+
+**Motivo**: poder desplegar el frontend antes que la migración (staging no se puede migrar sin credencial admin) sin que la app falle ni pierda escrituras.
+
+## 2026-10-02 — Borrado de líneas solo en facturas en borrador
+
+**Decisión**: `invoice_items` admite `delete` vía `sync_push` únicamente si la factura está en `draft` (trigger `guard_invoice_items` + política). Facturas emitidas, pagos, gastos y cargos siguen sin borrado físico (se anulan con motivo).
+
+**Motivo**: un borrador es un documento de trabajo; editar sus líneas sin borrar dejaría líneas huérfanas. La trazabilidad financiera (regla 5) empieza al emitir.
+
+## 2026-10-02 — Número de factura asignado por el servidor
+
+**Decisión**: con servidor, el número (`F2026-00001`) lo asigna el trigger al pasar de borrador a emitida, desde `document_series`; el cliente no lo calcula (`SERVER_OWNED`). En modo local (sin Supabase) se asigna en el cliente.
+
+**Motivo**: dos dispositivos emitiendo a la vez no pueden generar números duplicados ni huecos.
+
+## 2026-10-02 — Membresías en el núcleo, no en el módulo Fitness
+
+**Decisión**: tarifas recurrentes, membresías, cuotas y estados (ACTIVE / PAUSED / CANCELLED / EXPIRED / PENDING / PAST_DUE) son core: sirven a gimnasios, academias, clínicas con bonos o servicios con suscripción. PAST_DUE es derivado (cargo fallido, o renovación + 5 días de gracia sin cargo), no una columna.
+
+**Motivo**: regla 9 (core sin sector). Lo específico de fitness (clases, aforo, asistencia) seguirá en el vertical.
+
+## 2026-10-02 — Comparaciones solo con historia comparable
+
+**Decisión**: no se muestra ningún porcentaje de variación sin historia suficiente en el periodo anterior (`hasComparableHistory`), y los periodos en curso se comparan contra el mismo número de días del periodo anterior (`comparableOf`).
+
+**Motivo**: evitar alarmas falsas (+1.519 % en gastos el primer mes registrado, −85 % en un trimestre a medias).
+
+## 2026-10-02 — Navegación: Finanzas como hub, Documentos a «Próximamente»
+
+**Decisión**: grupos Operaciones (Caja, Ventas, Cierres, Catálogo) · Clientes (Clientes, Membresías, Seguimiento) · Finanzas (Resumen, Gastos, Facturas, Cobros, Impuestos; Flujo de caja y Proveedores dentro del hub) · Datos (Informes, Importaciones) · Empresa (Equipo, Centros). Documentos pasa a «Próximamente» porque aún no tiene funcionalidad.
+
+**Motivo**: navegación por tareas y sin entradas vacías; cabe en pantallas de 900 px de alto.
+
 ## Pendiente de validación legal/fiscal
 
 **Nota**: el modelo de facturación (`BILLING_SYSTEM.md`) está preparado conceptualmente para normativa española (series, IVA, NIF/CIF) pero no ha sido validado por un asesor fiscal. No se debe emitir facturas reales en producción sin esa validación.

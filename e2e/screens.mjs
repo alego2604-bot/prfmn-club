@@ -25,20 +25,32 @@ const VIEWPORTS = {
 };
 const SCREENS = [
   ["dashboard", "/"],
+  ["finanzas", "/finanzas"],
+  ["flujo", "/flujo-de-caja"],
+  ["impuestos", "/impuestos"],
+  ["gastos", "/gastos"],
+  ["proveedores", "/proveedores"],
   ["caja", "/caja"],
   ["ventas", "/ventas"],
+  ["cierres", "/cierres"],
   ["clientes", "/clientes"],
   ["cliente", null],
-  ["selector-empresa", "/"],
-  ["centros", "/ajustes?tab=centros"],
-  ["importacion", null],
-  ["finanzas", "/finanzas"],
+  ["membresias", "/membresias"],
+  ["seguimiento", "/seguimiento"],
   ["facturas", "/facturas"],
-  ["importaciones", "/importaciones/nueva"],
+  ["factura", null],
+  ["factura-nueva", "/facturas/nueva"],
+  ["cobros", "/pagos"],
+  ["importaciones", "/importaciones"],
+  ["importacion", null],
   ["informes", "/informes"],
-  ["ajustes", "/ajustes"],
-  ["cierres", "/cierres"],
+  ["informe", "/informes/revenue"],
   ["catalogo", "/catalogo"],
+  ["empresa", "/ajustes?tab=empresa"],
+  ["centros", "/ajustes?tab=centros"],
+  ["ajustes", "/ajustes?tab=facturacion"],
+  ["selector-empresa", "/"],
+  ["onboarding", "/bienvenida"],
 ].filter(([n]) => !ONLY || ONLY.includes(n));
 
 const browser = await chromium.launch();
@@ -84,6 +96,9 @@ for (const [device, opts] of Object.entries(VIEWPORTS)) {
         if (name === "cliente") {
           await page.goto(BASE + "/clientes");
           await page.locator('tbody tr, [data-testid="table-cards"] li button').first().click();
+        } else if (name === "factura") {
+          await page.goto(BASE + "/facturas");
+          await page.locator('tbody tr, [data-testid="table-cards"] li button').first().click();
         } else if (name === "importacion") {
           await page.goto(BASE + "/importaciones");
           await page.locator('tbody tr, [data-testid="table-cards"] li button').first().click();
@@ -106,7 +121,7 @@ for (const [device, opts] of Object.entries(VIEWPORTS)) {
           await page.waitForTimeout(400);
         }
         const overlay = name === "selector-empresa" || (name === "caja" && device !== "mobile");
-        await page.screenshot({ path: join(OUT, `${PREFIX}-${name}-${device}-${theme}.jpg`), type: "jpeg", quality: 82, fullPage: !overlay });
+        await page.screenshot({ path: join(OUT, `${PREFIX}-${name}-${device}-${theme}.jpg`), type: "jpeg", quality: 72, fullPage: !overlay });
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         if (overflow > 1) errors.push(`${device}/${theme}/${name}: desbordamiento horizontal de ${overflow}px`);
       } catch (e) {

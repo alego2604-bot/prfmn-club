@@ -23,6 +23,15 @@ Fuente de verdad: `supabase/migrations/*.sql` (probadas con `npm run db:test`). 
 | Datos | `documents`, `document_links`, `imports`, `import_records`, `notifications`, `audit_logs` |
 | Integraciones (opcional) | `integration_connections` (solo referencia a secretos), `external_identities`, `integration_events` (idempotentes, solo escritura de servidor). Ver [INTEGRATIONS](INTEGRATIONS.md) |
 
+### Migración 0900 — finanzas, membresías y tareas sincronizables (2026-10-02)
+
+`20261002000900_finance_memberships_sync.sql` · forward-only · rollback en `supabase/rollbacks/20261002000900_down.sql` (no borra columnas ni datos).
+
+- `sync_push` admite: `suppliers`, `expense_categories`, `expenses`, `customer_memberships`, `membership_charges`, `tasks`, `document_series` (mismas validaciones de organización, permisos y auditoría).
+- Operación `delete` solo para `invoice_items` de facturas en `draft` (trigger `guard_invoice_items` + política). Ninguna otra tabla financiera admite borrado.
+- Columnas nuevas (todas opcionales): `expenses.notes`, `invoice_items.discount`, `invoices.discount_total`, `customer_memberships.paused_at / resume_on / notes`, `organization_settings.onboarding`.
+- `public.server_capabilities()` → `{schema: 900}`; solo `authenticated`. El cliente la usa para activar las pantallas que dependen de 0900.
+
 ## Relaciones clave
 - `sales 1—n sale_items`, `sales 1—n payments` (pago dividido), `invoices 0..1 → sales`.
 - `customer_memberships → membership_plan_versions` (el precio histórico nunca cambia) → `membership_charges` → factura/venta → pagos.

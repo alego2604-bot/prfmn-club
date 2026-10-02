@@ -95,6 +95,13 @@ Dark mode está **diseñado**, no invertido: superficies grafito con elevación 
 - **Pestañas, filtros y segmentos** con `ScrollFade`: borde difuminado por donde queda contenido y elemento activo a la vista.
 - Revisión obligatoria en 1440 / 1180 / 820 / 390 px, claro y oscuro, sin scroll horizontal.
 
+## 8b. V3 (2026-10-02) — patrones de producto
+
+- Tokens: `chart-out` (salidas/gastos), paleta categórica `cat-1…8` (también en oscuro), estados `hover / pressed / selected`, `text-3` oscuro `#8b8a84` (contraste AA sobre superficie).
+- Patrones (`design-system/components/patterns.tsx`): `SubNav` (secciones de un hub), `FilterBar` + `SearchField` + `FilterSelect`, `Combobox`, `Amount` (signo y tono coherentes), `Ledger` (extracto de líneas), `ProgressBar`, `Section`, `EntityCell`.
+- Gráficas: `FlowChart` (entradas/salidas/neto), `CountTrend`, `tone="out"` en barras.
+- Estados: vacío con acción, cargando, error por ruta (`RouteErrorBoundary`) y servidor sin capacidad (`ServerNotice`).
+
 ## 9. Preparado para el futuro (sin construir aún)
 
 Widgets reordenables y preferencias de dashboard: las secciones del Inicio son bloques independientes en una rejilla de 12 columnas; añadir orden/visibilidad por usuario será configuración, no rediseño.

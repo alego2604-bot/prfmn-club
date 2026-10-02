@@ -30,6 +30,15 @@ Requisitos del entorno de trabajo (nunca en Git ni en el chat): red a `api.supab
 Estado validado el 2026-10-02 (solo clave pública): Auth, 50 tablas por API con RLS, `test:cloud` 18/18 (4 de integración real), E2E persistencia 22/22, E2E multiempresa 7/7, demo sembrada (52 lotes, 0 errores).
 6. **Producción**: solo cuando staging esté validado; mismo procedimiento con un script/ref propios y backups + PITR activados antes.
 
+### Aplicar 0900 en staging (pendiente)
+
+```bash
+SUPABASE_ACCESS_TOKEN=… node scripts/staging/apply.mjs --status   # comprobar registro 0100–0810
+SUPABASE_ACCESS_TOKEN=… node scripts/staging/apply.mjs            # aplica solo 20261002000900
+NODE_USE_ENV_PROXY=1 npm run test:cloud                           # el test de finanzas deja de omitirse
+```
+Hasta entonces la app funciona contra staging sin Gastos, Membresías, Seguimiento ni series (aviso «Pendiente de activar en el servidor»).
+
 ## Desarrollo local equivalente a Supabase
 
 `npm run supabase:local` levanta PostgreSQL 16 + Supabase Auth (GoTrue) + PostgREST + pasarela en `http://localhost:54321` y escribe las claves locales en `.local-supabase/env`. Copia las `VITE_*` a `.env.local` para que la app lo use. `reset` recrea la BD desde las migraciones.
