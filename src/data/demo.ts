@@ -85,6 +85,8 @@ export async function createDemoWorkspace(store: Store, user: UserAccount): Prom
  */
 export function fillDemoWorkspace(ws: Workspace, userId: string): Workspace {
   const orgId = ws.organization.id;
+  // Servidor sin la migración 0900: no admite gastos, proveedores, membresías ni tareas. Se siembra lo demás.
+  const v900 = !ws.server || ws.server.schema >= 900;
   const user = { id: userId };
   const r = rng(42);
   const now = new Date();
@@ -111,9 +113,12 @@ export function fillDemoWorkspace(ws: Workspace, userId: string): Workspace {
   // Clientes: altas repartidas en ~14 meses; algunas bajas (con fecha) y algunos leads
   const SOURCES = ["walk_in", "instagram", "referral", "google", "web"];
   const customers: Customer[] = Array.from({ length: 64 }, (_, i) => {
-    const joined = addDays(now, -Math.round(i % 8 === 3 ? 6 + r() * 70 : 15 + Math.pow(r(), 0.7) * 470));
     const status = i % 11 === 0 ? "cancelled" : i % 13 === 0 ? "lead" : "active";
     const leftAt = status === "cancelled" ? toISODate(new Date(now.getFullYear(), now.getMonth() - 2 - (i % 3), 0)) : undefined;
+    // Una baja siempre es posterior al alta (y con al menos dos meses de relación)
+    const joined = leftAt
+      ? addDays(new Date(`${leftAt}T00:00:00`), -Math.round(70 + r() * 300))
+      : addDays(now, -Math.round(i % 8 === 3 ? 6 + r() * 70 : 15 + Math.pow(r(), 0.7) * 470));
     return {
       id: uid(), organizationId: orgId, firstName: FIRST[i % FIRST.length]!, lastName: `${LAST[(i * 7) % LAST.length]} ${LAST[(i * 3 + 5) % LAST.length]}`,
       email: `cliente${i + 1}@demo.invalid`, phone: `600 000 ${String(100 + i).padStart(3, "0")}`, status, tags: [],
@@ -425,7 +430,10 @@ export function fillDemoWorkspace(ws: Workspace, userId: string): Workspace {
     ...ws,
     locations: [...ws.locations.filter((l) => l.id !== south.id && l.id !== north.id), north, south],
     categories, products, customers, customerNotes, cashSessions, cashClosings, sales, saleItems: items, payments, invoices, invoiceItems,
-    membershipPlans, planVersions, customerMemberships, membershipCharges, documentSeries, expenseCategories, suppliers, expenses, tasks,
+    membershipPlans, planVersions, documentSeries,
+    ...(v900
+      ? { customerMemberships, membershipCharges, expenseCategories, suppliers, expenses, tasks }
+      : { invoices: invoices.map((i) => ({ ...i, customerMembershipId: undefined })) }),
     imports: [...ws.imports, job], importRecords: [...ws.importRecords, ...importRecords],
     counters: { sale: sales.length },
   };

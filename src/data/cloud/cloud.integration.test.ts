@@ -249,7 +249,7 @@ describe.skipIf(!URL || !KEY)("Supabase: CORE persistido y visible desde otro di
     });
     const origRpc = d1.sb.rpc.bind(d1.sb);
     (d1.sb as unknown as { rpc: typeof origRpc }).rpc = ((fn: string, args: { p_batch: { ops: { rows: unknown[] }[] } }) => {
-      maxChunk = Math.max(maxChunk, args.p_batch.ops.reduce((n, o) => n + o.rows.length, 0));
+      maxChunk = Math.max(maxChunk, (args?.p_batch?.ops ?? []).reduce((n, o) => n + o.rows.length, 0));
       return origRpc(fn, args);
     }) as typeof origRpc;
     const r = await runImport(ctx, plan, { name: "ventas-grandes.xlsx", sha256: `big-${run}`, size: 1 }, d1.sync);

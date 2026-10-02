@@ -76,7 +76,7 @@ export function SearchField({ value, onChange, placeholder = "Buscar…", classN
         autoFocus={autoFocus}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        aria-label={placeholder}
+        aria-label="Buscar en la lista"
         className="h-8 w-full rounded-full border border-line bg-surface pl-9 pr-8 text-sm shadow-xs outline-none transition-[border,box-shadow] placeholder:text-fg-3 hover:border-line-strong focus:border-accent focus:ring-[3px] focus:ring-accent/15 [&::-webkit-search-cancel-button]:hidden"
       />
       {value && (

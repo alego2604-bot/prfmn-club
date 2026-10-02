@@ -125,3 +125,21 @@ describe("CloudSync.pull", () => {
     expect(store.requireWorkspace().cashSessions.map((s) => s.id)).toContain(session.id);
   });
 });
+
+describe("Orden de sincronización (claves foráneas)", () => {
+  it("cada tabla va después de las tablas a las que referencia", async () => {
+    const { COLLECTIONS } = await import("./mapping");
+    const order = COLLECTIONS.map(([, t]) => t) as string[];
+    // tabla → tablas que referencia (FK de las migraciones)
+    const deps: Record<string, string[]> = {
+      products: ["product_categories"], membership_plan_versions: ["membership_plans"], customer_notes: ["customers"],
+      suppliers: ["expense_categories"], customer_memberships: ["customers", "membership_plans", "membership_plan_versions", "locations"],
+      tasks: ["customers"], cash_sessions: ["locations"], cash_movements: ["cash_sessions"], sales: ["locations", "customers", "cash_sessions"],
+      sale_items: ["sales", "products"], invoices: ["locations", "customers", "document_series", "customer_memberships", "sales", "payment_methods"],
+      invoice_items: ["invoices", "products", "membership_plan_versions"], payments: ["sales", "invoices", "payment_methods", "customers"],
+      membership_charges: ["customer_memberships", "invoices", "sales"], expenses: ["suppliers", "expense_categories", "payment_methods", "locations"],
+      cash_closings: ["cash_sessions"], import_records: ["imports"],
+    };
+    for (const [t, refs] of Object.entries(deps)) for (const r of refs) expect(order.indexOf(r), `${r} antes que ${t}`).toBeLessThan(order.indexOf(t));
+  });
+});

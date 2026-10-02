@@ -212,7 +212,9 @@ export function cancelMembership(ctx: Ctx, id: string, opts: { reason: string; e
     ctx, id, "cancel",
     (m) => {
       if (m.status === "cancelled") throw new ValidationError("La membresía ya está de baja");
-      return { ...m, status: "cancelled", cancelledAt: nowISO(), cancelReason: opts.reason.trim(), autoRenew: false, endDate: opts.endDate || toISODate(new Date()), nextRenewalDate: undefined };
+      const end = opts.endDate || toISODate(new Date());
+      // Una baja antes de empezar (membresía pendiente) termina el mismo día de inicio: nunca fin < inicio
+      return { ...m, status: "cancelled", cancelledAt: nowISO(), cancelReason: opts.reason.trim(), autoRenew: false, endDate: end < m.startDate ? m.startDate : end, nextRenewalDate: undefined };
     },
     (ws, m) => {
       if (!opts.markCustomerInactive) return {};

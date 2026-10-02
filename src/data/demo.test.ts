@@ -54,6 +54,10 @@ describe("Demo sintética", () => {
     // Una membresía por cliente con alta; las bajas sin próxima renovación
     expect(ws.customerMemberships).toHaveLength(ws.customers.filter((c) => c.status !== "lead").length);
     for (const m of ws.customerMemberships.filter((x) => x.status === "cancelled")) expect(m.nextRenewalDate).toBeUndefined();
+    // Restricciones de la base de datos: fin ≥ inicio; bajas posteriores al alta
+    for (const m of ws.customerMemberships) if (m.endDate) expect(m.endDate >= m.startDate, `${m.startDate} → ${m.endDate}`).toBe(true);
+    for (const c of ws.customers) if (c.leftAt && c.joinedAt) expect(c.leftAt > c.joinedAt).toBe(true);
+    for (const ch of ws.membershipCharges) expect(ch.periodEnd >= ch.periodStart).toBe(true);
     expect(ws.customerMemberships.some((m) => m.status === "paused")).toBe(true);
     expect(ws.membershipCharges.some((c) => c.status === "failed")).toBe(true);
     for (const ch of ws.membershipCharges) expect(ws.invoices.some((i) => i.id === ch.invoiceId && i.customerMembershipId === ch.customerMembershipId)).toBe(true);
@@ -80,5 +84,18 @@ describe("Demo sintética", () => {
     const order = parts.flatMap((p) => p.ops.filter((o) => o.op === "insert").map((o) => o.table));
     expect(order.lastIndexOf("cash_sessions")).toBeLessThan(order.indexOf("sales"));
     expect(order.lastIndexOf("locations")).toBeLessThan(order.indexOf("sales"));
+  });
+});
+
+describe("Demo con un servidor anterior a 0900", () => {
+  it("no siembra tablas que el servidor aún no sincroniza", () => {
+    const base = { ...fresh(), server: { schema: 810 } };
+    const w = fillDemoWorkspace(base, "u1");
+    expect(w.expenses).toHaveLength(0);
+    expect(w.customerMemberships).toHaveLength(0);
+    expect(w.tasks).toHaveLength(0);
+    expect(w.invoices.every((i) => !i.customerMembershipId)).toBe(true);
+    const d = diffWorkspaces(base, w)!;
+    for (const t of ["expenses", "suppliers", "customer_memberships", "membership_charges", "tasks", "expense_categories"]) expect(d.ops.some((o) => o.table === t)).toBe(false);
   });
 });
