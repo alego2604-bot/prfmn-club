@@ -56,7 +56,7 @@ describe("Demo sintética", () => {
     expect(parts.length).toBeGreaterThan(15);
     expect(parts.every((p) => batchRows(p) <= CHUNK_MAX_ROWS)).toBe(true);
     // Orden FK: las sesiones de caja van antes que las ventas que las referencian
-    const order = parts.flatMap((p) => p.ops.map((o) => o.table));
+    const order = parts.flatMap((p) => p.ops.filter((o) => o.op === "insert").map((o) => o.table));
     expect(order.lastIndexOf("cash_sessions")).toBeLessThan(order.indexOf("sales"));
     expect(order.lastIndexOf("locations")).toBeLessThan(order.indexOf("sales"));
   });

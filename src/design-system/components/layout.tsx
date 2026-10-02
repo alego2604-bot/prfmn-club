@@ -183,7 +183,7 @@ export function DescriptionList({ items, className }: { items: { label: ReactNod
       {items.map((it, i) => (
         <div key={i} className="flex items-start justify-between gap-4 py-2.5 text-sm">
           <dt className="shrink-0 text-fg-3">{it.label}</dt>
-          <dd className="min-w-0 text-right font-medium">{it.value}</dd>
+          <dd className="min-w-0 break-words text-right font-medium">{it.value}</dd>
         </div>
       ))}
     </dl>

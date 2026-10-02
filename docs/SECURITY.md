@@ -20,6 +20,14 @@ información bancaria (IBAN, tarjetas), ni datos financieros detallados (importe
 - `.gitignore` bloquea `*.xlsx`, `*.xls`, `*.csv`, `*.pdf`, `real-data/`, `private/`, `expect*.json`.
 - Guardia automática: `npm run check:privacy` (DNI/NIE con letra de control válida, IBAN, teléfonos, emails de dominios reales, claves y tokens, connection strings). Forma parte de la verificación obligatoria.
 
+### 1.1 Datos sintéticos en staging (2026-10-02)
+
+Toda prueba contra business-os-staging usa cuentas `*@empresa.test` y empresas sintéticas; la demo usa emails `@demo.invalid`, teléfonos `600 000 xxx` y ningún NIF. Las empresas demo llevan `is_demo = true` y un banner permanente. Ningún dato real interviene en tests, capturas ni semillas.
+
+### 1.2 Contexto por pestaña y colas locales
+
+La empresa activa es por pestaña (`sessionStorage`); el aislamiento real sigue siendo RLS en el servidor (una pestaña nunca puede leer otra empresa aunque manipule su almacenamiento). Las colas de cambios pendientes son por empresa y pestaña (`outbox:<org>:<tab>`) y se borran al cerrar sesión junto con la caché de la empresa.
+
 ## 2. Secretos
 
 - Frontend: solo claves públicas (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`). La seguridad la da RLS.

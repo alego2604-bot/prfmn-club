@@ -20,6 +20,7 @@ const PASSWORD = "contraseña-capturas";
 const VIEWPORTS = {
   desktop: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
   tablet: { viewport: { width: 1180, height: 820 }, deviceScaleFactor: 1, hasTouch: true },
+  ipadv: { viewport: { width: 820, height: 1180 }, deviceScaleFactor: 1, hasTouch: true },
   mobile: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
 };
 const SCREENS = [
@@ -28,6 +29,9 @@ const SCREENS = [
   ["ventas", "/ventas"],
   ["clientes", "/clientes"],
   ["cliente", null],
+  ["selector-empresa", "/"],
+  ["centros", "/ajustes?tab=centros"],
+  ["importacion", null],
   ["finanzas", "/finanzas"],
   ["facturas", "/facturas"],
   ["importaciones", "/importaciones/nueva"],
@@ -48,13 +52,25 @@ await p0.getByLabel("Email").fill(EMAIL);
 await p0.getByLabel("Contraseña").fill(PASSWORD);
 await p0.getByRole("button", { name: "Crear cuenta" }).last().click();
 await p0.screenshot({ path: join(OUT, `${PREFIX}-onboarding-desktop-light.png`) });
+// Una segunda empresa (sintética) para que el selector muestre el caso multiempresa real
+if (!process.env.SINGLE_COMPANY) {
+  await p0.getByLabel("Nombre comercial").fill("Estudio Pilates Mar (ejemplo)");
+  await p0.getByLabel("Ciudad").fill("Ciudad Demo");
+  await p0.getByRole("button", { name: "Crear empresa" }).click();
+  await p0.locator('[data-testid="company-switcher"]').first().waitFor({ timeout: 60000 });
+  await p0.locator('[data-testid="company-switcher"]:visible').first().click();
+  await p0.getByText("Crear empresa o abrir la demo").click();
+}
 await p0.getByRole("button", { name: /demo/i }).first().click();
-await p0.waitForFunction(() => document.querySelector('[data-testid="sync-indicator"]')?.getAttribute("data-state") === "idle", null, { timeout: 120000 });
+await p0.getByText(/Hola,/).first().waitFor({ timeout: 120000 });
+// Con servidor, la demo se sube por lotes: se espera a ver el progreso y a que termine
+await p0.getByText(/Preparando la empresa demo/).first().waitFor({ timeout: 10000 }).catch(() => {});
+await p0.waitForFunction(() => (document.querySelector('[data-testid="sync-indicator"]')?.getAttribute("data-state") ?? "idle") === "idle", null, { timeout: 120000 });
 // Caja abierta para capturar la Caja en uso
 await p0.goto(BASE + "/caja");
 await p0.getByRole("button", { name: "Abrir caja" }).click().catch(() => {});
 await p0.waitForTimeout(1500);
-const storage = await setup.storageState();
+const storage = await setup.storageState({ indexedDB: true }); // modo local: la sesión vive en IndexedDB
 await setup.close();
 
 for (const [device, opts] of Object.entries(VIEWPORTS)) {
@@ -67,9 +83,12 @@ for (const [device, opts] of Object.entries(VIEWPORTS)) {
       try {
         if (name === "cliente") {
           await page.goto(BASE + "/clientes");
-          await page.locator("tbody tr").first().click();
+          await page.locator('tbody tr, [data-testid="table-cards"] li button').first().click();
+        } else if (name === "importacion") {
+          await page.goto(BASE + "/importaciones");
+          await page.locator('tbody tr, [data-testid="table-cards"] li button').first().click();
         } else await page.goto(BASE + path);
-        await page.waitForFunction(() => document.querySelector('[data-testid="sync-indicator"]')?.getAttribute("data-state") === "idle", null, { timeout: 60000 }).catch(() => {});
+        await page.waitForFunction(() => (document.querySelector('[data-testid="sync-indicator"]')?.getAttribute("data-state") ?? "idle") === "idle", null, { timeout: 60000 }).catch(() => {});
         await page.waitForTimeout(2200);
         if (name === "caja" && device !== "mobile") {
           const tiles = page.locator("section button.group");
@@ -79,7 +98,15 @@ for (const [device, opts] of Object.entries(VIEWPORTS)) {
           await page.getByRole("radio", { name: "Tarjeta" }).click().catch(() => {});
           await page.waitForTimeout(400);
         }
-        await page.screenshot({ path: join(OUT, `${PREFIX}-${name}-${device}-${theme}.jpg`), type: "jpeg", quality: 82, fullPage: device !== "tablet" || name !== "caja" });
+        if (name === "selector-empresa") {
+          await page.waitForTimeout(400);
+          await page.locator(device === "mobile" ? 'header button[aria-label^="Empresa activa"]' : '[data-testid="company-switcher"]:visible').first().click();
+          await page.waitForTimeout(500);
+          if (device === "mobile") await page.locator('[role="dialog"] [data-testid="company-switcher"]').first().click().catch(() => {});
+          await page.waitForTimeout(400);
+        }
+        const overlay = name === "selector-empresa" || (name === "caja" && device !== "mobile");
+        await page.screenshot({ path: join(OUT, `${PREFIX}-${name}-${device}-${theme}.jpg`), type: "jpeg", quality: 82, fullPage: !overlay });
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         if (overflow > 1) errors.push(`${device}/${theme}/${name}: desbordamiento horizontal de ${overflow}px`);
       } catch (e) {

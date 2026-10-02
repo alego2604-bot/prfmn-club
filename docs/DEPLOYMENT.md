@@ -21,8 +21,14 @@ Requisitos del entorno de trabajo (nunca en Git ni en el chat): red a `api.supab
 3. **Tests contra staging**:
    - `BOS_CLOUD_URL=$VITE_SUPABASE_URL BOS_CLOUD_ANON_KEY=$VITE_SUPABASE_ANON_KEY npm run test:cloud` (integración: 2 dispositivos, aislamiento, permisos, importación).
    - `npm run dev` con `.env.local` de staging + `npm run e2e` (navegador real: alta → venta → cierre → logout → reentrada → segundo dispositivo).
-   - Crean cuentas y empresas sintéticas (`*@empresa.test`); se pueden borrar desde el panel de Supabase.
-4. **Producción**: solo cuando staging esté validado; mismo procedimiento con un script/ref propios y backups + PITR activados antes.
+   - `npm run e2e:multi` (dos pestañas, dos empresas, recargas, aislamiento y filtro de centro).
+   - Las pruebas en navegador desde este entorno cloud usan un preload local (fuera del repo) que reenvía las llamadas a Supabase desde Node porque el Chromium del contenedor no confía en la CA del proxy; en una máquina normal no hace falta.
+   - Crean cuentas y empresas sintéticas (`*@empresa.test`, empresas «Empresa Sintética/E2E/Uno/Lotes/Importación …»).
+4. **Demo de staging**: `BOS_CLOUD_URL=… BOS_CLOUD_ANON_KEY=… npm run seed:demo` siembra (o reanuda) la empresa demo en la cuenta sintética `demo-seed@empresa.test` por lotes y la verifica desde un segundo cliente. Idempotente.
+5. **Limpieza de datos sintéticos (requiere credencial admin)**: con la clave pública, RLS no permite borrar cuentas ni empresas (y lo financiero nunca se borra). Con acceso admin al panel o SQL: borrar los usuarios de Auth cuyo email termina en `@empresa.test` salvo `demo-seed@empresa.test`; sus empresas y datos caen por `on delete cascade` de `organizations` si se borran también las empresas sin miembros. Revisar la lista antes de borrar.
+
+Estado validado el 2026-10-02 (solo clave pública): Auth, 50 tablas por API con RLS, `test:cloud` 18/18 (4 de integración real), E2E persistencia 22/22, E2E multiempresa 7/7, demo sembrada (52 lotes, 0 errores).
+6. **Producción**: solo cuando staging esté validado; mismo procedimiento con un script/ref propios y backups + PITR activados antes.
 
 ## Desarrollo local equivalente a Supabase
 
@@ -31,7 +37,7 @@ Requisitos del entorno de trabajo (nunca en Git ni en el chat): red a `api.supab
 ## Checklist de release
 - [ ] lint, typecheck, test, build en verde
 - [ ] `npm run db:test` si hay migraciones
-- [ ] `npm run test:cloud` y `npm run e2e` contra staging
+- [ ] `npm run test:cloud`, `npm run e2e` y `npm run e2e:multi` contra staging
 - [ ] `npm run check:privacy`
 - [ ] CHANGELOG actualizado
 - [ ] Probado en desktop, iPad y móvil

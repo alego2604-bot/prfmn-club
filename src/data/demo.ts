@@ -86,7 +86,7 @@ export function fillDemoWorkspace(ws: Workspace, userId: string): Workspace {
   const r = rng(42);
   const now = new Date();
   const iso = now.toISOString();
-  const north = ws.locations[0]!;
+  const north: Location = { ...ws.locations[0]!, city: ws.locations[0]!.city ?? "Ciudad Demo" };
   const south: Location = { id: uid(), organizationId: orgId, name: "Centro Sur", code: "SUR", city: "Ciudad Demo", status: "active", createdAt: iso };
 
   const categories: ProductCategory[] = CATS.map(([name, color, tax], i) => ({
@@ -274,7 +274,7 @@ export function fillDemoWorkspace(ws: Workspace, userId: string): Workspace {
   sales.forEach((s, i) => (s.number = i + 1));
   return {
     ...ws,
-    locations: [...ws.locations.filter((l) => l.id !== south.id), south],
+    locations: [...ws.locations.filter((l) => l.id !== south.id && l.id !== north.id), north, south],
     categories, products, customers, customerNotes, cashSessions, cashClosings, sales, saleItems: items, payments, invoices, invoiceItems,
     imports: [...ws.imports, job], importRecords: [...ws.importRecords, ...importRecords],
     counters: { sale: sales.length },

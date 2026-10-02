@@ -2,6 +2,43 @@
 
 Formato: fecha, fase, resumen. Más reciente arriba.
 
+## 2026-10-02 — Sprint: lotes, pipeline de importación, multiempresa por pestaña, responsive y analítica honesta
+
+### HECHO
+- **Sincronización por lotes** (`data/cloud/sync.ts`): troceo FK-ordenado (≤ 300 filas / 300 KB), reintento idempotente (23505 → comprobar ids), división ante `statement_timeout` (57014), grupos con progreso/espera/cancelación, cola por empresa **y pestaña** con adopción de colas huérfanas (Web Locks). Cambio de empresa instantáneo: lo pendiente se sigue enviando en segundo plano.
+- **Pipeline de importación**: IMPORTING → COMPLETED / PARTIAL / FAILED / CANCELLED / REVERTED con traza de fases (UPLOADING, ANALYZING, MAPPING, VALIDATING). Datos ocultos hasta completar, cancelar (anula lo que entró), limpiar parciales, reanudar al volver a abrir. Estado en `imports.options` (sin migración).
+- **Demo fiable**: 2 centros, ~14 meses de caja, sesiones y cierres diarios (con descuadres justificados), cuotas con línea, bajas con fecha, notas, importación histórica. Siembra por lotes; `npm run seed:demo` reintentable e idempotente en staging.
+- **Multiempresa**: empresa y centro activos por pestaña (`app/tabContext.ts`), `?empresa=` para abrir otra empresa en una pestaña nueva, selector con búsqueda / crear / abrir en pestaña nueva / gestionar centros, título de pestaña con la empresa, demo accesible desde «Elige empresa».
+- **Navegación**: grupos Operaciones, Clientes, Finanzas, Datos, Análisis, Empresa (Equipo, Centros, Ajustes); módulos diseñados marcados «Pronto»; carril de iconos en iPad; sin título duplicado en la barra superior.
+- **Responsive**: DataTable con tarjetas en móvil, prioridad de columnas en tablet, cabecera fija, densidad; KpiStrip sin huérfanos; `ScrollFade` en pestañas/filtros; Caja sin desbordamiento en iPad vertical (carrito como hoja < 1024 px).
+- **Dashboard**: tendencia Caja/Todo (el día 1 de cuotas ya no aplasta la escala), «hoy» vs mismo día de la semana anterior a la misma hora, operativa (caja, pendiente, facturado del mes), recurrente vs puntual (12 meses), nuevos vs recurrentes, comparativa de centros, layout de 2 columnas en tablet.
+- **Finanzas**: extracto con una sola cifra protagonista; Ingresos / Caja / Facturación / Impuestos; gastos y neto «con el módulo de Gastos» (nunca estimados).
+- **Customer 360**: bajas coherentes, renovación vencida explícita, orígenes traducidos, acciones rápidas, cronología con altas/bajas/cambios de estado.
+- **Gráficas**: histórico sólido y solo el periodo en curso atenuado; `StackedColumnChart`.
+
+### FALLOS ENCONTRADOS Y CORREGIDOS
+1. Demo de 4,5 MB en un único `sync_push` → `statement_timeout` → la app restauraba la empresa vacía (también afectaba a Excel grandes).
+2. Cambiar de empresa esperaba a enviar toda la cola pendiente (≈ 1 min con la demo) y la pestaña quedaba en «Cambiando…».
+3. Dos pestañas con la misma empresa compartían la clave `outbox:<org>` y podían sobrescribirse la cola (pérdida de cambios pendientes).
+4. Carrera en `open()`: un envío en curso podía guardar la cola de la empresa anterior bajo la clave de la nueva.
+5. Caja con 235 px de desbordamiento horizontal en iPad vertical.
+6. «Hoy −100 %» frente a «ayer» cuando ayer fue día de cuotas; «Pendiente de cobro» listado como método de pago.
+7. Cliente de baja con «Próxima renovación … hace 62 días»; origen `walk_in` sin traducir.
+8. «Elige empresa» no ofrecía la demo a quien ya tenía empresas.
+9. (Introducido y corregido en el sprint) la vista móvil de tablas duplicaba texto en el DOM; ahora se renderiza solo una vista.
+
+### TESTS
+- Unitarios: 72 en verde (chunking 9, pipeline 7, demo 5, contexto por pestaña 4, comparaciones 5, …).
+- Contra business-os-staging (clave pública): `test:cloud` 18/18 (4 de integración real, incluida una importación de 1.500 ventas por lotes en 19 s), E2E persistencia 22/22, E2E multiempresa 7/7, demo sembrada (52 lotes, 0 errores, máx. 2,3 s por lote).
+
+### MIGRACIONES
+- Ninguna nueva. Todo es compatible con 0100–0810 tal como están en staging (ver DECISIONS 2026-10-02).
+
+### PENDIENTE
+- Con credencial admin: `apply.mjs --status`, batería SQL contra staging, limpieza de cuentas `@empresa.test` (salvo `demo-seed@empresa.test`).
+- Migración 0900 opcional (CHECK con `partial`/`cancelled`, `import_batches`) si se quiere trazabilidad por lote en servidor.
+- Revisión de teclado y lector de pantalla en Caja; estados de error por pantalla (hoy: arranque, sincronización e importación).
+
 ## 2026-10-02 — Validación contra business-os-staging + corrección de sincronización
 
 ### HECHO

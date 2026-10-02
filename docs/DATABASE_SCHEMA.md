@@ -27,6 +27,7 @@ Fuente de verdad: `supabase/migrations/*.sql` (probadas con `npm run db:test`). 
 - `sales 1—n sale_items`, `sales 1—n payments` (pago dividido), `invoices 0..1 → sales`.
 - `customer_memberships → membership_plan_versions` (el precio histórico nunca cambia) → `membership_charges` → factura/venta → pagos.
 - Todo lo importable lleva `import_id` → `imports`; `import_records` enlaza cada fila de origen con la entidad creada.
+- **Pipeline por lotes (2026-10-02, sin migración)**: `imports.options` (jsonb) guarda el estado fino del job — `state` (UPLOADING … REVERTED), `events` (traza con fecha), `expected` (recuentos para verificar al reanudar), `error`, `ownerTab`. `imports.status` recibe solo valores de su CHECK: IMPORTING→`importing`, COMPLETED→`completed`, PARTIAL/FAILED/CANCELLED→`failed`, REVERTED→`reverted`. Los datos de un job sin evento COMPLETED no se muestran en la app.
 
 ## Seguridad (RLS)
 - Funciones `SECURITY DEFINER`: `app.is_member(org)`, `app.has_permission(org, perm)`, `app.can_access_location(org, loc)`.

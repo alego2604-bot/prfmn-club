@@ -66,7 +66,7 @@ export default function ImportDetailPage() {
       <DescriptionList
         className="mb-6 rounded-lg border border-line bg-surface px-5"
         items={[
-          { label: "Archivo original (SHA-256)", value: <span className="font-mono text-xs">{job.fileSha256}</span> },
+          { label: "Archivo original (SHA-256)", value: <span className="break-all font-mono text-xs">{job.fileSha256}</span> },
           { label: "Tamaño", value: `${(job.fileSize / 1024).toFixed(0)} KB` },
           { label: "Centro", value: ws.locations.find((l) => l.id === job.locationId)?.name ?? "—" },
           { label: "Historial", value: <ImportTimeline job={job} /> },

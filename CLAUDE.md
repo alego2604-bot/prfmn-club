@@ -52,7 +52,7 @@ No añadir abstracciones para casos hipotéticos futuros. Tres líneas parecidas
 
 ## Estado actual (ver docs/CHANGELOG.md para detalle)
 
-Supabase es la fuente de verdad (Auth + PostgreSQL + RLS) mediante sincronización transaccional (`src/data/cloud`, `sync_push`); IndexedDB solo como caché/cola offline. Validado contra un stack local equivalente (`npm run supabase:local`); pendiente de validar en `business-os-staging`. Stripe **no** está conectado. Estado por módulo (PLANNED → PRODUCTION READY) en `docs/PROJECT_MASTER.md §16`: nunca marcar como terminado algo que solo tiene UI.
+Supabase es la fuente de verdad (Auth + PostgreSQL + RLS) mediante sincronización transaccional (`src/data/cloud`, `sync_push`); IndexedDB solo como caché/cola offline. Validado contra un stack local equivalente y contra `business-os-staging` (clave pública: `test:cloud`, `e2e`, `e2e:multi`; ver `docs/DEPLOYMENT.md`). Las escrituras grandes se envían por lotes (`splitBatch`); la empresa activa es por pestaña. Stripe **no** está conectado. Estado por módulo (PLANNED → PRODUCTION READY) en `docs/PROJECT_MASTER.md §16`: nunca marcar como terminado algo que solo tiene UI.
 
 ## Verificación obligatoria
 

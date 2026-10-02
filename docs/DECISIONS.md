@@ -179,6 +179,34 @@ La paleta de 8 colores de categoría no supera la validación de daltonismo (ski
 
 **Alternativas consideradas**: editar 0800 (descartado: staging y Git divergirían); sustituir la columna generada por un trigger (más cambio del necesario).
 
+## 2026-10-02 — Lotes grandes: troceo en el cliente, no subir el statement_timeout
+
+**Decisión**: `sync_push` sigue siendo una transacción por llamada con el `statement_timeout` estándar de Supabase (8 s). Las escrituras grandes (demo, Excel) se trocean en el cliente (`splitBatch`: ≤ 300 filas / 300 KB, orden FK). Reintento idempotente: ante `23505` tras una respuesta perdida se consultan los ids existentes y el trozo se da por confirmado o se reduce. Ante `57014` el trozo se divide en dos.
+
+**Motivo**: subir el timeout global solo desplaza el límite y alarga bloqueos; el troceo es determinista y medible (demo de 4,5 MB: 52 trozos, máx. 2,3 s, 0 errores en staging). No requiere migración ni credenciales.
+
+**Alternativas consideradas**: subir `statement_timeout` (descartado por instrucción del propietario y por riesgo); `SET statement_timeout` en la función (no afecta a la sentencia en curso en PostgreSQL); RPC de staging de importación en servidor con tablas `import_batches` (más robusto a largo plazo, pero exige migración aplicada y no aporta más garantías que el troceo + visibilidad actual; queda como evolución).
+
+## 2026-10-02 — Pipeline de importación sin tablas nuevas: estado en `imports.options`
+
+**Decisión**: el estado fino del job (UPLOADING … REVERTED, con traza de eventos y recuentos esperados) vive en la columna jsonb existente `imports.options`; `imports.status` solo recibe valores de su CHECK (`importing/completed/failed/reverted`). La trazabilidad por fila sigue en `import_records`; por lote, en los eventos del job y en la cola local. Los datos de un job que no llegó a COMPLETED se ocultan en toda la app (`data/visibility.ts`).
+
+**Motivo**: compatible con staging tal cual (0100–0810), sin migración. Lo parcial nunca parece definitivo y siempre está identificado por `import_id` para limpiarlo (anulado, nunca borrado).
+
+**Pendiente/evolución**: una migración 0900 podría ampliar el CHECK (`partial`, `cancelled`) y añadir `import_batches` para trazabilidad por lote en servidor. No se ha creado porque la app no la necesita y no hay credenciales para aplicarla.
+
+## 2026-10-02 — Empresa activa por pestaña
+
+**Decisión**: empresa y centro activos en `sessionStorage` (por pestaña); `localStorage` solo como valor inicial de pestañas nuevas; `?empresa=<id>` abre otra empresa en una pestaña nueva. La cola de cambios pendientes es por empresa y pestaña (`outbox:<org>:<tab>`), con Web Locks para adoptar colas de pestañas cerradas. Cambiar de empresa no espera al envío: lo pendiente se sigue enviando en segundo plano (`CloudSync.release`).
+
+**Motivo**: requisito de trabajar con dos empresas a la vez sin que una pestaña cambie el contexto de otra, sin perder cambios y sin bloquear la UI.
+
+## 2026-10-02 — Comparaciones: «hoy» frente al mismo día de la semana anterior
+
+**Decisión**: la tarjeta de hoy compara solo ventas de caja con el mismo día de la semana anterior hasta la misma hora; sin base comparable no se muestra porcentaje. La tendencia diaria muestra por defecto la caja (con conmutador «Todo»), porque las cuotas se emiten en lote el día 1. «Pendiente de cobro» deja de ser un método de pago (`uncollected`).
+
+**Motivo**: eliminar alarmas engañosas («−100 % vs ayer» cuando ayer fue día de cuotas) sin manipular ni ocultar datos.
+
 ## Pendiente de validación legal/fiscal
 
 **Nota**: el modelo de facturación (`BILLING_SYSTEM.md`) está preparado conceptualmente para normativa española (series, IVA, NIF/CIF) pero no ha sido validado por un asesor fiscal. No se debe emitir facturas reales en producción sin esa validación.

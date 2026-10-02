@@ -342,26 +342,29 @@ Escala: `PLANNED` → `DESIGNED` → `FRONTEND ONLY` → `FUNCTIONAL` (funciona 
 
 | Módulo | Estado | Notas |
 |---|---|---|
-| Esquema SQL + RLS | TESTED | 9 migraciones (0100–0800 + 0810); 0100–0800 aplicadas en business-os-staging (50 tablas, RLS en todas; aplicadas externamente). 37 comprobaciones SQL locales (aislamiento, permisos, integridad, `sync_push`, endurecimiento). **Pendiente: aplicar 0810 en staging y ejecutar la batería contra staging** |
-| Persistencia en Supabase (sync transaccional, caché/offline IndexedDB) | TESTED | `data/cloud`: diferencias → `sync_push` (1 transacción por acción, RLS), cola offline persistente, descarga completa por empresa. Tests de integración (2 dispositivos) + E2E navegador 22/22 contra stack local. **Pendiente: validar contra staging** |
+| Esquema SQL + RLS | TESTED | 9 migraciones (0100–0810) aplicadas en business-os-staging (50 tablas, RLS en todas). 37 comprobaciones SQL locales. Validado por API pública: RLS oculta datos sin sesión, escritura anónima y RPC denegadas. **Pendiente (requiere credencial admin): batería SQL y `apply.mjs --status` contra staging** |
+| Persistencia en Supabase (sync transaccional por lotes, caché/offline IndexedDB) | TESTED | Validada contra business-os-staging: `test:cloud` 18/18 (4 de integración real, incluida una importación de 1.500 ventas por lotes), E2E persistencia 22/22, E2E multiempresa 7/7. Lotes ≤ 300 filas, reintento idempotente, división ante timeout, cola por pestaña. No es PRODUCTION READY: no existe aún el proyecto de producción |
 | Auth Supabase (registro, login, sesión, logout con borrado de caché) | TESTED | Email + contraseña. Confirmación de email depende de la config del proyecto |
 | Organizaciones, centros, miembros, roles | TESTED | Alta por RPC; equipo por email con `add_member_by_email` / `update_member` (sin claves de servicio) |
 | Auditoría en servidor | TESTED | Trigger append-only con etiqueta/acción/contexto declarados por la app |
 | Stock en servidor | TESTED | Trigger en líneas de venta y anulación; ventas anteriores al alta del producto no mueven stock |
 | Capa de integraciones (conexiones, identidades externas, eventos) | DESIGNED | Tablas + RLS probadas; conectores aún no implementados |
+| Empresa demo sintética (siembra por lotes) | TESTED | 2 centros, caja diaria con cierres, notas, importación histórica; `npm run seed:demo` reintentable e idempotente contra staging |
+| Multiempresa por pestaña | TESTED | Pestaña A empresa 1 / pestaña B empresa 2, independientes tras recargar; cambio instantáneo con envío pendiente en segundo plano |
+| Tablas responsive (DataTable) | FUNCTIONAL | Tarjetas en móvil, prioridad de columnas en tablet, cabecera fija, densidad; verificado visualmente en 390/820/1180/1440 |
 | Módulos verticales (core / fitness) | TESTED | Activables por empresa (persistido en `organization_modules`) |
-| Shell, navegación V2, ⌘K, selector de centro, tema | FUNCTIONAL | Grupos plegables, «Próximamente», estado de guardado visible |
+| Shell, navegación V2, ⌘K, selector de empresa y centro, tema | TESTED | Grupos por tarea, carril de iconos en iPad, empresa activa siempre visible, contexto por pestaña (E2E multiempresa) |
 | Design System V2 | FUNCTIONAL | Tokens, tipografía, componentes de métricas y gráficas; ver DESIGN_SYSTEM.md |
-| Resumen (dashboard ejecutivo) | TESTED | Periodo 7D/30D/90D/YTD/1A/personalizado, tendencia comparada, lectura automática (tests), clientes, recurrente |
-| Resumen financiero | FUNCTIONAL | Ingresos, cobros, IVA por tipo, pendientes; gastos/neto cuando exista el módulo |
+| Resumen (dashboard ejecutivo) | TESTED | Tendencia Caja/Todo, «hoy» vs mismo día de la semana anterior, recurrente vs puntual, nuevos vs recurrentes, comparativa de centros; layout tablet de 2 columnas |
+| Resumen financiero | FUNCTIONAL | Extracto con una cifra protagonista; secciones Ingresos / Caja / Facturación / Impuestos; gastos y neto «con el módulo de Gastos» (nunca estimados) |
 | Catálogo (productos, categorías, precios con vigencia) | TESTED | Histórico de precios en servidor |
 | Caja (TPV táctil, multi-pago) | TESTED | Rediseñada para iPad; E2E en navegador |
 | Ventas (listado, filtros, anulación, export) | TESTED | |
 | Cierres de caja | TESTED | |
-| Importación caja / facturas XLSX/CSV | TESTED | Persistida en servidor (≈4.000 filas en ~1 s) |
+| Importación caja / facturas XLSX/CSV (pipeline por lotes) | TESTED | Job IMPORTING → COMPLETED / PARTIAL / FAILED / CANCELLED / REVERTED, oculto hasta completar, cancelable, limpiable, reanudable. 7 tests de pipeline + integración en staging (1.500 ventas, 19 s) |
 | Historial y reversión de importaciones | TESTED | Reversión persistida (test de integración) |
 | Facturas emitidas (listado, KPIs, filtros, export, cobro, anulación) | FUNCTIONAL | Emisión manual: PLANNED |
-| Clientes y ficha 360 (notas, timeline, saldo, renovación) | FUNCTIONAL | |
+| Clientes y ficha 360 (notas, timeline, saldo, renovación) | FUNCTIONAL | Bajas coherentes, orígenes traducidos, acciones rápidas, cronología con altas/bajas/cambios de estado; vista móvil en tarjetas |
 | Informes (generación gestoría XLSX/CSV/PDF) | TESTED | Flujo periodo → secciones → formato → vista previa |
 | Ajustes (empresa, centros, métodos de pago, IVA, equipo, módulos) | FUNCTIONAL | |
 | Gastos | PLANNED | |

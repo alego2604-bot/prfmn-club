@@ -68,7 +68,9 @@ Dark mode está **diseñado**, no invertido: superficies grafito con elevación 
 
 - Serie principal = acento, línea 2 px + velo 10–14 %; comparación = gris recesivo (discontinuo en líneas, barra clara en columnas). **Nunca doble eje ni arcoíris.**
 - Rejilla hairline casi invisible, sin ejes dibujados, 4 marcas en Y con formato compacto (`2,7 k€`).
-- Barras ≤ 24 px, extremo redondeado 4 px, 2 px de aire entre barras; en series temporales se resalta el periodo en curso.
+- Barras ≤ 24 px, extremo redondeado 4 px, 2 px de aire entre barras. **Histórico en sólido; solo el periodo en curso (incompleto) atenuado** (`partialLast`, tooltip «· en curso»). Nunca un histórico pálido que parezca desactivado.
+- Dos partes de un mismo total (recurrente / puntual): `StackedColumnChart` con acento + acento medio (`--chart-1-mid`), leyenda obligatoria y tooltip con total y partes.
+- Una serie con picos estructurales (cuotas el día 1) no se deforma ni se recorta: se ofrece la vista que se lee (caja diaria) con conmutador explícito a «Todo».
 - Tooltip: valor grande primero, variación coloreada frente al punto comparado («+7,2 % vs septiembre 2025»), serie de comparación debajo con clave de línea.
 - Leyenda con ≥ 2 series; el texto nunca usa el color de la serie.
 - Validación de paleta: `validate_palette.js` → acento vs gris ΔE 27–38 (también en protanopía/deuteranopía/tritanopía). El gris es neutral a propósito (no categórico) y siempre va acompañado de leyenda y tooltip.
@@ -79,11 +81,19 @@ Dark mode está **diseñado**, no invertido: superficies grafito con elevación 
 
 `ease-out` `cubic-bezier(.2,.8,.2,1)`, 120–320 ms. Entrada escalonada sutil de bloques (`.stagger`), confirmación de venta con `check-pop`, contador de cantidad con `bump`. Nada se anima en bucle salvo el indicador «Guardando…».
 
-## 8. Responsive
+## 8. Responsive (revisión 2026-10-02)
 
-- **Desktop**: máxima información (rejilla de 12 columnas, barra lateral fija).
-- **Tablet (iPad)**: Caja a pantalla completa con carrito lateral fijo, tiles de 112 px, métodos de pago de 56 px; la barra lateral se pliega.
-- **Móvil**: consulta y operaciones rápidas — barra de pestañas inferior, carrito como hoja inferior, tablas con columnas secundarias ocultas; sin scroll horizontal (verificado por `e2e/screens.mjs`).
+| Ancho | Navegación | Contenido |
+|---|---|---|
+| ≥ 1280 px | Barra lateral completa (248 px) con selector de empresa | Rejilla de 12 columnas |
+| 768–1279 px (iPad) | **Carril de iconos** (68 px) con la empresa activa arriba | Rejilla de 12 columnas con 2 columnas reales (nunca «móvil estirado»); tablas con columnas por prioridad |
+| < 768 px | Cabecera con empresa + cajón lateral + barra inferior (5 accesos) | Tarjetas, listas compactas |
+
+- **Caja**: carril hasta 1536 px para dar ancho al TPV; carrito lateral desde 1024 px (iPad horizontal), hoja inferior por debajo (iPad vertical y móvil). Tiles de 112 px, métodos de pago de 56 px.
+- **DataTable**: en móvil, filas-tarjeta (título, valor, estado, segunda línea, chevron) renderizadas en lugar de la tabla (una sola vista en el DOM); `priority: "medium"` oculta la columna < 1024 px y `"low"` < 1280 px; cabecera fija con scroll interno; densidad cómoda/compacta persistida.
+- **KpiStrip**: sin huérfanos — móvil 2 columnas (impar → el primero ocupa la fila), tablet ≤ 4 / 2+3 / 3+3, escritorio una fila. Máximo 5; el resto como texto secundario.
+- **Pestañas, filtros y segmentos** con `ScrollFade`: borde difuminado por donde queda contenido y elemento activo a la vista.
+- Revisión obligatoria en 1440 / 1180 / 820 / 390 px, claro y oscuro, sin scroll horizontal.
 
 ## 9. Preparado para el futuro (sin construir aún)
 
