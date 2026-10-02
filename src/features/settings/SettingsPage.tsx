@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { useState } from "react";
 import { Building2, Database, Download, History, Plus, ShieldCheck } from "lucide-react";
 import { useCtx, useSession, useWorkspace, useTeam } from "@/app/session";
@@ -14,9 +15,16 @@ import { triggerDownload } from "@/lib/export";
 
 type Tab = "company" | "locations" | "team" | "payments" | "taxes" | "rules" | "audit" | "data";
 
+/** Pestañas enlazables desde la navegación (Empresa → Equipo / Centros): ?tab=equipo|centros|… */
+const TAB_PARAM: Record<string, Tab> = { empresa: "company", centros: "locations", equipo: "team", pagos: "payments", impuestos: "taxes", reglas: "rules", auditoria: "audit", datos: "data" };
+const PARAM_OF = Object.fromEntries(Object.entries(TAB_PARAM).map(([k, v]) => [v, k])) as Record<Tab, string>;
+
 export default function SettingsPage() {
   const { can } = useSession();
-  const [tab, setTab] = useState<Tab>(can("settings.manage") ? "company" : "audit");
+  const [params, setParams] = useSearchParams();
+  const fallback: Tab = can("settings.manage") ? "company" : "audit";
+  const tab = TAB_PARAM[params.get("tab") ?? ""] ?? fallback;
+  const setTab = (t: Tab) => setParams(t === fallback ? {} : { tab: PARAM_OF[t] }, { replace: true });
   const items: { value: Tab; label: string }[] = [
     ...(can("settings.manage") ? [{ value: "company" as Tab, label: "Empresa" }, { value: "locations" as Tab, label: "Centros" }] : []),
     ...(can("team.manage") ? [{ value: "team" as Tab, label: "Equipo y roles" }] : []),

@@ -179,4 +179,23 @@ describe("CloudSync con lotes grandes", () => {
     await sync.discardLocal(orgId);
     expect((await kv.keys()).filter((k) => k.startsWith("outbox:"))).toEqual([]);
   });
+
+  it("cambiar de empresa no espera al envío: lo pendiente termina en segundo plano y al volver no se duplica", async () => {
+    const kv = createMemoryKV();
+    const { server, store, sync, orgId } = await setup(fakeServer(), kv);
+    const other = buildWorkspace({ name: "Otra Empresa", vertical: "fitness", locationName: "Centro" });
+    await store.createWorkspace(other);
+    store.update((ws) => ({ ...ws, customers: [...ws.customers, ...customers(orgId, 900)] }));
+    const t0 = Date.now();
+    sync.release(); // cambio de empresa inmediato
+    await sync.open(other.organization.id).catch(() => undefined);
+    expect(Date.now() - t0).toBeLessThan(1000);
+    expect(store.requireWorkspace().organization.id).toBe(other.organization.id);
+    // Vuelve a la primera mientras se vacía: recupera la cola sin envíos dobles
+    sync.release();
+    await sync.open(orgId).catch(() => undefined);
+    await sync.flush();
+    expect(server.count("customers")).toBe(900);
+    expect(sync.pending).toBe(0);
+  });
 });

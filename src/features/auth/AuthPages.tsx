@@ -183,6 +183,11 @@ export function OnboardingPage() {
           </div>
           <div className="mt-6 flex flex-col gap-2">
             <Button variant="primary" size="lg" onClick={() => setStep("create")}>Crear nueva empresa</Button>
+            {!orgs.some((o) => o.isDemo) && (
+              <Button size="lg" icon={FlaskConical} loading={busy} onClick={async () => { setBusy(true); try { await s.createDemo(); } catch (e) { toast.fromError(e); } finally { setBusy(false); } }}>
+                Explorar con datos de demostración
+              </Button>
+            )}
             <Button variant="ghost" icon={LogOut} onClick={() => void s.logout()}>Cerrar sesión</Button>
           </div>
         </>

@@ -14,7 +14,7 @@ import type { AuditLog, Member, Organization, PaymentMethod, RoleKey } from "@/d
 import { uid } from "@/lib/ids";
 import type { KV } from "../persistence";
 import { liveTabs as defaultLiveTabs, tabId as defaultTabId } from "./tab";
-import { SCHEMA_VERSION, type Store, type Workspace } from "../store";
+import { SCHEMA_VERSION, Store, type Workspace } from "../store";
 import {
   auditFromRow, COLLECTIONS, entityToRow, organizationFromRow, organizationPatch, paymentFromRow, rowToEntity, SERVER_OWNED,
   settingsFromRow, settingsToRow, type CollectionKey, type Row,
@@ -284,9 +284,11 @@ export class CloudSync {
   private statusListeners = new Set<(s: SyncStatus) => void>();
   private errorListeners = new Set<(message: string) => void>();
   private groupListeners = new Set<(e: GroupEvent) => void>();
+  /** Empresas que se dejaron con cambios pendientes: se siguen enviando en segundo plano. */
+  private drainers = new Map<string, { sync: CloudSync; done: Promise<void> }>();
   status: SyncStatus = { state: "idle", pending: 0 };
 
-  constructor(private sb: SupabaseClient, private kv: KV, private store: Store, private opts: SyncOptions = {}) {
+  constructor(private sb: SupabaseClient, private kv: KV, readonly store: Store, private opts: SyncOptions = {}) {
     store.onCommit = (prev, next) => this.enqueue(prev, next);
   }
 
@@ -308,9 +310,18 @@ export class CloudSync {
 
   /** Abre una empresa: caché inmediata si existe, cola pendiente enviada y estado real descargado. */
   async open(orgId: string): Promise<void> {
-    this.orgId = orgId;
+    // Si esta empresa se estaba vaciando en segundo plano, se recupera su cola (sin envíos dobles)
+    const drainer = this.drainers.get(orgId);
+    if (drainer) {
+      await drainer.sync.stop();
+      this.drainers.delete(orgId);
+    }
+    // Nada de la empresa anterior puede escribirse con la clave de esta: cola vacía hasta cargar la suya
+    this.orgId = null;
+    this.outbox = [];
     this.tab = await (this.opts.tabId ?? defaultTabId)();
     this.outbox = await this.loadOutbox(orgId);
+    this.orgId = orgId;
     let cached = false;
     try {
       await this.store.openWorkspace(orgId);
@@ -358,6 +369,41 @@ export class CloudSync {
     this.orgId = null;
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = null;
+  }
+
+  /** Detiene el envío tras el lote en curso (que siempre termina y queda confirmado o en la cola). */
+  async stop(): Promise<void> {
+    const inflight = this.flushing;
+    this.close();
+    if (inflight) await inflight.catch(() => undefined);
+  }
+
+  /**
+   * Deja la empresa actual SIN esperar a que se envíe lo pendiente (cambiar de empresa es instantáneo). Lo pendiente
+   * sigue enviándose en segundo plano con la misma cola de esta pestaña; si se vuelve a abrir la empresa, `open` lo
+   * recupera. Los errores se siguen notificando.
+   */
+  release(): void {
+    const org = this.orgId;
+    if (!org || !this.tab) return this.close();
+    const inflight = this.flushing ?? Promise.resolve();
+    const pending = this.outbox.length > 0;
+    this.close();
+    if (!pending) return;
+    const tab = this.tab;
+    const d = new CloudSync(this.sb, this.kv, new Store(this.kv), { ...this.opts, tabId: async () => tab });
+    d.store.onCommit = null;
+    d.onError((m) => this.errorListeners.forEach((l) => l(m)));
+    const done = (async () => {
+      await inflight.catch(() => undefined);
+      d.orgId = org;
+      d.tab = tab;
+      d.outbox = (await this.kv.get<Batch[]>(outboxKey(org, tab))) ?? [];
+      await d.flush();
+    })().finally(() => {
+      if (!d.pending && this.drainers.get(org)?.sync === d) this.drainers.delete(org);
+    });
+    this.drainers.set(org, { sync: d, done });
   }
 
   /** Elimina la caché local de cambios de una empresa (al cerrar sesión, tras comprobar que no queda nada). */

@@ -8,7 +8,7 @@ import * as localAuth from "@/data/repos/auth";
 import { createDemoWorkspace, DEMO_ORGANIZATION, fillDemoWorkspace } from "@/data/demo";
 import * as cloud from "@/data/cloud/account";
 import { CloudSync, type SyncStatus } from "@/data/cloud/sync";
-import { getPref, setPref } from "@/lib/localPrefs";
+import { clearOrgFromUrl, readTabContext, writeTabContext, type TabContext } from "./tabContext";
 import { liveTabs } from "@/data/cloud/tab";
 import { visibleWorkspace } from "@/data/visibility";
 import { resumeImports, type GroupSync } from "@/features/imports/engine/pipeline";
@@ -22,18 +22,9 @@ import { resumeImports, type GroupSync } from "@/features/imports/engine/pipelin
 export type SessionUser = Pick<UserAccount, "id" | "email" | "fullName">;
 export interface OrgSummary { id: string; name: string; isDemo: boolean; vertical: string }
 
-interface Persisted { userId: string; orgId?: string; locationId?: string }
-function readSession(): Persisted | null {
-  try {
-    const raw = getPref("session");
-    return raw ? (JSON.parse(raw) as Persisted) : null;
-  } catch {
-    return null;
-  }
-}
-function writeSession(s: Persisted | null) {
-  setPref("session", s ? JSON.stringify(s) : null);
-}
+// Contexto activo por pestaña (empresa + centro): ver tabContext.ts
+const readSession = () => readTabContext();
+const writeSession = (v: TabContext | null) => writeTabContext(v);
 
 interface SessionValue {
   mode: "cloud" | "local";
@@ -107,10 +98,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const m = ms.find((x) => x.organizationId === orgId);
     if (!m) throw new Error("No tienes acceso a esta empresa");
     if (sync) {
-      if (openOrg.current && openOrg.current !== orgId) {
-        await sync.flush();
-        sync.close();
-      }
+      // Cambio instantáneo: lo pendiente de la empresa anterior se sigue enviando en segundo plano
+      if (openOrg.current && openOrg.current !== orgId) sync.release();
       await sync.open(orgId);
     } else {
       await store.openWorkspace(orgId);
@@ -125,6 +114,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setLocationIdState(loc);
     setStatus("ready");
     writeSession({ userId: u.id, orgId, locationId: loc });
+    clearOrgFromUrl();
     // Importaciones que quedaron a medias (pestaña cerrada, conexión perdida): se reanudan o se cierran.
     // Siempre después de enviar la cola y descargar el estado real: nunca se juzga con una caché vieja.
     if (sync && roleCan(m.role, "imports.run")) {
