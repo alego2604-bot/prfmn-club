@@ -5,13 +5,16 @@ import { Badge, Button, DataTable, Page, PageHeader, type Column } from "@/desig
 import type { ImportJob } from "@/domain/types";
 import { formatDateTime } from "@/lib/dates";
 import { formatMoney, NUM } from "@/lib/money";
+import { importState } from "./engine/commit";
+import { STATE_LABEL } from "./ImportProgress";
 
 export const KIND_LABEL: Record<ImportJob["kind"], string> = { sales: "Ventas / caja", invoices: "Facturas emitidas", customers: "Clientes", catalog: "Catálogo", attendance: "Asistencia", expenses: "Gastos", bank: "Extracto bancario" };
 
 export function ImportStatus({ job }: { job: ImportJob }) {
-  if (job.status === "reverted") return <Badge>Revertida</Badge>;
-  if (job.status === "failed") return <Badge tone="danger">Error</Badge>;
-  return job.summary.review || job.summary.errors ? <Badge tone="warning" dot>Correcta con avisos</Badge> : <Badge tone="success" dot>Correcta</Badge>;
+  const state = importState(job);
+  if (state === "COMPLETED") return job.summary.review || job.summary.errors ? <Badge tone="warning" dot>Completada con avisos</Badge> : <Badge tone="success" dot>Completada</Badge>;
+  const meta = STATE_LABEL[state];
+  return <Badge tone={meta.tone} dot={state === "IMPORTING"}>{meta.label}</Badge>;
 }
 
 export default function ImportsPage() {
@@ -28,7 +31,7 @@ export default function ImportsPage() {
     { id: "ignored", header: "Ignorados", align: "right", exportValue: (j) => j.summary.ignored, exportFormat: "integer", cell: (j) => j.summary.ignored, defaultHidden: true },
     { id: "amount", header: "Importe", align: "right", exportValue: (j) => (j.summary.totalAmount ?? 0) / 100, exportFormat: "money", cell: (j) => formatMoney(j.summary.totalAmount ?? 0) },
     { id: "user", header: "Usuario", exportValue: (j) => userName(j.createdBy), cell: (j) => userName(j.createdBy) },
-    { id: "status", header: "Estado", exportValue: (j) => j.status, cell: (j) => <ImportStatus job={j} /> },
+    { id: "status", header: "Estado", exportValue: (j) => STATE_LABEL[importState(j)].label, cell: (j) => <ImportStatus job={j} /> },
   ];
   return (
     <Page wide>

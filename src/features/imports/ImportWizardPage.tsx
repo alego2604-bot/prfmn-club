@@ -10,7 +10,10 @@ import { analyzeWorkbook } from "./engine/analyze";
 import { readFile } from "./engine/read";
 import { buildSalesPlan } from "./engine/salesPlan";
 import { buildInvoicesPlan } from "./engine/invoicesPlan";
-import { commitPlan, isImportable, summarizePlan } from "./engine/commit";
+import { importState, isImportable, summarizePlan } from "./engine/commit";
+import { runImport } from "./engine/pipeline";
+import { ImportOutcome } from "./ImportProgress";
+import type { ImportPipeline, ImportState } from "@/domain/types";
 import { fieldsFor } from "./engine/fields";
 import type { FileAnalysis, ImportPlan, InvoiceRow, PlanOptions, SalesRow, TargetKind, WorkbookData } from "./engine/types";
 import { sha256Hex } from "@/lib/hash";
@@ -50,7 +53,8 @@ function applyOverrides(plan: ImportPlan, overrides: Record<string, Override>): 
 export default function ImportWizardPage() {
   const ws = useWorkspace();
   const ctx = useCtx();
-  const { can } = useSession();
+  const s = useSession();
+  const { can } = s;
   const toast = useToast();
   const navigate = useNavigate();
   const { locations, current } = useLocationScope();
@@ -65,17 +69,29 @@ export default function ImportWizardPage() {
   const [rowFilter, setRowFilter] = useState<"attention" | "review" | "duplicate" | "error" | "all">("attention");
   const [jobId, setJobId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Trazabilidad: fases del asistente con su momento (viajan al job al confirmar)
+  const stages = useRef<ImportPipeline["events"]>([]);
+  const mark = (state: ImportState) => {
+    if (stages.current.at(-1)?.state !== state) stages.current.push({ state, at: new Date().toISOString() });
+  };
+  const go = (n: number) => {
+    if (n === 2) mark("MAPPING");
+    if (n === 4) mark("VALIDATING");
+    setStep(n);
+  };
 
   const previous = file ? ws.imports.find((i) => i.fileSha256 === file.sha256 && i.status === "completed") : undefined;
 
   const onFile = useCallback(async (f: File) => {
     setBusy(true);
     setError(null);
+    stages.current = [{ state: "UPLOADING", at: new Date().toISOString() }];
     try {
       const { data, buffer } = await readFile(f);
       const sha256 = await sha256Hex(buffer);
       setFile({ name: f.name, size: f.size, sha256 });
       setWb(data);
+      stages.current.push({ state: "ANALYZING", at: new Date().toISOString() });
       setAnalysis(analyzeWorkbook(data));
       setOverrides({});
       setStep(1);
@@ -116,10 +132,13 @@ export default function ImportWizardPage() {
     if (!plan || !file) return;
     setBusy(true);
     try {
-      const job = commitPlan(ctx, plan, file);
+      const running = runImport(ctx, plan, file, s.groupSync, { stages: stages.current, ownerTab: s.tabId ?? undefined });
+      // El job ya existe en el almacén (IMPORTING): la pantalla muestra su progreso mientras se envían los lotes
+      setJobId(ctx.store.requireWorkspace().imports.at(-1)?.id ?? null);
+      const r = await running;
       await ctx.store.flush();
-      setJobId(job.id);
-      toast.success("Importación completada", `${Object.entries(job.summary.created).map(([k, v]) => `${v} ${k}`).join(" · ")}`);
+      if (r.state === "COMPLETED") toast.success("Importación completada", `${Object.entries(r.job.summary.created).map(([k, v]) => `${v} ${k}`).join(" · ")}`);
+      else if (r.state === "PARTIAL" || r.state === "FAILED") toast.error("La importación no se ha completado", r.job.pipeline?.error);
     } catch (e) {
       toast.fromError(e, "La importación no se ha aplicado");
     } finally {
@@ -238,7 +257,7 @@ export default function ImportWizardPage() {
             ))}
           </Card>
           {analysis.notes.map((n) => <Callout key={n} icon={Lightbulb}>{n}</Callout>)}
-          <WizardNav onBack={() => setStep(0)} onNext={() => setStep(2)} nextDisabled={!analysis.kind || !analysis.sheets.some((s) => s.include && (s.role === "sales" || s.role === "invoices"))} />
+          <WizardNav onBack={() => setStep(0)} onNext={() => go(2)} nextDisabled={!analysis.kind || !analysis.sheets.some((s) => s.include && (s.role === "sales" || s.role === "invoices"))} />
         </div>
       )}
 
@@ -307,7 +326,7 @@ export default function ImportWizardPage() {
             </Card>
           )}
           <Card padded={false}><RowsTable plan={plan} rows={plan.rows.slice(0, 60)} /></Card>
-          <WizardNav onBack={() => setStep(2)} onNext={() => setStep(4)} />
+          <WizardNav onBack={() => setStep(2)} onNext={() => go(4)} />
         </div>
       )}
 
@@ -408,14 +427,15 @@ export default function ImportWizardPage() {
             {summary.newCustomers ? <> y <strong className="text-fg">{plural(summary.newCustomers, "cliente", "clientes")}</strong></> : null}
             {" "}en {locations.find((l) => l.id === options.locationId)?.name}. Se ignorarán {summary.ignored.toLocaleString("es-ES", NUM)} filas.
           </p>
-          <p className="mt-3 text-xs text-fg-3">Todo en una sola operación: o se guarda todo o nada. Cada registro queda enlazado a su fila de origen y la importación se puede revertir mientras sea seguro.</p>
+          <p className="mt-3 text-xs text-fg-3">Se envía por lotes con reintentos automáticos. Hasta que no se confirme el último, nada de este archivo aparece en informes; si se interrumpe, lo que entró queda identificado y se puede limpiar. Cada registro queda enlazado a su fila de origen y la importación se puede revertir mientras sea seguro.</p>
           <div className="mt-6 flex justify-center gap-2">
             <Button variant="ghost" onClick={() => setStep(4)}>Volver</Button>
             <Button variant="primary" size="lg" loading={busy} disabled={!summary.toImport} onClick={doImport}>Importar ahora</Button>
           </div>
         </Card>
       )}
-      {job && (
+      {job && importState(job) !== "COMPLETED" && <div className="mx-auto max-w-xl"><ImportOutcome job={job} /></div>}
+      {job && importState(job) === "COMPLETED" && (
         <Card className="mx-auto max-w-xl text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-success text-white"><Check className="h-6 w-6" /></div>
           <h2 className="text-xl font-semibold tracking-tight">Importación completada</h2>

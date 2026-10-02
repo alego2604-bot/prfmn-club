@@ -417,6 +417,17 @@ export class CloudSync {
     return this.outbox.length;
   }
 
+  /** Pestaña propietaria de la cola (disponible tras `open`). */
+  get tabId(): string | null {
+    return this.tab;
+  }
+
+  /** Envía lo pendiente y, si no queda nada, descarga el estado real del servidor. */
+  async settle(): Promise<void> {
+    await this.flush();
+    if (!this.outbox.length) await this.pull();
+  }
+
   /** ¿Quedan trozos del grupo por enviar? */
   hasGroup(groupId: string): boolean {
     return this.outbox.some((b) => b.group?.id === groupId);

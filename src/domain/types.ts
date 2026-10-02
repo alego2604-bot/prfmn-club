@@ -408,13 +408,43 @@ export interface ImportJob {
   fileName: string;
   fileSha256: string;
   fileSize: number;
-  status: "completed" | "failed" | "reverted";
+  /** Valor de la columna `imports.status` (restricción de la base de datos). El estado fino vive en `pipeline`. */
+  status: "importing" | "completed" | "failed" | "reverted";
   summary: ImportSummary;
+  /** Pipeline por lotes (columna `imports.options`). Ausente en importaciones anteriores a 2026-10-02. */
+  pipeline?: ImportPipeline;
   createdBy?: ID;
   createdAt: ISODateTime;
+  completedAt?: ISODateTime;
   revertedAt?: ISODateTime;
   revertedBy?: ID;
   revertReason?: string;
+}
+
+/**
+ * Estados de una importación. Las cuatro primeras son fases del asistente (en el navegador, antes de guardar nada);
+ * desde IMPORTING el job existe en la base de datos y sus datos se envían por lotes.
+ *  - IMPORTING: enviando lotes. Sus datos NO son visibles (ni en informes ni en pantallas) hasta COMPLETED.
+ *  - COMPLETED: todos los lotes confirmados.
+ *  - PARTIAL: se interrumpió con parte de los lotes ya en el servidor. Datos ocultos e identificados por import_id.
+ *  - FAILED: no queda nada activo (no llegó a entrar nada o lo parcial ya se limpió).
+ *  - CANCELLED: cancelada por el usuario; lo que hubiera entrado se anula.
+ *  - REVERTED: completada y después revertida (sus registros quedan anulados en el histórico).
+ */
+export type ImportState =
+  | "UPLOADING" | "ANALYZING" | "MAPPING" | "VALIDATING"
+  | "IMPORTING" | "COMPLETED" | "PARTIAL" | "FAILED" | "CANCELLED" | "REVERTED";
+
+export interface ImportPipeline {
+  state: ImportState;
+  /** Trazabilidad: cada cambio de estado con su momento (incluye las fases del asistente). */
+  events: { state: ImportState; at: ISODateTime; note?: string }[];
+  /** Lo que debe existir al terminar, para verificar una importación reanudada en otro momento o dispositivo. */
+  expected: { main: number; records: number };
+  error?: string;
+  /** Pestaña que la está enviando (las demás no la dan por interrumpida mientras siga viva). */
+  ownerTab?: string;
+  updatedAt: ISODateTime;
 }
 
 export interface ImportRecordRow {

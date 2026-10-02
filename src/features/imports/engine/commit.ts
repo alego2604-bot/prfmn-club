@@ -2,7 +2,7 @@ import { assertCan, assertLocation, auditEntry, ValidationError, type Ctx } from
 import type { Workspace } from "@/data/store";
 import { CATEGORY_COLORS } from "@/data/workspace";
 import { computeLine } from "@/domain/pricing";
-import type { Customer, ImportJob, ImportRecordRow, Invoice, InvoiceItem, Payment, Product, ProductCategory, Sale, SaleItem } from "@/domain/types";
+import type { Customer, ImportJob, ImportPipeline, ImportRecordRow, ImportState, Invoice, InvoiceItem, Payment, Product, ProductCategory, Sale, SaleItem } from "@/domain/types";
 import { toISODate } from "@/lib/dates";
 import { nowISO, uid } from "@/lib/ids";
 import { formatMoney } from "@/lib/money";
@@ -52,14 +52,27 @@ export interface FileMeta {
   size: number;
 }
 
-/** Ejecuta la importación en UNA transacción: o se crea todo o nada. */
-export function commitPlan(ctx: Ctx, plan: ImportPlan, file: FileMeta): ImportJob {
+export interface CommitOptions {
+  /** Id del job (lo fija el pipeline para poder agrupar el envío por lotes antes de escribir). */
+  importId?: string;
+  /** IMPORTING cuando los datos se envían después por lotes (Supabase); COMPLETED en modo local. */
+  state?: "IMPORTING" | "COMPLETED";
+  /** Fases del asistente ya recorridas (trazabilidad). */
+  stages?: ImportPipeline["events"];
+  ownerTab?: string;
+}
+
+/**
+ * Aplica la importación en el almacén local en UNA escritura atómica (o todo o nada). En Supabase esa escritura se
+ * envía después por lotes: el job nace en IMPORTING y sus datos no son visibles hasta que el pipeline lo completa.
+ */
+export function commitPlan(ctx: Ctx, plan: ImportPlan, file: FileMeta, opts: CommitOptions = {}): ImportJob {
   assertCan(ctx, "imports.run");
   assertLocation(ctx, plan.options.locationId);
   let job!: ImportJob;
   ctx.store.update((ws0) => {
     if (!ws0.locations.some((l) => l.id === plan.options.locationId)) throw new ValidationError("Centro no válido");
-    const importId = uid();
+    const importId = opts.importId ?? uid();
     const now = nowISO();
     const org = ws0.organization.id;
     const summary = summarizePlan(plan, ws0);
@@ -210,10 +223,20 @@ export function commitPlan(ctx: Ctx, plan: ImportPlan, file: FileMeta): ImportJo
       ws = { ...ws0, customers, invoices: [...ws0.invoices, ...invoices], invoiceItems: [...ws0.invoiceItems, ...invItems], payments: [...ws0.payments, ...payments] };
     }
 
+    const state = opts.state ?? "COMPLETED";
+    const main = plan.kind === "sales" ? (created.ventas ?? 0) : (created.facturas ?? 0);
     job = {
       id: importId, organizationId: org, locationId: plan.options.locationId, kind: plan.kind, fileName: file.name, fileSha256: file.sha256, fileSize: file.size,
-      status: "completed", summary: { found: summary.found, valid: summary.valid, review: summary.review, duplicates: summary.duplicates, errors: summary.errors, ignored: summary.ignored, created, linked: 0, totalAmount: summary.amountToImport },
-      createdBy: ctx.user.id, createdAt: now,
+      status: state === "COMPLETED" ? "completed" : "importing",
+      summary: { found: summary.found, valid: summary.valid, review: summary.review, duplicates: summary.duplicates, errors: summary.errors, ignored: summary.ignored, created, linked: 0, totalAmount: summary.amountToImport },
+      pipeline: {
+        state,
+        events: [...(opts.stages ?? []), { state: "IMPORTING", at: now }, ...(state === "COMPLETED" ? [{ state: "COMPLETED" as const, at: now }] : [])],
+        expected: { main, records: records.length },
+        ownerTab: opts.ownerTab,
+        updatedAt: now,
+      },
+      createdBy: ctx.user.id, createdAt: now, completedAt: state === "COMPLETED" ? now : undefined,
     };
     return {
       ...ws,
@@ -250,9 +273,33 @@ export function revertBlockers(ws: Workspace, importId: string): string[] {
 }
 
 /**
- * Revertir: nada se borra. Ventas y facturas creadas quedan ANULADAS con motivo; pagos compensados;
+ * Anula los datos de una importación: nada se borra. Ventas y facturas quedan ANULADAS con motivo; pagos compensados;
  * clientes y productos creados se archivan solo si nadie más los usa.
  */
+export function voidImportData(ws: Workspace, ctx: Ctx, importId: string, why: string, now = nowISO()): Workspace {
+  const sales = ws.sales.map((s) => (s.importId === importId && s.status !== "voided" ? { ...s, status: "voided" as const, voidedAt: now, voidedBy: ctx.user.id, voidReason: why } : s));
+  const invoices = ws.invoices.map((i) => (i.importId === importId && i.status !== "void" ? { ...i, status: "void" as const, voidedAt: now, voidReason: why } : i));
+  const refunded = new Set(ws.payments.filter((p) => p.kind === "refund" && p.refundOfPaymentId).map((p) => p.refundOfPaymentId));
+  const refunds: Payment[] = ws.payments
+    .filter((p) => p.importId === importId && p.kind === "charge" && !refunded.has(p.id))
+    .map((p) => ({ ...p, id: uid(), kind: "refund", refundOfPaymentId: p.id, paidAt: now, createdAt: now, reference: why }));
+  const activeSaleProductIds = new Set(
+    ws.saleItems.filter((it) => {
+      const s = ws.sales.find((x) => x.id === it.saleId);
+      return s && s.importId !== importId && s.status !== "voided";
+    }).map((it) => it.productId),
+  );
+  const usedCustomerIds = new Set([
+    ...ws.invoices.filter((i) => i.importId !== importId && i.status !== "void").map((i) => i.customerId),
+    ...ws.sales.filter((s) => s.importId !== importId).map((s) => s.customerId),
+    ...ws.customerNotes.map((n) => n.customerId),
+  ]);
+  const products = ws.products.map((p) => (p.importId === importId && p.status !== "archived" && !activeSaleProductIds.has(p.id) ? { ...p, status: "archived" as const, updatedAt: now } : p));
+  const customers = ws.customers.map((c) => (c.importId === importId && !c.deletedAt && !usedCustomerIds.has(c.id) ? { ...c, deletedAt: now, updatedAt: now } : c));
+  return { ...ws, sales, invoices, products, customers, payments: [...ws.payments, ...refunds] };
+}
+
+/** Revertir una importación completada (con los bloqueos de seguridad). */
 export function revertImport(ctx: Ctx, importId: string, reason: string) {
   assertCan(ctx, "imports.revert");
   if (!reason.trim()) throw new ValidationError("Indica el motivo");
@@ -260,35 +307,35 @@ export function revertImport(ctx: Ctx, importId: string, reason: string) {
     const blockers = revertBlockers(ws, importId);
     if (blockers.length) throw new ValidationError(`No se puede revertir: ${blockers.join("; ")}`);
     const now = nowISO();
-    const why = `Importación revertida: ${reason.trim()}`;
-    const sales = ws.sales.map((s) => (s.importId === importId && s.status !== "voided" ? { ...s, status: "voided" as const, voidedAt: now, voidedBy: ctx.user.id, voidReason: why } : s));
-    const invoices = ws.invoices.map((i) => (i.importId === importId && i.status !== "void" ? { ...i, status: "void" as const, voidedAt: now, voidReason: why } : i));
-    const refunds: Payment[] = ws.payments
-      .filter((p) => p.importId === importId && p.kind === "charge")
-      .map((p) => ({ ...p, id: uid(), kind: "refund", refundOfPaymentId: p.id, paidAt: now, createdAt: now, reference: why }));
-    const activeSaleProductIds = new Set(
-      ws.saleItems.filter((it) => {
-        const s = ws.sales.find((x) => x.id === it.saleId);
-        return s && s.importId !== importId && s.status !== "voided";
-      }).map((it) => it.productId),
-    );
-    const usedCustomerIds = new Set([
-      ...ws.invoices.filter((i) => i.importId !== importId && i.status !== "void").map((i) => i.customerId),
-      ...ws.sales.filter((s) => s.importId !== importId).map((s) => s.customerId),
-      ...ws.customerNotes.map((n) => n.customerId),
-    ]);
-    const products = ws.products.map((p) => (p.importId === importId && !activeSaleProductIds.has(p.id) ? { ...p, status: "archived" as const, updatedAt: now } : p));
-    const customers = ws.customers.map((c) => (c.importId === importId && !usedCustomerIds.has(c.id) ? { ...c, deletedAt: now, updatedAt: now } : c));
+    const next = voidImportData(ws, ctx, importId, `Importación revertida: ${reason.trim()}`, now);
     const job = ws.imports.find((i) => i.id === importId)!;
     return {
-      ...ws,
-      sales,
-      invoices,
-      products,
-      customers,
-      payments: [...ws.payments, ...refunds],
-      imports: ws.imports.map((i) => (i.id === importId ? { ...i, status: "reverted" as const, revertedAt: now, revertedBy: ctx.user.id, revertReason: reason.trim() } : i)),
+      ...next,
+      imports: ws.imports.map((i) => (i.id === importId ? withState({ ...i, revertedAt: now, revertedBy: ctx.user.id, revertReason: reason.trim() }, "REVERTED", now) : i)),
       auditLogs: [...ws.auditLogs, auditEntry(ws, ctx, { action: "revert", entityType: "imports", entityId: importId, entityLabel: job.fileName, context: { reason: reason.trim() } })],
     };
   });
+}
+
+/** Valor de `imports.status` (restricción de la BD) para cada estado del pipeline. */
+export const DB_STATUS: Record<ImportState, ImportJob["status"]> = {
+  UPLOADING: "importing", ANALYZING: "importing", MAPPING: "importing", VALIDATING: "importing", IMPORTING: "importing",
+  COMPLETED: "completed", PARTIAL: "failed", FAILED: "failed", CANCELLED: "failed", REVERTED: "reverted",
+};
+
+/** Estado fino de un job (las importaciones anteriores al pipeline se deducen de la columna status). */
+export function importState(job: ImportJob): ImportState {
+  if (job.pipeline?.state) return job.pipeline.state;
+  return job.status === "completed" ? "COMPLETED" : job.status === "reverted" ? "REVERTED" : job.status === "failed" ? "FAILED" : "IMPORTING";
+}
+
+/** Nuevo estado con su traza. */
+export function withState(job: ImportJob, state: ImportState, at = nowISO(), extra: { note?: string; error?: string } = {}): ImportJob {
+  const p = job.pipeline?.state ? job.pipeline : { state: importState(job), events: [], expected: { main: 0, records: 0 }, updatedAt: at };
+  return {
+    ...job,
+    status: DB_STATUS[state],
+    completedAt: state === "COMPLETED" ? at : job.completedAt,
+    pipeline: { ...p, state, error: extra.error ?? p.error, updatedAt: at, events: [...p.events, { state, at, note: extra.note }] },
+  };
 }

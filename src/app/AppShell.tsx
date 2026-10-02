@@ -306,9 +306,10 @@ function SyncIndicator() {
   const toast = useToast();
   useEffect(() => s.onSyncError((m) => toast.error("No se ha podido guardar", m)), [s, toast]);
   if (s.mode !== "cloud" || !s.sync) return null;
-  const { state, pending } = s.sync;
+  const { state, pending, progress } = s.sync;
   const label =
     state === "offline" ? `Sin conexión · ${pending} pendiente${pending === 1 ? "" : "s"}`
+    : progress && progress.total > 1 ? `${progress.label} · ${progress.done}/${progress.total}`
     : state === "syncing" || pending ? "Guardando…"
     : state === "error" ? "Error al guardar"
     : "Guardado";
@@ -317,7 +318,7 @@ function SyncIndicator() {
     <button
       onClick={() => void s.refresh().catch(() => undefined)}
       title={s.sync.lastSyncedAt ? `Última sincronización: ${new Date(s.sync.lastSyncedAt).toLocaleTimeString("es-ES")}` : "Sincronizar"}
-      className="hidden h-8 items-center gap-2 rounded-md px-2.5 text-xs font-medium text-fg-3 transition-colors hover:bg-surface-sunken hover:text-fg sm:flex"
+      className="hidden h-8 max-w-[280px] items-center gap-2 truncate rounded-md px-2.5 text-xs font-medium text-fg-3 transition-colors hover:bg-surface-sunken hover:text-fg sm:flex"
       data-testid="sync-indicator"
       data-state={pending ? "pending" : state}
     >

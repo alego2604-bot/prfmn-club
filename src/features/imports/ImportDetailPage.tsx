@@ -6,7 +6,8 @@ import { Badge, Button, Callout, DataTable, DescriptionList, EmptyState, Kpi, Kp
 import type { ImportRecordRow } from "@/domain/types";
 import { formatDateTime } from "@/lib/dates";
 import { formatMoney, NUM } from "@/lib/money";
-import { revertBlockers, revertImport } from "./engine/commit";
+import { importState, revertBlockers, revertImport } from "./engine/commit";
+import { ImportOutcome, ImportTimeline } from "./ImportProgress";
 import { ImportStatus, KIND_LABEL } from "./ImportsPage";
 
 const REC_STATUS = {
@@ -29,6 +30,7 @@ export default function ImportDetailPage() {
   if (!job) return <Page><EmptyState icon={FileX} title="Importación no encontrada" action={<Link to="/importaciones"><Button>Volver</Button></Link>} /></Page>;
   const records = ws.importRecords.filter((r) => r.importId === job.id);
   const blockers = revertBlockers(ws, job.id);
+  const state = importState(job);
   const link = (r: ImportRecordRow) =>
     r.entityType === "sales" ? `/ventas?venta=${r.entityId}` : r.entityType === "invoices" ? `/facturas?factura=${r.entityId}` : r.entityType === "products" ? `/catalogo?producto=${r.entityId}` : null;
   const columns: Column<ImportRecordRow>[] = [
@@ -47,12 +49,13 @@ export default function ImportDetailPage() {
         actions={
           <>
             <ImportStatus job={job} />
-            {job.status === "completed" && can("imports.revert") && <Button icon={RotateCcw} onClick={() => setReverting(true)} disabled={blockers.length > 0}>Revertir</Button>}
+            {state === "COMPLETED" && can("imports.revert") && <Button icon={RotateCcw} onClick={() => setReverting(true)} disabled={blockers.length > 0}>Revertir</Button>}
           </>
         }
       />
       {job.status === "reverted" && <Callout className="mb-4" title="Importación revertida">{formatDateTime(job.revertedAt!)} · «{job.revertReason}». Sus registros siguen en el histórico como anulados.</Callout>}
-      {job.status === "completed" && blockers.length > 0 && <Callout tone="warning" icon={ShieldAlert} className="mb-4" title="No se puede revertir de forma segura">{blockers.join(" · ")}</Callout>}
+      {state !== "COMPLETED" && state !== "REVERTED" && <div className="mb-4"><ImportOutcome job={job} compact /></div>}
+      {state === "COMPLETED" && blockers.length > 0 && <Callout tone="warning" icon={ShieldAlert} className="mb-4" title="No se puede revertir de forma segura">{blockers.join(" · ")}</Callout>}
       <KpiStrip className="mb-5">
         <Kpi label="Registros" value={job.summary.found.toLocaleString("es-ES", NUM)} />
         <Kpi label="Creados" value={Object.values(job.summary.created).reduce((a, b) => a + b, 0).toLocaleString("es-ES", NUM)} hint={Object.entries(job.summary.created).map(([k, v]) => `${v} ${k}`).join(" · ")} />
@@ -66,6 +69,7 @@ export default function ImportDetailPage() {
           { label: "Archivo original (SHA-256)", value: <span className="font-mono text-xs">{job.fileSha256}</span> },
           { label: "Tamaño", value: `${(job.fileSize / 1024).toFixed(0)} KB` },
           { label: "Centro", value: ws.locations.find((l) => l.id === job.locationId)?.name ?? "—" },
+          { label: "Historial", value: <ImportTimeline job={job} /> },
         ]}
       />
       <DataTable

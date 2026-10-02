@@ -9,6 +9,9 @@ import { createDemoWorkspace, DEMO_ORGANIZATION, fillDemoWorkspace } from "@/dat
 import * as cloud from "@/data/cloud/account";
 import { CloudSync, type SyncStatus } from "@/data/cloud/sync";
 import { getPref, setPref } from "@/lib/localPrefs";
+import { liveTabs } from "@/data/cloud/tab";
+import { visibleWorkspace } from "@/data/visibility";
+import { resumeImports, type GroupSync } from "@/features/imports/engine/pipeline";
 
 /**
  * Sesión de la app. Dos modos con la misma interfaz para las pantallas:
@@ -42,6 +45,10 @@ interface SessionValue {
   memberships: Member[];
   organizations: OrgSummary[];
   sync: SyncStatus | null;
+  /** Envío por lotes agrupados (importaciones, demo). null en modo local. */
+  groupSync: GroupSync | null;
+  /** Pestaña actual (propietaria de las importaciones que lanza). */
+  tabId: string | null;
   /** 'all' = consolidado de todos los centros a los que se tiene acceso */
   locationId: string | "all";
   setLocationId: (id: string | "all") => void;
@@ -118,6 +125,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setLocationIdState(loc);
     setStatus("ready");
     writeSession({ userId: u.id, orgId, locationId: loc });
+    // Importaciones que quedaron a medias (pestaña cerrada, conexión perdida): se reanudan o se cierran.
+    // Siempre después de enviar la cola y descargar el estado real: nunca se juzga con una caché vieja.
+    if (sync && roleCan(m.role, "imports.run")) {
+      const resumeCtx: Ctx = { store, user: u, role: m.role, locationIds: m.locationIds };
+      void (async () => {
+        await sync.settle().catch(() => undefined);
+        if (openOrg.current !== orgId) return;
+        await resumeImports(resumeCtx, sync, await liveTabs());
+      })().catch(() => undefined);
+    }
   }, []);
 
   const afterLogin = useCallback(async (u: SessionUser, preferredOrg?: string, preferredLocation?: string) => {
@@ -185,6 +202,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       memberships,
       organizations,
       sync: syncStatus,
+      groupSync: sync,
+      tabId: sync?.tabId ?? null,
       locationId,
       setLocationId: (id) => {
         setLocationIdState(id);
@@ -249,6 +268,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           const orgId = await cloud.createOrganization(sb, DEMO_ORGANIZATION);
           const ms = await loadMemberships(u);
           await enterOrg(u, ms, orgId);
+          sync.tagNext({ id: `demo:${orgId}`, label: "Preparando la empresa demo" });
           store.update((ws) => fillDemoWorkspace(ws, u.id));
           await sync.flush();
           await sync.pull();
@@ -320,7 +340,8 @@ export function useWorkspace() {
   const s = useSession();
   const ws = s.store.getWorkspace();
   if (!ws) throw new Error("Sin empresa activa");
-  return ws;
+  // Los datos de importaciones no completadas (en curso, interrumpidas o canceladas) no se muestran
+  return visibleWorkspace(ws);
 }
 
 /** Contexto para repositorios (autor + rol + centros). */

@@ -25,6 +25,9 @@ import { readXlsx } from "@/features/imports/engine/read";
 import { analyzeWorkbook } from "@/features/imports/engine/analyze";
 import { buildInvoicesPlan } from "@/features/imports/engine/invoicesPlan";
 import { commitPlan, revertImport } from "@/features/imports/engine/commit";
+import { buildSalesPlan } from "@/features/imports/engine/salesPlan";
+import { runImport } from "@/features/imports/engine/pipeline";
+import { visibleWorkspace } from "../visibility";
 import { addMemberByEmail, createCloudClient, createOrganization, memberships, signIn, signUp, type CloudUser } from "./account";
 import { CloudSync } from "./sync";
 
@@ -225,4 +228,45 @@ describe.skipIf(!URL || !KEY)("Supabase: CORE persistido y visible desde otro di
     expect(after.imports[0]!.status).toBe("reverted");
     expect(after.invoices.every((i) => i.status === "void")).toBe(true);
   }, 60_000);
+
+  it("importación grande por lotes: oculta mientras dura, COMPLETED al final, visible en otro dispositivo", async () => {
+    const d1 = await device();
+    const owner = await account(d1.sb, "owner4");
+    const orgId = await createOrganization(d1.sb, { name: `Lotes ${run}`, vertical: "fitness", locationName: "Centro" });
+    await d1.sync.open(orgId);
+    const ctx = ctxOf(d1.store, owner);
+    const N = 1500;
+    const rows: (string | number | Date)[][] = [["Fecha", "Producto", "Categoría", "Precio", "Unidades", "Importe", "Método"]];
+    for (let i = 0; i < N; i++) rows.push([new Date(Date.UTC(2026, 0, 1 + (i % 240), 9 + (i % 10))), i % 4 ? "Agua" : "Drop-In", i % 4 ? "BEBIDAS" : "DROP-IN", i % 4 ? 1 : 15, 1, i % 4 ? 1 : 15, i % 2 ? "Tarjeta" : "Efectivo"]);
+    const data = { fileName: "ventas-grandes.xlsx", format: "xlsx" as const, sheets: [{ name: "Ventas", rows }] };
+    const ws = d1.store.requireWorkspace();
+    const plan = buildSalesPlan(data, analyzeWorkbook(data), ws, { dateOutsideSheet: "keep", locationId: ws.locations[0]!.id });
+    let maxChunk = 0;
+    let sawProgress = false;
+    d1.sync.onStatus((st) => {
+      if (st.progress) sawProgress = true;
+      if (st.progress && visibleWorkspace(d1.store.requireWorkspace()).sales.length > 0) throw new Error("datos visibles a mitad de importación");
+    });
+    const origRpc = d1.sb.rpc.bind(d1.sb);
+    (d1.sb as unknown as { rpc: typeof origRpc }).rpc = ((fn: string, args: { p_batch: { ops: { rows: unknown[] }[] } }) => {
+      maxChunk = Math.max(maxChunk, args.p_batch.ops.reduce((n, o) => n + o.rows.length, 0));
+      return origRpc(fn, args);
+    }) as typeof origRpc;
+    const r = await runImport(ctx, plan, { name: "ventas-grandes.xlsx", sha256: `big-${run}`, size: 1 }, d1.sync);
+    expect(r.state).toBe("COMPLETED");
+    expect(sawProgress).toBe(true);
+    expect(maxChunk).toBeLessThanOrEqual(300);
+    expect(d1.errors).toEqual([]);
+
+    const d2 = await device();
+    await signIn(d2.sb, owner.email, "contraseña-segura");
+    await d2.sync.open(orgId);
+    const w2 = d2.store.requireWorkspace();
+    expect(w2.sales.filter((x) => x.importId === r.job.id)).toHaveLength(N);
+    const job = w2.imports.find((j) => j.id === r.job.id)!;
+    expect(job.status).toBe("completed");
+    expect(job.pipeline?.state).toBe("COMPLETED");
+    expect(job.pipeline?.events.map((e) => e.state)).toEqual(["IMPORTING", "COMPLETED"]);
+    expect(visibleWorkspace(w2).sales).toHaveLength(N);
+  }, 240_000);
 });

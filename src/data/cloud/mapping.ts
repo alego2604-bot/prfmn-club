@@ -55,9 +55,12 @@ export const SERVER_OWNED: Partial<Record<CollectionKey, string[]>> = {
 
 const FIELD_OVERRIDES: Partial<Record<CollectionKey, Record<string, string>>> = {
   invoices: { series: "series_label" },
+  // El estado del pipeline por lotes vive en la columna jsonb `options` (sin migración: compatible con staging)
+  imports: { pipeline: "options" },
 };
 const COLUMN_OVERRIDES: Partial<Record<CollectionKey, Record<string, string>>> = {
   invoices: { series_label: "series" },
+  imports: { options: "pipeline" },
 };
 
 export function entityToRow(key: CollectionKey, e: object): Row {
