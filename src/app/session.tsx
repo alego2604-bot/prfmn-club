@@ -222,7 +222,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           sync.close();
           await sb!.auth.signOut();
           // Privacidad en dispositivos compartidos: la caché local de la empresa se elimina al salir.
-          if (orgId) await Promise.all([store.deleteWorkspace(orgId), kv.del(`outbox:${orgId}`)]);
+          if (orgId) await Promise.all([store.deleteWorkspace(orgId), sync.discardLocal(orgId)]);
         } else {
           await store.flush();
         }

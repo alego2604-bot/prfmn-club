@@ -13,6 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AuditLog, Member, Organization, PaymentMethod, RoleKey } from "@/domain/types";
 import { uid } from "@/lib/ids";
 import type { KV } from "../persistence";
+import { liveTabs as defaultLiveTabs, tabId as defaultTabId } from "./tab";
 import { SCHEMA_VERSION, type Store, type Workspace } from "../store";
 import {
   auditFromRow, COLLECTIONS, entityToRow, organizationFromRow, organizationPatch, paymentFromRow, rowToEntity, SERVER_OWNED,
@@ -24,12 +25,73 @@ export interface Op {
   op: "insert" | "update" | "set_modules";
   rows: Row[];
 }
+/** Lotes que forman una única operación lógica (importación, demo…): progreso, espera y cancelación conjuntos. */
+export interface BatchGroup {
+  id: string;
+  label: string;
+  index: number;
+  total: number;
+}
 export interface Batch {
   id: string;
   orgId: string;
   createdAt: string;
   ops: Op[];
   audit: Record<string, { action: string; label?: string; context?: unknown }>;
+  group?: BatchGroup;
+}
+type BatchBody = Omit<Batch, "id" | "createdAt" | "group">;
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Troceo de lotes grandes
+// ---------------------------------------------------------------------------------------------------------------------
+/**
+ * Límites por envío. `sync_push` corre con el statement_timeout de los usuarios (8 s en Supabase) e incluye triggers
+ * de auditoría, stock e integridad por fila: un lote de miles de filas (demo, Excel grande) lo supera. Con estos
+ * límites cada envío tarda < 1-2 s en staging; si aun así uno expira, se divide en dos y se reintenta.
+ */
+export const CHUNK_MAX_ROWS = 300;
+export const CHUNK_MAX_BYTES = 300_000;
+
+export const batchRows = (b: Pick<Batch, "ops">) => b.ops.reduce((n, o) => n + o.rows.length, 0);
+
+/**
+ * Divide un lote en trozos que respetan el orden de las operaciones (y por tanto las dependencias FK: cada trozo
+ * se confirma antes de enviar el siguiente). La auditoría de cada entidad viaja con el trozo que contiene su fila.
+ */
+export function splitBatch(b: BatchBody, maxRows = CHUNK_MAX_ROWS, maxBytes = CHUNK_MAX_BYTES): BatchBody[] {
+  const chunks: Op[][] = [];
+  let cur: Op[] = [];
+  let rows = 0;
+  let bytes = 0;
+  const close = () => {
+    if (cur.length) chunks.push(cur);
+    cur = [];
+    rows = 0;
+    bytes = 0;
+  };
+  for (const op of b.ops) {
+    for (const row of op.rows) {
+      const size = JSON.stringify(row).length;
+      if (rows > 0 && (rows + 1 > maxRows || bytes + size > maxBytes)) close();
+      const last = cur[cur.length - 1];
+      if (last && last.table === op.table && last.op === op.op) last.rows.push(row);
+      else cur.push({ table: op.table, op: op.op, rows: [row] });
+      rows++;
+      bytes += size;
+    }
+  }
+  close();
+  if (chunks.length <= 1) return [b];
+  const placed = new Set<string>();
+  const out = chunks.map((ops) => {
+    const ids = new Set(ops.flatMap((o) => o.rows.map((r) => String(r.id ?? ""))));
+    const audit: Batch["audit"] = {};
+    for (const [id, a] of Object.entries(b.audit)) if (ids.has(id)) { audit[id] = a; placed.add(id); }
+    return { orgId: b.orgId, ops, audit };
+  });
+  for (const [id, a] of Object.entries(b.audit)) if (!placed.has(id)) out[0]!.audit[id] = a;
+  return out;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -179,43 +241,76 @@ function isTransient(error: { code?: string; message?: string; status?: number }
 }
 
 export type SyncState = "idle" | "syncing" | "offline" | "error";
+export interface SyncProgress {
+  groupId: string;
+  label: string;
+  done: number;
+  total: number;
+}
 export interface SyncStatus {
   state: SyncState;
   pending: number;
   lastSyncedAt?: string;
   error?: string;
+  /** Operación larga en curso (importación, demo): trozos confirmados de los totales. */
+  progress?: SyncProgress;
 }
+export type GroupEvent = { groupId: string; state: "done" } | { groupId: string; state: "failed"; error: string } | { groupId: string; state: "cancelled" };
 
-const outboxKey = (orgId: string) => `outbox:${orgId}`;
+/** Cola de cambios pendientes: una por empresa y pestaña (`outbox:<org>` es el formato anterior, sin pestaña). */
+export const outboxPrefix = (orgId: string) => `outbox:${orgId}`;
+const outboxKey = (orgId: string, tab: string) => `${outboxPrefix(orgId)}:${tab}`;
+
+interface SyncOptions {
+  /** Id de la pestaña (por defecto, el de data/cloud/tab). */
+  tabId?: () => Promise<string>;
+  /** Pestañas vivas, para adoptar colas huérfanas de pestañas cerradas (null = no se puede saber). */
+  liveTabs?: () => Promise<Set<string> | null>;
+}
 
 export class CloudSync {
   private outbox: Batch[] = [];
   private orgId: string | null = null;
+  private tab: string | null = null;
   private flushing: Promise<void> | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private retryDelay = 2000;
   /** Escrituras locales encoladas: una descarga iniciada antes de la última es una foto vieja. */
   private writes = 0;
+  /** Grupo al que pertenecerá el próximo lote encolado (importación, demo…). */
+  private nextGroup: { id: string; label: string } | null = null;
+  private cancelled = new Set<string>();
+  private waiters = new Map<string, { resolve: () => void; reject: (e: Error) => void }[]>();
   private statusListeners = new Set<(s: SyncStatus) => void>();
   private errorListeners = new Set<(message: string) => void>();
+  private groupListeners = new Set<(e: GroupEvent) => void>();
   status: SyncStatus = { state: "idle", pending: 0 };
 
-  constructor(private sb: SupabaseClient, private kv: KV, private store: Store) {
+  constructor(private sb: SupabaseClient, private kv: KV, private store: Store, private opts: SyncOptions = {}) {
     store.onCommit = (prev, next) => this.enqueue(prev, next);
   }
 
   onStatus(l: (s: SyncStatus) => void) { this.statusListeners.add(l); return () => void this.statusListeners.delete(l); }
   onError(l: (m: string) => void) { this.errorListeners.add(l); return () => void this.errorListeners.delete(l); }
+  onGroup(l: (e: GroupEvent) => void) { this.groupListeners.add(l); return () => void this.groupListeners.delete(l); }
+
+  private progress(): SyncProgress | undefined {
+    const g = this.outbox[0]?.group;
+    if (!g) return undefined;
+    const remaining = this.outbox.filter((b) => b.group?.id === g.id).length;
+    return { groupId: g.id, label: g.label, done: g.total - remaining, total: g.total };
+  }
 
   private setStatus(patch: Partial<SyncStatus>) {
-    this.status = { ...this.status, pending: this.outbox.length, ...patch };
+    this.status = { ...this.status, pending: this.outbox.length, ...patch, progress: this.progress() };
     for (const l of this.statusListeners) l(this.status);
   }
 
   /** Abre una empresa: caché inmediata si existe, cola pendiente enviada y estado real descargado. */
   async open(orgId: string): Promise<void> {
     this.orgId = orgId;
-    this.outbox = (await this.kv.get<Batch[]>(outboxKey(orgId))) ?? [];
+    this.tab = await (this.opts.tabId ?? defaultTabId)();
+    this.outbox = await this.loadOutbox(orgId);
     let cached = false;
     try {
       await this.store.openWorkspace(orgId);
@@ -231,9 +326,44 @@ export class CloudSync {
     else await refresh();
   }
 
+  /**
+   * Cola de esta pestaña + colas huérfanas (pestañas cerradas con cambios sin enviar, o el formato anterior sin
+   * pestaña). Las colas de otras pestañas vivas no se tocan: cada una envía lo suyo.
+   */
+  private async loadOutbox(orgId: string): Promise<Batch[]> {
+    const own = outboxKey(orgId, this.tab!);
+    const mine = (await this.kv.get<Batch[]>(own)) ?? [];
+    const prefix = outboxPrefix(orgId);
+    const others = (await this.kv.keys()).filter((k) => k !== own && (k === prefix || k.startsWith(`${prefix}:`)));
+    if (!others.length) return mine;
+    const live = await (this.opts.liveTabs ?? defaultLiveTabs)();
+    const adopted: Batch[] = [];
+    const adoptedKeys: string[] = [];
+    for (const k of others) {
+      const tab = k.slice(prefix.length + 1);
+      const orphan = k === prefix || (live !== null && !live.has(tab));
+      if (!orphan) continue;
+      adopted.push(...((await this.kv.get<Batch[]>(k)) ?? []));
+      adoptedKeys.push(k);
+    }
+    if (!adopted.length && !adoptedKeys.length) return mine;
+    // Orden de creación (estable: los trozos de un mismo grupo comparten fecha y conservan su orden)
+    const merged = [...adopted, ...mine].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    await this.kv.set(own, merged);
+    for (const k of adoptedKeys) await this.kv.del(k);
+    return merged;
+  }
+
   close() {
     this.orgId = null;
     if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+  }
+
+  /** Elimina la caché local de cambios de una empresa (al cerrar sesión, tras comprobar que no queda nada). */
+  async discardLocal(orgId: string): Promise<void> {
+    const prefix = outboxPrefix(orgId);
+    for (const k of await this.kv.keys()) if (k === prefix || k.startsWith(`${prefix}:`)) await this.kv.del(k);
   }
 
   /** Descarga el estado real (no pisa cambios locales aún no enviados ni hechos durante la descarga). */
@@ -251,50 +381,133 @@ export class CloudSync {
     this.setStatus({ state: "idle", lastSyncedAt: new Date().toISOString(), error: undefined });
   }
 
+  /**
+   * Agrupa la próxima escritura (p. ej. `store.update` de una importación) bajo un id: sus trozos comparten
+   * progreso, se pueden esperar con `waitGroup` y cancelar con `cancelGroup`.
+   */
+  tagNext(group: { id: string; label: string }) {
+    this.nextGroup = group;
+  }
+
   private enqueue(prev: Workspace, next: Workspace) {
     const d = diffWorkspaces(prev, next);
-    if (!d) return;
+    const tag = this.nextGroup;
+    this.nextGroup = null;
+    if (!d) {
+      if (tag) queueMicrotask(() => this.settleGroup(tag.id, { groupId: tag.id, state: "done" }));
+      return;
+    }
     this.writes++;
-    this.outbox.push({ ...d, id: uid(), createdAt: new Date().toISOString() });
+    const createdAt = new Date().toISOString();
+    const parts = splitBatch(d);
+    const groupId = tag?.id ?? (parts.length > 1 ? uid() : undefined);
+    const label = tag?.label ?? "Guardando cambios";
+    parts.forEach((p, index) => {
+      this.outbox.push({ ...p, id: uid(), createdAt, group: groupId ? { id: groupId, label, index, total: parts.length } : undefined });
+    });
     this.setStatus({});
     void this.persist().then(() => this.flush());
   }
 
   private persist() {
-    return this.orgId ? this.kv.set(outboxKey(this.orgId), this.outbox) : Promise.resolve();
+    return this.orgId && this.tab ? this.kv.set(outboxKey(this.orgId, this.tab), this.outbox) : Promise.resolve();
   }
 
   get pending() {
     return this.outbox.length;
   }
 
+  /** ¿Quedan trozos del grupo por enviar? */
+  hasGroup(groupId: string): boolean {
+    return this.outbox.some((b) => b.group?.id === groupId);
+  }
+
+  /** Resuelve cuando todos los trozos del grupo están confirmados; rechaza si el servidor rechaza alguno o se cancela. */
+  waitGroup(groupId: string): Promise<void> {
+    if (!this.hasGroup(groupId)) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const list = this.waiters.get(groupId) ?? [];
+      list.push({ resolve, reject });
+      this.waiters.set(groupId, list);
+    });
+  }
+
+  /**
+   * Cancela los trozos de un grupo que aún no se han enviado. Lo ya confirmado queda en el servidor identificado
+   * por el grupo (p. ej. `import_id`) para poder limpiarlo. Devuelve cuántos trozos se descartaron.
+   */
+  async cancelGroup(groupId: string): Promise<number> {
+    this.cancelled.add(groupId);
+    // El trozo en vuelo (si lo hay) termina; el resto se descarta
+    if (this.flushing) await this.flushing.catch(() => undefined);
+    const before = this.outbox.length;
+    this.outbox = this.outbox.filter((b) => b.group?.id !== groupId);
+    const dropped = before - this.outbox.length;
+    await this.persist();
+    this.cancelled.delete(groupId);
+    this.settleGroup(groupId, { groupId, state: "cancelled" });
+    this.setStatus({});
+    return dropped;
+  }
+
+  private settleGroup(groupId: string, e: GroupEvent) {
+    const list = this.waiters.get(groupId) ?? [];
+    this.waiters.delete(groupId);
+    for (const w of list) {
+      if (e.state === "done") w.resolve();
+      else w.reject(new CloudError(e.state === "failed" ? e.error : "Operación cancelada", e.state === "cancelled" ? "CANCELLED" : undefined));
+    }
+    for (const l of this.groupListeners) l(e);
+  }
+
   /** Envía la cola en orden. Resuelve cuando está vacía o cuando no hay conexión. */
   flush(): Promise<void> {
     if (this.flushing) return this.flushing;
     const run = async () => {
-        while (this.outbox.length && this.orgId) {
-          const batch = this.outbox[0]!;
-          this.setStatus({ state: "syncing" });
-          const { data, error } = await this.sb.rpc("sync_push", { p_org: batch.orgId, p_batch: { ops: batch.ops, audit: batch.audit } });
-          if (error) {
-            if (isTransient(error)) {
-              this.setStatus({ state: "offline", error: error.message });
-              this.scheduleRetry();
-              return;
+      while (this.outbox.length && this.orgId) {
+        const batch = this.outbox[0]!;
+        if (batch.group && this.cancelled.has(batch.group.id)) return; // cancelGroup lo retira
+        this.setStatus({ state: "syncing" });
+        const { data, error } = await this.sb.rpc("sync_push", { p_org: batch.orgId, p_batch: { ops: batch.ops, audit: batch.audit } });
+        if (error) {
+          // Reintento tras una respuesta perdida: el trozo ya entró. Se quitan las filas existentes y se reenvía el resto.
+          if (error.code === "23505") {
+            const pruned = await this.pruneExisting(batch).catch(() => null);
+            if (pruned === "done") {
+              await this.confirm(batch, []);
+              continue;
             }
-            this.outbox.shift();
+            if (pruned) {
+              this.outbox[0] = pruned;
+              await this.persist();
+              continue;
+            }
+          }
+          // Trozo demasiado lento para el statement_timeout: se divide en dos y se reintenta
+          if (error.code === "57014" && batchRows(batch) > 20) {
+            const halves = splitBatch(batch, Math.ceil(batchRows(batch) / 2), Number.MAX_SAFE_INTEGER);
+            this.outbox.splice(0, 1, ...halves.map((h, i) => ({ ...h, id: i === 0 ? batch.id : uid(), createdAt: batch.createdAt, group: batch.group })));
+            this.regroup(batch.group?.id);
             await this.persist();
-            this.setStatus({ state: "error", error: error.message });
-            for (const l of this.errorListeners) l(humanize(error.message));
-            await this.pull().catch(() => undefined);
             continue;
           }
-          this.outbox.shift();
+          if (isTransient(error)) {
+            this.setStatus({ state: "offline", error: error.message });
+            this.scheduleRetry();
+            return;
+          }
+          // Rechazo de negocio o permisos: se descarta el trozo (y el resto de su grupo, que depende de él)
+          const groupId = batch.group?.id;
+          this.outbox = this.outbox.filter((b, i) => i !== 0 && (!groupId || b.group?.id !== groupId));
           await this.persist();
-          this.applyServerValues(data as { table: string; rows: Row[] }[]);
-          this.retryDelay = 2000;
-          this.setStatus({ state: "idle", lastSyncedAt: new Date().toISOString(), error: undefined });
+          this.setStatus({ state: "error", error: error.message });
+          if (groupId) this.settleGroup(groupId, { groupId, state: "failed", error: humanize(error.message) });
+          for (const l of this.errorListeners) l(humanize(error.message));
+          await this.pull().catch(() => undefined);
+          continue;
         }
+        await this.confirm(batch, data as { table: string; rows: Row[] }[]);
+      }
     };
     // .finally() se ejecuta siempre después de la asignación (aunque la cola esté vacía y run() termine en el acto)
     const p = run().finally(() => {
@@ -302,6 +515,57 @@ export class CloudSync {
     });
     this.flushing = p;
     return p;
+  }
+
+  private async confirm(batch: Batch, result: { table: string; rows: Row[] }[]) {
+    this.outbox.shift();
+    await this.persist();
+    this.applyServerValues(result);
+    this.retryDelay = 2000;
+    this.setStatus({ state: "idle", lastSyncedAt: new Date().toISOString(), error: undefined });
+    const g = batch.group;
+    if (g && !this.hasGroup(g.id)) this.settleGroup(g.id, { groupId: g.id, state: "done" });
+  }
+
+  /** Renumera los trozos de un grupo tras dividir uno (el progreso sigue siendo exacto). */
+  private regroup(groupId?: string) {
+    if (!groupId) return;
+    const mine = this.outbox.filter((b) => b.group?.id === groupId);
+    const doneBefore = mine[0] ? mine[0].group!.index : 0;
+    const total = doneBefore + mine.length;
+    mine.forEach((b, i) => (b.group = { ...b.group!, index: doneBefore + i, total }));
+  }
+
+  /**
+   * Idempotencia: si un trozo ya se confirmó (respuesta perdida) y se reenvía, las inserciones chocan por clave
+   * primaria. Se consultan los ids que ya existen y se quitan del trozo. Devuelve "done" si no queda nada, el trozo
+   * reducido si quedaba algo, o null si ninguna fila existía (el duplicado es real: otra restricción única).
+   */
+  private async pruneExisting(batch: Batch): Promise<Batch | "done" | null> {
+    let total = 0;
+    let existingCount = 0;
+    const ops: Op[] = [];
+    for (const op of batch.ops) {
+      if (op.op !== "insert") {
+        ops.push(op);
+        continue;
+      }
+      const ids = op.rows.map((r) => String(r.id));
+      const existing = new Set<string>();
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data, error } = await this.sb.from(op.table).select("id").in("id", ids.slice(i, i + 100));
+        if (error) throw error;
+        for (const r of (data ?? []) as { id: string }[]) existing.add(String(r.id));
+      }
+      total += ids.length;
+      existingCount += existing.size;
+      const rows = op.rows.filter((r) => !existing.has(String(r.id)));
+      if (rows.length) ops.push({ ...op, rows });
+    }
+    if (!existingCount) return null;
+    // Cada trozo es una transacción: si todas sus inserciones existen, entró entero (actualizaciones incluidas)
+    if (existingCount === total) return "done";
+    return { ...batch, ops };
   }
 
   private scheduleRetry() {
