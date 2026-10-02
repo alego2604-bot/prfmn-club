@@ -45,7 +45,8 @@ export default function PosPage() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [category, setCategory] = useState<string | "all">("all");
   const [query, setQuery] = useState("");
-  const [customerId, setCustomerId] = useState<string | undefined>();
+  // ?cliente=<id>: «Nueva venta» desde la ficha del cliente llega con el cliente ya asociado
+  const [customerId, setCustomerId] = useState<string | undefined>(() => new URLSearchParams(window.location.search).get("cliente") ?? undefined);
   const [method, setMethod] = useState<string | null>(null);
   const [split, setSplit] = useState(false);
   const [splitAmounts, setSplitAmounts] = useState<Record<string, number | null>>({});

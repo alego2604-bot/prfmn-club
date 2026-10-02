@@ -1,46 +1,79 @@
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { AlertCircle, ArrowLeft, BellOff, CreditCard, ListTodo, Mail, MessageCircle, MoreHorizontal, NotebookPen, Pencil, Pin, Receipt, Repeat, ShoppingBag, StickyNote, UserPlus, UserX } from "lucide-react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  AlertCircle, ArrowLeft, ArrowRight, BellOff, CalendarClock, CheckCircle2, Circle, Contact, CreditCard, FileText, FolderOpen, ListTodo, Mail, MessageCircle,
+  MoreHorizontal, NotebookPen, Pencil, Pin, Plus, Receipt, Repeat, ScrollText, ShoppingBag, StickyNote, Store, UserPlus, UserX, Wallet,
+} from "lucide-react";
 import { useCtx, useSession, useWorkspace, usePersonName } from "@/app/session";
-import { Avatar, Badge, Button, Callout, Card, CardHeader, DescriptionList, EmptyState, Field, IconButton, Input, Menu, MenuItem, Mono, Page, Switch, Tabs, Textarea, useToast } from "@/design-system/components";
+import { useServerReady } from "@/app/serverCaps";
+import { Avatar, Badge, Button, Callout, Card, CardHeader, DescriptionList, EmptyState, Field, Input, Ledger, Menu, MenuItem, Mono, Page, Switch, Tabs, Textarea, useToast } from "@/design-system/components";
 import { Sparkline } from "@/design-system/components/charts";
 import { addCustomerNote, customerName } from "@/data/repos/customers";
+import { invoiceLabel } from "@/data/repos/invoices";
+import { setTaskStatus, taskBucket } from "@/data/repos/tasks";
+import { customerIndex, EMPTY_SNAPSHOT, nextAction } from "@/domain/customer360";
+import { INVOICE_VIEW, invoiceView } from "@/domain/invoicing";
+import { BILLING_PERIOD, MEMBERSHIP_VIEW, membershipView } from "@/domain/memberships";
 import { capitalize, daysBetween, formatDate, formatDateTime, relativeDays, toISODate } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import { CustomerForm, CUSTOMER_STATUS, sourceLabel } from "./CustomerForm";
-import { INVOICE_STATUS } from "../invoices/status";
+import { AssignMembershipDrawer, MembershipActions } from "../memberships/MembershipDialogs";
+import { TaskDrawer } from "../tasks/FollowUpPage";
+import { PaymentModal } from "../invoices/InvoiceDetailPage";
+import { ExpenseDrawer } from "../expenses/ExpenseDrawer";
 
-type Tab = "overview" | "activity" | "invoices" | "purchases" | "notes";
+type Tab = "overview" | "timeline" | "membership" | "sales" | "payments" | "invoices" | "notes" | "tasks" | "documents";
+const TAB_PARAM: Record<string, Tab> = { membresia: "membership", cronologia: "timeline", ventas: "sales", cobros: "payments", facturas: "invoices", notas: "notes", tareas: "tasks", documentos: "documents" };
 
 export default function CustomerDetailPage() {
   const { id } = useParams();
+  const [params] = useSearchParams();
   const ws = useWorkspace();
   const { can } = useSession();
+  const ready = useServerReady();
   const authorName = usePersonName();
   const ctx = useCtx();
   const toast = useToast();
-  const [tab, setTab] = useState<Tab>("overview");
+  const navigate = useNavigate();
+  const [tab, setTab] = useState<Tab>(TAB_PARAM[params.get("tab") ?? ""] ?? "overview");
   const [editing, setEditing] = useState(false);
+  const [assign, setAssign] = useState(false);
+  const [newTask, setNewTask] = useState(false);
+  const [paying, setPaying] = useState<string | null>(null);
+  const [relatedExpense, setRelatedExpense] = useState(false);
   const [note, setNote] = useState("");
   const [pinned, setPinned] = useState(false);
   const [suppress, setSuppress] = useState("");
   const c = ws.customers.find((x) => x.id === id);
+  const today = toISODate(new Date());
 
   const data = useMemo(() => {
     if (!c) return null;
-    const invoices = ws.invoices.filter((i) => i.customerId === c.id).sort((a, b) => (b.issueDate ?? "").localeCompare(a.issueDate ?? ""));
+    const snap = customerIndex(ws, today).get(c.id) ?? EMPTY_SNAPSHOT;
+    const invoices = ws.invoices.filter((i) => i.customerId === c.id && i.status !== "draft").sort((a, b) => (b.issueDate ?? "").localeCompare(a.issueDate ?? ""));
+    const drafts = ws.invoices.filter((i) => i.customerId === c.id && i.status === "draft");
     const sales = ws.sales.filter((s) => s.customerId === c.id).sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+    const payments = ws.payments.filter((p) => p.customerId === c.id).sort((a, b) => b.paidAt.localeCompare(a.paidAt));
     const notes = ws.customerNotes.filter((n) => n.customerId === c.id).sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.createdAt.localeCompare(a.createdAt));
+    const tasks = ws.tasks.filter((t) => t.customerId === c.id).sort((a, b) => (a.status === "done" ? 1 : 0) - (b.status === "done" ? 1 : 0) || (a.dueDate ?? "9").localeCompare(b.dueDate ?? "9"));
+    const memberships = ws.customerMemberships.filter((m) => m.customerId === c.id).sort((a, b) => b.startDate.localeCompare(a.startDate));
+    const mIds = new Set(memberships.map((m) => m.id));
+    const charges = ws.membershipCharges.filter((ch) => mIds.has(ch.customerMembershipId)).sort((a, b) => b.periodStart.localeCompare(a.periodStart));
+    const planName = new Map(ws.membershipPlans.map((p) => [p.id, p.name]));
     const items = new Map<string, string>();
-    for (const it of ws.saleItems) if (sales.some((s) => s.id === it.saleId)) items.set(it.saleId, `${items.get(it.saleId) ? `${items.get(it.saleId)}, ` : ""}${it.quantity > 1 ? `${it.quantity}× ` : ""}${it.productName}`);
-    const lastInvoice = invoices.find((i) => i.status !== "void");
-    const activeInv = invoices.filter((i) => i.status !== "void");
-    const pending = activeInv.filter((i) => i.status === "issued" || i.status === "partially_paid");
+    const saleIds = new Set(sales.map((s) => s.id));
+    for (const it of ws.saleItems) if (saleIds.has(it.saleId)) items.set(it.saleId, `${items.get(it.saleId) ? `${items.get(it.saleId)}, ` : ""}${it.quantity > 1 ? `${it.quantity}× ` : ""}${it.productName}`);
+    const methodName = new Map(ws.paymentMethods.map((m) => [m.key, m.name]));
+    const MEMBER_ACTION: Record<string, string> = { insert: "Alta de membresía", pause: "Membresía en pausa", resume: "Membresía reanudada", cancel: "Baja de la membresía", reactivate: "Membresía reactivada", plan_change: "Cambio de tarifa", charge: "Cuota generada", update: "Membresía modificada" };
     const timeline = [
-      ...invoices.map((i) => ({ at: `${i.issueDate}T12:00:00`, kind: "invoice", icon: Receipt, title: `Factura ${i.number ?? i.externalNumber} · ${formatMoney(i.total)}`, sub: `${i.concept ?? ""}${i.servicePeriodStart ? ` · periodo ${formatDate(`${i.servicePeriodStart}T00:00`).slice(3)}` : ""} · ${INVOICE_STATUS[i.status].label}`, to: `/facturas/${i.id}` })),
+      ...invoices.map((i) => ({ at: `${i.issueDate}T12:00:00`, kind: "invoice", icon: Receipt, title: `Factura ${invoiceLabel(i)} · ${formatMoney(i.total)}`, sub: `${i.concept ?? ""} · ${INVOICE_VIEW[invoiceView(i, today)].label}`, to: `/facturas/${i.id}` })),
       ...sales.map((s) => ({ at: s.occurredAt, kind: "purchase", icon: ShoppingBag, title: `Compra #${s.number} · ${formatMoney(s.total)}${s.status === "voided" ? " (anulada)" : ""}`, sub: items.get(s.id) ?? "", to: `/ventas?venta=${s.id}` })),
+      ...payments.filter((p) => !p.saleId).map((p) => ({ at: p.paidAt, kind: "payment", icon: CreditCard, title: `${p.kind === "refund" ? "Devolución" : "Cobro"} ${formatMoney(p.amount)}`, sub: methodName.get(p.methodKey) ?? "", to: p.invoiceId ? `/facturas/${p.invoiceId}` : undefined })),
       ...notes.map((n) => ({ at: n.createdAt, kind: "note", icon: StickyNote, title: "Nota interna", sub: n.body, to: undefined as string | undefined })),
+      ...tasks.map((t) => ({ at: t.completedAt ?? t.createdAt, kind: "task", icon: t.status === "done" ? CheckCircle2 : ListTodo, title: `${t.status === "done" ? "Tarea hecha" : "Tarea"}: ${t.title}`, sub: t.reason ?? (t.dueDate ? `Para el ${formatDate(t.dueDate)}` : ""), to: undefined as string | undefined })),
+      ...ws.auditLogs.filter((l) => l.entityId && mIds.has(l.entityId) && l.action !== "charge").map((l) => ({ at: l.createdAt, kind: "status", icon: Contact, title: MEMBER_ACTION[l.action] ?? "Membresía", sub: l.entityLabel ?? "", to: undefined as string | undefined })),
+      ...memberships.filter((m) => !ws.auditLogs.some((l) => l.entityId === m.id && l.action === "insert")).map((m) => ({ at: `${m.startDate}T08:00:00`, kind: "status", icon: Contact, title: "Alta de membresía", sub: `${planName.get(m.planId) ?? ""} · ${formatMoney(m.price)}`, to: undefined as string | undefined })),
       ...ws.auditLogs.filter((l) => l.entityId === c.id && l.entityType === "customers" && l.action !== "note").map((l) => {
         const st = l.changes?.status as { from?: string; to?: string } | undefined;
         const label = (v?: string) => (v && v in CUSTOMER_STATUS ? CUSTOMER_STATUS[v as keyof typeof CUSTOMER_STATUS].label : v ?? "—");
@@ -49,80 +82,109 @@ export default function CustomerDetailPage() {
           : { at: l.createdAt, kind: "change", icon: Pencil, title: l.action === "insert" ? "Ficha creada" : "Ficha actualizada", sub: `${l.actorName}${l.changes ? ` · ${Object.keys(l.changes).join(", ")}` : ""}`, to: undefined };
       }),
       ...(c.joinedAt ? [{ at: `${c.joinedAt}T08:00:00`, kind: "status", icon: UserPlus, title: "Alta como cliente", sub: sourceLabel(c.source) !== "—" ? `Origen: ${sourceLabel(c.source)}` : "", to: undefined as string | undefined }] : []),
-      ...(c.leftAt ? [{ at: `${c.leftAt}T20:00:00`, kind: "status", icon: UserX, title: "Baja", sub: "Deja de facturarse la cuota", to: undefined as string | undefined }] : []),
+      ...(c.leftAt ? [{ at: `${c.leftAt}T20:00:00`, kind: "status", icon: UserX, title: "Baja", sub: "No se generan más cuotas", to: undefined as string | undefined }] : []),
     ].sort((a, b) => b.at.localeCompare(a.at));
     const now = new Date();
     const monthly = Array.from({ length: 12 }, (_, i) => {
-      const start = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
-      const key = toISODate(start).slice(0, 7);
+      const key = toISODate(new Date(now.getFullYear(), now.getMonth() - 11 + i, 1)).slice(0, 7);
       return sales.filter((s) => s.status !== "voided" && s.occurredAt.slice(0, 7) === key).reduce((a, s) => a + s.total, 0)
-        + activeInv.filter((x) => (x.issueDate ?? "").slice(0, 7) === key).reduce((a, x) => a + x.total, 0);
+        + invoices.filter((x) => x.status !== "void" && (x.issueDate ?? "").slice(0, 7) === key).reduce((a, x) => a + x.total, 0);
     });
-    const lastFee = activeInv.filter((i) => i.servicePeriodEnd).sort((a, b) => (b.servicePeriodEnd ?? "").localeCompare(a.servicePeriodEnd ?? ""))[0];
-    const renewal = lastFee?.servicePeriodEnd ? toISODate(new Date(new Date(`${lastFee.servicePeriodEnd}T00:00`).getTime() + 86_400_000)) : undefined;
     return {
-      invoices, sales, notes, items, lastInvoice, pending, timeline, monthly, renewal,
-      pendingAmount: pending.reduce((s, i) => s + i.total - i.amountPaid, 0),
-      billed: activeInv.reduce((s, i) => s + i.total, 0),
-      spent: sales.filter((s) => s.status !== "voided").reduce((a, s) => a + s.total, 0),
-      lastActivity: timeline.find((t) => t.kind === "purchase" || t.kind === "invoice")?.at,
-      silenced: notes.find((n) => n.suppressAlertsUntil && n.suppressAlertsUntil >= new Date().toISOString().slice(0, 10)),
+      snap, invoices, drafts, sales, payments, notes, tasks, memberships, charges, items, timeline, monthly,
+      action: nextAction(c, snap, today),
+      silenced: notes.find((n) => n.suppressAlertsUntil && n.suppressAlertsUntil >= today),
     };
-  }, [c, ws]);
+  }, [c, ws, today]);
 
   if (!c || !data) {
-    return <Page><EmptyState icon={UserX} title="Cliente no encontrado" action={<Link to="/clientes"><Button>Volver a clientes</Button></Link>} /></Page>;
+    return <Page><EmptyState icon={UserX} title="Cliente no encontrado" description="Puede pertenecer a otra empresa o el enlace no es correcto." action={<Link to="/clientes"><Button>Volver a clientes</Button></Link>} /></Page>;
   }
   const name = customerName(c);
   const phoneDigits = c.phone?.replace(/[^\d+]/g, "").replace(/^\+/, "");
   const waNumber = phoneDigits ? (phoneDigits.length === 9 ? `34${phoneDigits}` : phoneDigits) : null;
+  const { snap, action } = data;
+  const m = snap.membership;
+  const mv = snap.membershipView;
+  const plan = m ? ws.membershipPlans.find((p) => p.id === m.planId) : undefined;
+  const loc = ws.locations.find((l) => l.id === (m?.locationId ?? snap.locationId));
+  const oldestPending = [...snap.pendingInvoices].sort((a, b) => (a.issueDate ?? "").localeCompare(b.issueDate ?? ""))[0];
+  const gone = mv === "CANCELLED" || mv === "EXPIRED" || c.status === "cancelled";
 
   const saveNote = () => {
     try {
       addCustomerNote(ctx, c.id, note, { pinned, suppressAlertsUntil: suppress || undefined });
-      setNote("");
-      setPinned(false);
-      setSuppress("");
+      setNote(""); setPinned(false); setSuppress("");
       toast.success("Nota guardada");
     } catch (e) {
       toast.fromError(e);
     }
   };
 
+  const runAction = () => {
+    if (action.kind === "collect" && oldestPending && can("payments.manage")) return setPaying(oldestPending.id);
+    if (action.kind === "collect" || action.kind === "renewal" || action.kind === "resume" || action.kind === "reactivate") return setTab("membership");
+    if (action.kind === "task") return setTab("tasks");
+    if (action.kind === "convert") return setAssign(true);
+  };
+
+  // Renovación coherente con el estado: una baja o una pausa nunca muestran «próxima renovación»
+  const renewal = c.status === "lead" && !m
+    ? { label: "Renovación", value: "—", sub: "Aún no es cliente" }
+    : gone
+      ? { label: "Baja", value: m?.endDate ? formatDate(m.endDate) : c.leftAt ? formatDate(c.leftAt) : "De baja", sub: "Sin renovación" }
+      : mv === "PAUSED"
+        ? { label: "En pausa", value: m?.resumeOn ? formatDate(m.resumeOn) : "Sin fecha", sub: "Fecha de vuelta" }
+        : m?.nextRenewalDate
+          ? { label: m.nextRenewalDate < today ? "Renovación pendiente" : "Próxima renovación", value: formatDate(m.nextRenewalDate), sub: relativeDays(`${m.nextRenewalDate}T00:00`), tone: m.nextRenewalDate < today ? "warning" : undefined }
+          : { label: "Renovación", value: "—", sub: m ? "Pago único" : "Sin membresía" };
+  const fields: { label: string; value: string; sub?: string; small?: boolean; tone?: string }[] = [
+    { label: "Membresía", value: plan?.name ?? "Sin membresía", small: true, sub: m ? `${formatMoney(m.price)}${plan && plan.billingPeriod !== "none" ? ` / ${BILLING_PERIOD[plan.billingPeriod].per}` : ""}` : undefined },
+    { label: "Valor del cliente", value: formatMoney(snap.lifetimeValue), sub: `${formatMoney(snap.value12m)} en 12 meses` },
+    { label: "Última actividad", value: snap.lastActivity ? capitalize(relativeDays(`${snap.lastActivity}T12:00`)) : "—", sub: snap.lastActivity ? formatDate(snap.lastActivity) : undefined },
+    { label: "Saldo pendiente", value: formatMoney(snap.balance), sub: snap.pendingInvoices.length ? `${snap.pendingInvoices.length} factura${snap.pendingInvoices.length === 1 ? "" : "s"}${snap.overdueInvoices.length ? ` · ${snap.overdueInvoices.length} vencida${snap.overdueInvoices.length === 1 ? "" : "s"}` : ""}` : "Al día", tone: snap.overdueInvoices.length ? "danger" : snap.balance > 0 ? "warning" : undefined },
+    renewal,
+    { label: "Cliente desde", value: c.joinedAt ? formatDate(c.joinedAt) : formatDate(c.createdAt), sub: c.joinedAt ? `${Math.max(0, Math.round(daysBetween(new Date(`${c.joinedAt}T00:00`), new Date(c.leftAt ? `${c.leftAt}T00:00` : Date.now())) / 30))} meses` : undefined },
+  ];
+  const ACTION_TONE = { danger: "bg-danger-soft text-danger-fg", warning: "bg-warning-soft text-warning-fg", info: "bg-accent-soft text-accent-fg", neutral: "bg-surface-sunken text-fg-2", success: "bg-success-soft text-success-fg" };
+
   return (
-    <Page>
+    <Page wide>
       <Link to="/clientes" className="mb-4 inline-flex items-center gap-1.5 text-sm text-fg-3 hover:text-fg"><ArrowLeft className="h-4 w-4" />Clientes</Link>
 
-      <div className="mb-6 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+      <div className="mb-5 flex flex-col gap-5 2xl:flex-row 2xl:items-start 2xl:justify-between">
         <div className="flex min-w-0 items-center gap-4">
-          <Avatar name={name} size={64} className="text-lg ring-4 ring-surface shadow-sm" />
+          <Avatar name={name} size={64} className="text-lg shadow-sm ring-4 ring-surface" />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-3xl font-semibold tracking-[-0.03em]">{name}</h1>
+              <h1 className="truncate text-[28px] font-semibold tracking-[-0.03em]">{name}</h1>
               <Badge tone={CUSTOMER_STATUS[c.status].tone} dot>{CUSTOMER_STATUS[c.status].label}</Badge>
-              {data.lastInvoice?.concept && c.status !== "cancelled" && <Badge>{data.lastInvoice.concept}</Badge>}
-              {data.silenced && <Badge tone="info"><BellOff className="h-3 w-3" />Avisos silenciados hasta {formatDate(`${data.silenced.suppressAlertsUntil}T00:00`)}</Badge>}
+              {mv && <Badge tone={MEMBERSHIP_VIEW[mv].tone}>{plan?.name ?? "Membresía"} · {MEMBERSHIP_VIEW[mv].label}</Badge>}
+              {data.silenced && <Badge tone="info"><BellOff className="h-3 w-3" />Avisos silenciados hasta {formatDate(data.silenced.suppressAlertsUntil!)}</Badge>}
             </div>
             <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-3">
-              {c.email && <span>{c.email}</span>}
+              {loc && <span className="flex items-center gap-1"><Store className="h-3.5 w-3.5" />{loc.name}</span>}
+              {c.companyName && <span>{c.companyName}</span>}
+              {c.email && <a href={`mailto:${c.email}`} className="hover:text-fg">{c.email}</a>}
               {c.phone && <span className="num">{c.phone}</span>}
               {c.taxId && <span className="flex items-center gap-1"><Mono className="text-fg-2">{c.taxIdNormalized ?? c.taxId}</Mono>{c.taxIdValid === false && <AlertCircle className="h-3.5 w-3.5 text-danger" />}</span>}
-              {!c.email && !c.phone && !c.taxId && <span>Sin datos de contacto</span>}
             </p>
           </div>
         </div>
-        {/* Acciones rápidas: lo frecuente a la vista; lo que aún no existe, en «Más» y marcado como Pronto */}
         <div className="flex flex-wrap gap-2">
-          {data.pending.length > 0 && can("payments.manage") && <Link to={`/facturas/${data.pending[0]!.id}`}><Button variant="primary" icon={CreditCard}>Registrar cobro</Button></Link>}
+          {can("pos.sell") && <Button icon={ShoppingBag} onClick={() => navigate(`/caja?cliente=${c.id}`)}>Venta</Button>}
+          {can("payments.manage") && ready && <Button icon={CreditCard} disabled={!oldestPending} title={oldestPending ? undefined : "Sin facturas pendientes"} onClick={() => oldestPending && setPaying(oldestPending.id)}>Cobro</Button>}
+          {can("invoices.manage") && ready && <Button icon={Receipt} onClick={() => navigate(`/facturas/nueva?cliente=${c.id}`)}>Factura</Button>}
           {can("customers.manage") && <Button icon={NotebookPen} onClick={() => setTab("notes")}>Nota</Button>}
-          {waNumber && <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noreferrer" title="Abre WhatsApp con este número (envío manual)"><Button icon={MessageCircle}>Mensaje</Button></a>}
-          {c.email && <a href={`mailto:${c.email}`}><Button icon={Mail}>Email</Button></a>}
-          {can("customers.manage") && <Button variant={data.pending.length ? "secondary" : "primary"} icon={Pencil} onClick={() => setEditing(true)}>Editar</Button>}
-          <Menu trigger={(_, toggle) => <IconButton icon={MoreHorizontal} label="Más acciones" onClick={toggle} className="border border-line" />}>
-            {() => (
+          {can("customers.manage") && ready && <Button icon={ListTodo} onClick={() => setNewTask(true)}>Tarea</Button>}
+          <Menu width={240} trigger={(_, toggle) => <Button icon={MoreHorizontal} onClick={toggle}>Más</Button>}>
+            {(close) => (
               <>
-                <MenuItem icon={Receipt} disabled hint="Pronto">Nueva factura</MenuItem>
-                <MenuItem icon={ListTodo} disabled hint="Pronto">Nueva tarea</MenuItem>
+                {can("memberships.manage") && ready && <MenuItem icon={Contact} onClick={() => { close(); if (m && !gone) setTab("membership"); else setAssign(true); }}>{m && !gone ? "Cambiar membresía" : "Nueva membresía"}</MenuItem>}
+                {can("customers.manage") && <MenuItem icon={Pencil} onClick={() => { close(); setEditing(true); }}>Editar ficha</MenuItem>}
+                {can("expenses.manage") && ready && <MenuItem icon={ScrollText} onClick={() => { close(); setRelatedExpense(true); }}>Gasto relacionado</MenuItem>}
+                {waNumber && <MenuItem icon={MessageCircle} onClick={() => { close(); window.open(`https://wa.me/${waNumber}`, "_blank", "noopener"); }}>WhatsApp (manual)</MenuItem>}
+                {c.email && <MenuItem icon={Mail} onClick={() => { close(); window.location.href = `mailto:${c.email}`; }}>Email</MenuItem>}
                 <MenuItem icon={MessageCircle} disabled hint="Pronto">Mensaje desde la app</MenuItem>
               </>
             )}
@@ -130,36 +192,22 @@ export default function CustomerDetailPage() {
         </div>
       </div>
 
-      {(() => {
-        const gone = c.status === "cancelled" || !!c.leftAt;
-        const overdue = !gone && data.renewal && data.renewal < toISODate(new Date());
-        const renewal = c.status === "lead"
-          ? { label: "Próxima renovación", value: "—", sub: "Aún no es cliente" }
-          : gone
-            ? { label: "Baja", value: c.leftAt ? formatDate(`${c.leftAt}T00:00`) : "Dado de baja", sub: "Sin renovación" }
-            : data.renewal
-              ? { label: overdue ? "Renovación pendiente" : "Próxima renovación", value: formatDate(`${data.renewal}T00:00`), sub: overdue ? `Vencida ${relativeDays(`${data.renewal}T00:00`)}` : relativeDays(`${data.renewal}T00:00`), tone: overdue ? "warning" : undefined }
-              : { label: "Próxima renovación", value: "—", sub: "Sin cuota periódica" };
-        const fields: { label: string; value: string; sub?: string; small?: boolean; tone?: string }[] = [
-          { label: gone ? "Última tarifa" : "Tarifa actual", value: data.lastInvoice?.concept ?? "—", small: true, sub: data.lastInvoice ? `${formatMoney(data.lastInvoice.total)} · ${data.lastInvoice.issueDate ? formatDate(`${data.lastInvoice.issueDate}T00:00`) : ""}` : undefined },
-          { label: "Última actividad", value: data.lastActivity ? capitalize(relativeDays(data.lastActivity)) : "—", sub: data.lastActivity ? formatDate(data.lastActivity) : undefined },
-          { label: "Saldo pendiente", value: formatMoney(data.pendingAmount), sub: data.pending.length ? `${data.pending.length} factura${data.pending.length === 1 ? "" : "s"}` : "Al día", tone: data.pendingAmount > 0 ? "warning" : undefined },
-          renewal,
-          { label: "Valor total", value: formatMoney(data.billed + data.spent), sub: `${data.invoices.length} facturas · ${data.sales.length} compras` },
-          { label: "Cliente desde", value: c.joinedAt ? formatDate(`${c.joinedAt}T00:00`) : formatDate(c.createdAt), sub: c.joinedAt ? `${Math.max(0, Math.round(daysBetween(new Date(`${c.joinedAt}T00:00`), new Date(c.leftAt ? `${c.leftAt}T00:00` : Date.now())) / 30))} meses` : undefined },
-        ];
-        return (
-          <div className="surface-card mb-6 grid grid-cols-2 overflow-hidden rounded-xl sm:grid-cols-3 xl:grid-cols-6">
-            {fields.map((f) => (
-              <div key={f.label} className="-ml-px -mt-px border-l border-t border-line px-4 py-3.5 sm:px-5 sm:py-4">
-                <p className="truncate text-xs font-medium text-fg-3">{f.label}</p>
-                <p className={cn("mt-1 truncate font-semibold tracking-[-0.02em]", f.small ? "text-[15px] leading-7" : "text-lg sm:text-xl", f.tone === "warning" && "text-warning-fg")} title={String(f.value)}>{f.value}</p>
-                {f.sub && <p className="mt-0.5 truncate text-xs text-fg-3">{f.sub}</p>}
-              </div>
-            ))}
+      {/* Próxima acción: qué hacer ahora con este cliente y por qué */}
+      <div className={cn("mb-5 flex flex-wrap items-center gap-3 rounded-xl px-4 py-3", ACTION_TONE[action.tone])}>
+        <CalendarClock className="h-4 w-4 shrink-0" />
+        <p className="min-w-0 flex-1 text-sm"><span className="font-semibold">Próxima acción: {action.label}</span><span className="opacity-80"> · {action.reason}</span></p>
+        {action.kind !== "none" && <button onClick={runAction} className="inline-flex items-center gap-1 text-sm font-semibold hover:underline">Hacerlo ahora<ArrowRight className="h-3.5 w-3.5" /></button>}
+      </div>
+
+      <div className="surface-card mb-6 grid grid-cols-2 overflow-hidden rounded-xl sm:grid-cols-3 xl:grid-cols-6">
+        {fields.map((f) => (
+          <div key={f.label} className="-ml-px -mt-px border-l border-t border-line px-4 py-3.5 sm:px-5 sm:py-4">
+            <p className="truncate text-xs font-medium text-fg-3">{f.label}</p>
+            <p className={cn("mt-1 truncate font-semibold tracking-[-0.02em]", f.small ? "text-[15px] leading-7" : "text-lg sm:text-xl", f.tone === "warning" && "text-warning-fg", f.tone === "danger" && "text-danger-fg")} title={String(f.value)}>{f.value}</p>
+            {f.sub && <p className="mt-0.5 truncate text-xs text-fg-3">{f.sub}</p>}
           </div>
-        );
-      })()}
+        ))}
+      </div>
 
       {c.taxIdValid === false && <Callout tone="warning" className="mb-4" title="NIF no válido">«{c.taxId}» no supera la validación de DNI/NIE/CIF. Corrígelo antes de emitirle facturas nuevas.</Callout>}
 
@@ -169,25 +217,40 @@ export default function CustomerDetailPage() {
         onChange={setTab}
         items={[
           { value: "overview", label: "Resumen" },
-          { value: "activity", label: "Actividad", count: data.timeline.length },
+          { value: "timeline", label: "Cronología", count: data.timeline.length },
+          { value: "membership", label: "Membresía", count: data.memberships.length || undefined },
+          { value: "sales", label: "Ventas", count: data.sales.length },
+          { value: "payments", label: "Cobros", count: data.payments.length },
           { value: "invoices", label: "Facturas", count: data.invoices.length },
-          { value: "purchases", label: "Compras", count: data.sales.length },
           { value: "notes", label: "Notas", count: data.notes.length },
+          { value: "tasks", label: "Tareas", count: data.tasks.filter((t) => t.status !== "done" && t.status !== "cancelled").length },
+          { value: "documents", label: "Documentos" },
         ]}
       />
 
       {tab === "overview" && (
         <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr] [&>*]:min-w-0">
           <Card>
-            <CardHeader title="Relación con el cliente" description="Compras, facturas, notas y cambios, del más reciente al más antiguo" action={data.timeline.length > 8 ? <button onClick={() => setTab("activity")} className="text-sm font-medium text-fg-3 hover:text-fg">Ver todo →</button> : undefined} />
+            <CardHeader title="Relación con el cliente" description="Lo último: compras, cuotas, cobros, notas, tareas y cambios" action={data.timeline.length > 8 ? <button onClick={() => setTab("timeline")} className="text-sm font-medium text-fg-3 hover:text-fg">Ver todo →</button> : undefined} />
             <Timeline items={data.timeline.slice(0, 8)} />
           </Card>
           <div className="flex flex-col gap-4">
+            {m && (
+              <Card>
+                <CardHeader className="mb-3" title="Membresía" action={<button onClick={() => setTab("membership")} className="text-sm font-medium text-fg-3 hover:text-fg">Detalle →</button>} />
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="truncate text-[17px] font-semibold">{plan?.name}</p>
+                  {mv && <Badge tone={MEMBERSHIP_VIEW[mv].tone} dot>{MEMBERSHIP_VIEW[mv].label}</Badge>}
+                </div>
+                <p className="mt-1 text-sm text-fg-3">{formatMoney(m.price)}{plan && plan.billingPeriod !== "none" ? ` / ${BILLING_PERIOD[plan.billingPeriod].per}` : ""} · desde {formatDate(m.startDate)}</p>
+                <div className="mt-4"><MembershipActions membership={m} size="sm" /></div>
+              </Card>
+            )}
             <Card>
               <CardHeader className="mb-2" title="Gasto mensual" description="Compras + facturas · últimos 12 meses" />
               <div className="flex items-end justify-between gap-4">
                 <div>
-                  <p className="figure text-3xl leading-none">{formatMoney(data.monthly.reduce((s, m) => s + m, 0))}</p>
+                  <p className="figure text-3xl leading-none">{formatMoney(data.monthly.reduce((s, x) => s + x, 0))}</p>
                   <p className="mt-1.5 text-xs text-fg-3">en 12 meses</p>
                 </div>
                 <Sparkline values={data.monthly} width={150} height={44} />
@@ -197,16 +260,15 @@ export default function CustomerDetailPage() {
               <div key={n.id} className="rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-fg"><Pin className="mr-1.5 inline h-3.5 w-3.5" />{n.body}</div>
             ))}
             <Card>
-              <CardHeader className="mb-1" title="Datos" />
+              <CardHeader className="mb-1" title="Datos" action={can("customers.manage") ? <button onClick={() => setEditing(true)} className="text-sm font-medium text-fg-3 hover:text-fg">Editar</button> : undefined} />
               <DescriptionList
                 items={[
                   { label: "Email", value: c.email ?? "—" },
                   { label: "Teléfono", value: c.phone ?? "—" },
                   { label: "Dirección", value: [c.address, c.postalCode, c.city].filter(Boolean).join(", ") || "—" },
-                  { label: "Nacimiento", value: c.birthDate ? formatDate(`${c.birthDate}T00:00`) : "—" },
+                  { label: "Nacimiento", value: c.birthDate ? formatDate(c.birthDate) : "—" },
                   { label: "Empresa", value: c.companyName ?? "—" },
                   { label: "Origen", value: sourceLabel(c.source) },
-                  { label: "Baja", value: c.leftAt ? formatDate(`${c.leftAt}T00:00`) : "—" },
                 ]}
               />
             </Card>
@@ -214,30 +276,85 @@ export default function CustomerDetailPage() {
         </div>
       )}
 
-      {tab === "activity" && <Card><Timeline items={data.timeline} /></Card>}
+      {tab === "timeline" && <Card><Timeline items={data.timeline} /></Card>}
 
-      {tab === "invoices" && (
-        <Card padded={false}>
-          {data.invoices.length ? (
-            <table className="w-full text-sm">
-              <thead><tr className="border-b border-line bg-surface-2 text-xs text-fg-3"><th className="px-4 py-2 text-left font-medium">Factura</th><th className="px-4 py-2 text-left font-medium">Fecha</th><th className="hidden px-4 py-2 text-left font-medium sm:table-cell">Concepto</th><th className="px-4 py-2 text-right font-medium">Total</th><th className="px-4 py-2 text-left font-medium">Estado</th></tr></thead>
-              <tbody>
-                {data.invoices.map((i) => (
-                  <tr key={i.id} className="border-b border-line last:border-0 hover:bg-surface-2">
-                    <td className="px-4 py-2.5"><Link className="font-mono text-xs text-accent-fg hover:underline" to={`/facturas/${i.id}`}>{i.number ?? i.externalNumber}</Link></td>
-                    <td className="px-4 py-2.5">{i.issueDate ? formatDate(`${i.issueDate}T00:00`) : "—"}</td>
-                    <td className="hidden px-4 py-2.5 text-fg-2 sm:table-cell">{i.concept}</td>
-                    <td className="px-4 py-2.5 text-right font-medium num">{formatMoney(i.total)}</td>
-                    <td className="px-4 py-2.5"><Badge tone={INVOICE_STATUS[i.status].tone} dot>{INVOICE_STATUS[i.status].label}</Badge></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : <EmptyState compact icon={Receipt} title="Sin facturas" />}
-        </Card>
+      {tab === "membership" && (
+        <div className="grid gap-4 lg:grid-cols-[1fr_1.3fr] [&>*]:min-w-0">
+          <div className="flex flex-col gap-4">
+            {m ? (
+              <Card>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-fg-3">Membresía {gone ? "anterior" : "actual"}</p>
+                    <p className="mt-1 truncate text-xl font-semibold tracking-tight">{plan?.name ?? "Tarifa"}</p>
+                  </div>
+                  {mv && <Badge tone={MEMBERSHIP_VIEW[mv].tone} dot>{MEMBERSHIP_VIEW[mv].label}</Badge>}
+                </div>
+                <Ledger className="mt-4" rows={[
+                  { label: "Cuota pactada", value: `${formatMoney(m.price)}${plan && plan.billingPeriod !== "none" ? ` / ${BILLING_PERIOD[plan.billingPeriod].per}` : ""}` },
+                  { label: "Inicio", value: formatDate(m.startDate) },
+                  ...(gone ? [{ label: "Fin", value: m.endDate ? formatDate(m.endDate) : "—" }, { label: "Motivo de la baja", value: m.cancelReason ?? "—" }]
+                    : mv === "PAUSED" ? [{ label: "En pausa desde", value: m.pausedAt ? formatDate(m.pausedAt) : "—" }, { label: "Vuelve", value: m.resumeOn ? formatDate(m.resumeOn) : "Sin fecha" }]
+                    : [{ label: "Próxima renovación", value: m.nextRenewalDate ? formatDate(m.nextRenewalDate) : "—", tone: m.nextRenewalDate && m.nextRenewalDate < today ? "negative" as const : undefined }, { label: "Renovación automática", value: m.autoRenew ? "Sí" : "No" }]),
+                  { label: "Centro", value: ws.locations.find((l) => l.id === m.locationId)?.name ?? "—" },
+                  ...(m.creditsRemaining !== undefined ? [{ label: "Sesiones restantes", value: String(m.creditsRemaining) }] : []),
+                ]} />
+                {m.notes && <p className="mt-3 whitespace-pre-wrap rounded-lg bg-surface-2 px-3 py-2 text-sm text-fg-2">{m.notes}</p>}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <MembershipActions membership={m} />
+                  {gone && can("memberships.manage") && ready && <Button icon={Plus} onClick={() => setAssign(true)}>Nueva membresía</Button>}
+                </div>
+              </Card>
+            ) : (
+              <Card>
+                <EmptyState compact icon={Contact} title="Sin membresía" description={c.status === "lead" ? "Convierte a este lead dándole de alta en una tarifa." : "Da de alta una tarifa para generar sus cuotas automáticamente."} action={can("memberships.manage") && ready ? <Button variant="primary" icon={Plus} onClick={() => setAssign(true)}>Nueva membresía</Button> : undefined} />
+              </Card>
+            )}
+            {data.memberships.length > 1 && (
+              <Card>
+                <CardHeader title="Historial de membresías" />
+                <ul className="flex flex-col divide-y divide-line text-sm">
+                  {data.memberships.map((x) => {
+                    const v = membershipView(x, ws.membershipCharges, today);
+                    return (
+                      <li key={x.id} className="flex items-center justify-between gap-3 py-2.5">
+                        <span className="min-w-0"><span className="block truncate font-medium">{ws.membershipPlans.find((p) => p.id === x.planId)?.name}</span><span className="text-xs text-fg-3">{formatDate(x.startDate)}{x.endDate ? ` – ${formatDate(x.endDate)}` : ""} · {formatMoney(x.price)}</span></span>
+                        <Badge tone={MEMBERSHIP_VIEW[v].tone}>{MEMBERSHIP_VIEW[v].label}</Badge>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </Card>
+            )}
+          </div>
+          <Card padded={false}>
+            <div className="p-5 pb-3"><CardHeader className="mb-0" title="Cuotas" description="Cada periodo con su factura y su estado de cobro" /></div>
+            {data.charges.length ? (
+              <ul>
+                {data.charges.map((ch) => {
+                  const inv = ws.invoices.find((i) => i.id === ch.invoiceId);
+                  const tone = ch.status === "paid" ? "success" : ch.status === "failed" ? "danger" : ch.status === "waived" ? "neutral" : "warning";
+                  const label = { paid: "Cobrada", failed: "Devuelta", invoiced: "Pendiente", scheduled: "Programada", waived: "Condonada" }[ch.status];
+                  return (
+                    <li key={ch.id}>
+                      <Link to={inv ? `/facturas/${inv.id}` : "#"} className="flex items-center gap-3 border-t border-line px-5 py-3 text-sm transition-colors hover:bg-surface-2">
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-medium">{capitalize(new Date(`${ch.periodStart}T00:00`).toLocaleDateString("es-ES", { month: "long", year: "numeric" }))}</span>
+                          <span className="block text-xs text-fg-3">{formatDate(ch.periodStart)} – {formatDate(ch.periodEnd)}{inv ? ` · ${invoiceLabel(inv)}` : ""}</span>
+                        </span>
+                        <Badge tone={tone} dot>{label}</Badge>
+                        <span className="w-20 text-right font-semibold num">{formatMoney(ch.amount)}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : <p className="border-t border-line px-5 py-6 text-sm text-fg-3">Aún no se ha generado ninguna cuota.</p>}
+          </Card>
+        </div>
       )}
 
-      {tab === "purchases" && (
+      {tab === "sales" && (
         <Card padded={false}>
           {data.sales.length ? (
             <div>
@@ -251,7 +368,56 @@ export default function CustomerDetailPage() {
                 </Link>
               ))}
             </div>
-          ) : <EmptyState compact icon={ShoppingBag} title="Sin compras en caja" description="Asocia el cliente al cobrar en Caja para verlas aquí." />}
+          ) : <EmptyState compact icon={ShoppingBag} title="Sin compras en caja" description="Asocia el cliente al cobrar en Caja para verlas aquí." action={can("pos.sell") ? <Button icon={ShoppingBag} onClick={() => navigate(`/caja?cliente=${c.id}`)}>Nueva venta</Button> : undefined} />}
+        </Card>
+      )}
+
+      {tab === "payments" && (
+        <Card padded={false}>
+          {data.payments.length ? (
+            <ul>
+              {data.payments.map((p) => (
+                <li key={p.id} className="flex items-center justify-between gap-3 border-b border-line px-4 py-3 text-sm last:border-0">
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-fg-3"><Wallet className="h-4 w-4" /></span>
+                    <span className="min-w-0">
+                      <span className="block font-medium">{p.kind === "refund" ? "Devolución" : "Cobro"} · {ws.paymentMethods.find((x) => x.key === p.methodKey)?.name ?? p.methodKey}</span>
+                      <span className="block text-xs text-fg-3">{formatDateTime(p.paidAt)} · {p.saleId ? "Venta en caja" : p.invoiceId ? "Factura" : "Manual"}</span>
+                    </span>
+                  </span>
+                  <span className="font-semibold num">{p.kind === "refund" ? "−" : ""}{formatMoney(p.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : <EmptyState compact icon={CreditCard} title="Sin cobros" description="Los cobros de ventas, cuotas y facturas aparecerán aquí." />}
+        </Card>
+      )}
+
+      {tab === "invoices" && (
+        <Card padded={false}>
+          <div className="flex items-center justify-between gap-3 p-4">
+            <p className="text-sm text-fg-3">{data.invoices.length} facturas{data.drafts.length ? ` · ${data.drafts.length} borrador${data.drafts.length === 1 ? "" : "es"}` : ""}</p>
+            {can("invoices.manage") && ready && <Button size="sm" icon={Plus} onClick={() => navigate(`/facturas/nueva?cliente=${c.id}`)}>Nueva factura</Button>}
+          </div>
+          {data.invoices.length || data.drafts.length ? (
+            <table className="w-full text-sm">
+              <thead><tr className="border-y border-line bg-surface-2 text-xs text-fg-3"><th className="px-4 py-2 text-left font-medium">Factura</th><th className="px-4 py-2 text-left font-medium">Fecha</th><th className="hidden px-4 py-2 text-left font-medium sm:table-cell">Concepto</th><th className="px-4 py-2 text-right font-medium">Total</th><th className="px-4 py-2 text-left font-medium">Estado</th></tr></thead>
+              <tbody>
+                {[...data.drafts, ...data.invoices].map((i) => {
+                  const v = invoiceView(i, today);
+                  return (
+                    <tr key={i.id} className="cursor-pointer border-b border-line last:border-0 hover:bg-surface-2" onClick={() => navigate(i.status === "draft" ? `/facturas/${i.id}/editar` : `/facturas/${i.id}`)}>
+                      <td className="px-4 py-2.5"><span className="font-mono text-xs text-accent-fg">{invoiceLabel(i)}</span></td>
+                      <td className="px-4 py-2.5">{i.issueDate ? formatDate(i.issueDate) : "—"}</td>
+                      <td className="hidden max-w-[280px] truncate px-4 py-2.5 text-fg-2 sm:table-cell">{i.concept}</td>
+                      <td className="px-4 py-2.5 text-right font-medium num">{formatMoney(i.total)}</td>
+                      <td className="px-4 py-2.5"><Badge tone={INVOICE_VIEW[v].tone} dot>{INVOICE_VIEW[v].label}</Badge></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : <EmptyState compact icon={Receipt} title="Sin facturas" description="Las cuotas de su membresía y las facturas que le emitas aparecerán aquí." />}
         </Card>
       )}
 
@@ -260,7 +426,7 @@ export default function CustomerDetailPage() {
           {can("customers.manage") && (
             <Card>
               <h3 className="mb-3 text-sm font-semibold">Nueva nota</h3>
-              <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ej.: Estará dos semanas fuera por trabajo." />
+              <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ej.: Estará dos semanas fuera por trabajo." aria-label="Nueva nota" />
               <div className="mt-3 flex flex-col gap-3">
                 <Switch checked={pinned} onChange={setPinned} label="Fijar en la ficha" />
                 <Field label="Silenciar avisos de inactividad hasta" hint="Evita falsos avisos en Seguimiento mientras dure la ausencia.">
@@ -277,7 +443,7 @@ export default function CustomerDetailPage() {
                 <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-fg-3">
                   {n.pinned && <Badge tone="warning"><Pin className="h-3 w-3" />Fijada</Badge>}
                   {authorName(n.authorId)} · {formatDateTime(n.createdAt)}
-                  {n.suppressAlertsUntil && <span>· avisos silenciados hasta {formatDate(`${n.suppressAlertsUntil}T00:00`)}</span>}
+                  {n.suppressAlertsUntil && <span>· avisos silenciados hasta {formatDate(n.suppressAlertsUntil)}</span>}
                 </p>
               </Card>
             )) : <EmptyState compact icon={StickyNote} title="Sin notas" description="Las notas registran autor, fecha y hora." />}
@@ -285,7 +451,44 @@ export default function CustomerDetailPage() {
         </div>
       )}
 
+      {tab === "tasks" && (
+        <Card padded={false}>
+          <div className="flex items-center justify-between gap-3 p-4">
+            <p className="text-sm text-fg-3">Tareas de seguimiento con este cliente</p>
+            {can("customers.manage") && ready && <Button size="sm" icon={Plus} onClick={() => setNewTask(true)}>Nueva tarea</Button>}
+          </div>
+          {data.tasks.length ? (
+            <ul>
+              {data.tasks.map((t) => {
+                const b = taskBucket(t, today);
+                return (
+                  <li key={t.id} className="flex items-start gap-3 border-t border-line px-4 py-3">
+                    <button type="button" disabled={!can("customers.manage") || !ready} aria-label={t.status === "done" ? "Reabrir" : "Completar"} onClick={() => setTaskStatus(ctx, t.id, t.status === "done" ? "pending" : "done")} className="mt-0.5 text-fg-3 hover:text-success disabled:opacity-50">
+                      {t.status === "done" ? <CheckCircle2 className="h-5 w-5 text-success" /> : <Circle className="h-5 w-5" />}
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <p className={cn("text-sm font-medium", t.status === "done" && "text-fg-3 line-through")}>{t.title}</p>
+                      <p className={cn("text-xs text-fg-3", b === "overdue" && "text-danger-fg")}>{t.dueDate ? `Para el ${formatDate(t.dueDate)}` : "Sin fecha"}{t.reason ? ` · ${t.reason}` : ""}</p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : <EmptyState compact icon={ListTodo} title="Sin tareas" description="Crea una tarea para no olvidar una llamada, una renovación o un cobro." />}
+        </Card>
+      )}
+
+      {tab === "documents" && (
+        <Card>
+          <EmptyState compact icon={FolderOpen} title="Documentos del cliente" description="Contratos, consentimientos y justificantes vinculados a la ficha llegarán con el módulo de Documentos. Sus facturas ya están en la pestaña Facturas y se descargan en PDF." action={<Button icon={FileText} onClick={() => setTab("invoices")}>Ver facturas</Button>} />
+        </Card>
+      )}
+
       {editing && <CustomerForm customer={c} onClose={() => setEditing(false)} />}
+      <AssignMembershipDrawer open={assign} onClose={() => setAssign(false)} customerId={c.id} />
+      <TaskDrawer open={newTask} onClose={() => setNewTask(false)} defaults={{ customerId: c.id }} />
+      <ExpenseDrawer open={relatedExpense} onClose={() => setRelatedExpense(false)} defaults={{ description: "", notes: `Relacionado con el cliente ${name}` }} />
+      {paying && (() => { const inv = ws.invoices.find((i) => i.id === paying); return inv ? <PaymentModal invoiceId={inv.id} due={inv.total - inv.amountPaid} onClose={() => setPaying(null)} /> : null; })()}
     </Page>
   );
 }
@@ -294,16 +497,17 @@ const TL_TONE: Record<string, string> = {
   status: "bg-ink text-fg-inverse",
   purchase: "bg-accent-soft text-accent-fg",
   invoice: "bg-surface-sunken text-fg-2",
+  payment: "bg-success-soft text-success-fg",
   note: "bg-warning-soft text-warning-fg",
+  task: "bg-info-soft text-info-fg",
   change: "bg-surface-sunken text-fg-3",
 };
 
 function Timeline({ items }: { items: { at: string; icon: typeof Receipt; title: string; sub: string; to?: string; kind?: string }[] }) {
-  if (!items.length) return <p className="py-8 text-center text-sm text-fg-3">Sin actividad todavía. Las compras en Caja, las facturas y las notas aparecerán aquí.</p>;
+  if (!items.length) return <p className="py-8 text-center text-sm text-fg-3">Sin actividad todavía. Las compras en Caja, las cuotas, los cobros y las notas aparecerán aquí.</p>;
   const groups: { label: string; items: typeof items }[] = [];
   for (const t of items) {
-    const d = new Date(t.at);
-    const label = capitalize(d.toLocaleDateString("es-ES", { month: "long", year: "numeric" }));
+    const label = capitalize(new Date(t.at).toLocaleDateString("es-ES", { month: "long", year: "numeric" }));
     const g = groups.at(-1);
     if (g && g.label === label) g.items.push(t);
     else groups.push({ label, items: [t] });

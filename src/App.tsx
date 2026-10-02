@@ -31,6 +31,8 @@ const SuppliersPage = lazy(() => import("@/features/expenses/SuppliersPage"));
 const SupplierDetailPage = lazy(() => import("@/features/expenses/SuppliersPage").then((m) => ({ default: m.SupplierDetailPage })));
 const InvoiceEditorPage = lazy(() => import("@/features/invoices/InvoiceEditorPage"));
 const InvoiceDetailPage = lazy(() => import("@/features/invoices/InvoiceDetailPage"));
+const MembershipsPage = lazy(() => import("@/features/memberships/MembershipsPage"));
+const FollowUpPage = lazy(() => import("@/features/tasks/FollowUpPage"));
 
 function PageFallback() {
   return (
@@ -100,6 +102,8 @@ const router = createBrowserRouter([
       { path: "catalogo", element: <Guard perm="catalog.view"><CatalogPage /></Guard> },
       { path: "clientes", element: <Guard perm="customers.view"><CustomersPage /></Guard> },
       { path: "clientes/:id", element: <Guard perm="customers.view"><CustomerDetailPage /></Guard> },
+      { path: "membresias", element: <Guard perm="customers.view"><MembershipsPage /></Guard> },
+      { path: "seguimiento", element: <Guard perm="customers.view"><FollowUpPage /></Guard> },
       { path: "finanzas", element: <Guard perm="finance.view"><FinancePage /></Guard> },
       { path: "flujo-de-caja", element: <Guard perm="finance.view"><CashflowPage /></Guard> },
       { path: "impuestos", element: <Guard perm="finance.view"><TaxesPage /></Guard> },
