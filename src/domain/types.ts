@@ -102,6 +102,32 @@ export interface OrganizationSettings {
   activityRules: ActivityRule[];
   renewalNoticeDays: number;
   requireCashSession: boolean;
+  /** Progreso de la puesta en marcha guiada (pasos completados u omitidos). Columna `onboarding` (0900). */
+  onboarding?: OnboardingState;
+}
+
+export type OnboardingStep =
+  | "company" | "fiscal" | "locations" | "team" | "payments" | "products" | "memberships" | "settings" | "import" | "start";
+
+export interface OnboardingState {
+  done?: OnboardingStep[];
+  skipped?: OnboardingStep[];
+  completedAt?: ISODateTime;
+  dismissedAt?: ISODateTime;
+}
+
+/** Series de numeración (facturas, rectificativas…). El número lo asigna el servidor al emitir (sin huecos). */
+export interface DocumentSeries {
+  id: ID;
+  organizationId: ID;
+  code: string;
+  documentType: "invoice" | "simplified_invoice" | "credit_note" | "sale_ticket";
+  prefix: string;
+  nextNumber: number;
+  padding: number;
+  /** null = no reinicia por año */
+  year?: number | null;
+  status: "active" | "archived";
 }
 
 export type CatalogStatus = "active" | "inactive" | "archived";
@@ -165,6 +191,8 @@ export interface MembershipPlan {
   isFounder: boolean;
   openToNew: boolean;
   description?: string;
+  /** null = todos los centros */
+  locationIds?: ID[] | null;
   status: CatalogStatus;
   importId?: ID;
   createdAt: ISODateTime;
@@ -181,6 +209,8 @@ export interface MembershipPlanVersion {
   classCredits?: number;
   openBoxCredits?: number;
   sessions?: number;
+  /** Validez de bonos (días) */
+  durationDays?: number;
   validFrom: ISODate;
   validTo?: ISODate;
 }
@@ -344,6 +374,8 @@ export interface Invoice {
   organizationId: ID;
   locationId?: ID;
   series?: string;
+  /** Serie de numeración propia (document_series). `series` es la etiqueta de la serie del sistema de origen (importadas). */
+  seriesId?: ID;
   number?: string;
   externalNumber?: string;
   issueDate?: ISODate;
@@ -351,11 +383,14 @@ export interface Invoice {
   customerId?: ID;
   customerName?: string;
   customerTaxId?: string;
+  customerAddress?: string;
   concept?: string;
   servicePeriodStart?: ISODate;
   servicePeriodEnd?: ISODate;
   subtotal: Cents;
   taxTotal: Cents;
+  /** Descuentos aplicados en las líneas (IVA incluido). Informativo: subtotal/IVA/total ya son netos. */
+  discountTotal?: Cents;
   total: Cents;
   amountPaid: Cents;
   status: InvoiceStatus;
@@ -363,6 +398,9 @@ export interface Invoice {
   paidAt?: ISODateTime;
   saleId?: ID;
   planVersionId?: ID;
+  customerMembershipId?: ID;
+  /** Rectificativa: factura a la que corrige (preparado; emisión de rectificativas aún no disponible). */
+  rectifiesInvoiceId?: ID;
   notes?: string;
   source: "manual" | "sale" | "membership" | "import";
   importId?: ID;
@@ -378,12 +416,143 @@ export interface InvoiceItem {
   description: string;
   quantity: number;
   unitPrice: Cents;
+  /** Descuento de la línea (IVA incluido). total = quantity × unitPrice − discount */
+  discount?: Cents;
   taxRateBp: BasisPoints;
   baseAmount: Cents;
   taxAmount: Cents;
   total: Cents;
   productId?: ID;
   planVersionId?: ID;
+  sortOrder?: number;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Gastos y proveedores
+// ---------------------------------------------------------------------------------------------------------------------
+export interface Supplier {
+  id: ID;
+  organizationId: ID;
+  name: string;
+  taxId?: string;
+  taxIdNormalized?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  defaultCategoryId?: ID;
+  notes?: string;
+  status: "active" | "inactive" | "archived";
+  importId?: ID;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export interface ExpenseCategory {
+  id: ID;
+  organizationId: ID;
+  parentId?: ID;
+  name: string;
+  defaultTaxRateBp?: BasisPoints;
+  status: "active" | "archived";
+}
+
+export type ExpenseStatus = "pending" | "paid" | "void";
+
+export interface Expense {
+  id: ID;
+  organizationId: ID;
+  locationId?: ID;
+  supplierId?: ID;
+  categoryId?: ID;
+  /** Nº de la factura del proveedor (detecta duplicados) */
+  supplierInvoiceNumber?: string;
+  issueDate: ISODate;
+  dueDate?: ISODate;
+  description: string;
+  /** Base imponible */
+  subtotal: Cents;
+  taxRateBp?: BasisPoints;
+  /** IVA soportado */
+  taxTotal: Cents;
+  total: Cents;
+  paymentMethodId?: ID;
+  status: ExpenseStatus;
+  paidAt?: ISODateTime;
+  source: "manual" | "import" | "ocr" | "bank";
+  importId?: ID;
+  notes?: string;
+  voidedAt?: ISODateTime;
+  voidedBy?: ID;
+  voidReason?: string;
+  createdBy?: ID;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Membresías de clientes
+// ---------------------------------------------------------------------------------------------------------------------
+/** Estado guardado (columna). PAST_DUE se deriva (cuota vencida sin cobrar), ver domain/memberships.ts */
+export type MembershipStatus = "pending" | "active" | "paused" | "cancelled" | "expired";
+
+export interface CustomerMembership {
+  id: ID;
+  organizationId: ID;
+  customerId: ID;
+  planId: ID;
+  planVersionId: ID;
+  locationId?: ID;
+  /** Precio pactado por periodo (IVA incluido): se conserva aunque la tarifa suba */
+  price: Cents;
+  startDate: ISODate;
+  endDate?: ISODate;
+  nextRenewalDate?: ISODate;
+  autoRenew: boolean;
+  creditsRemaining?: number;
+  status: MembershipStatus;
+  cancelledAt?: ISODateTime;
+  cancelReason?: string;
+  pausedAt?: ISODateTime;
+  resumeOn?: ISODate;
+  notes?: string;
+  importId?: ID;
+  createdBy?: ID;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+export interface MembershipCharge {
+  id: ID;
+  organizationId: ID;
+  customerMembershipId: ID;
+  periodStart: ISODate;
+  periodEnd: ISODate;
+  amount: Cents;
+  status: "scheduled" | "invoiced" | "paid" | "failed" | "waived";
+  invoiceId?: ID;
+  saleId?: ID;
+  createdAt: ISODateTime;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Seguimiento
+// ---------------------------------------------------------------------------------------------------------------------
+export interface Task {
+  id: ID;
+  organizationId: ID;
+  customerId?: ID;
+  title: string;
+  description?: string;
+  reason?: string;
+  alertKey?: string;
+  assigneeId?: ID;
+  dueDate?: ISODate;
+  status: "pending" | "in_progress" | "done" | "cancelled";
+  snoozedUntil?: ISODate;
+  completedAt?: ISODateTime;
+  createdBy?: ID;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
 }
 
 export type ImportKind = "sales" | "invoices" | "customers" | "catalog" | "attendance" | "expenses" | "bank";

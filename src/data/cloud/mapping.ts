@@ -27,6 +27,7 @@ export const COLLECTIONS = [
   ["locations", "locations"],
   ["taxRates", "tax_rates"],
   ["paymentMethods", "payment_methods"],
+  ["documentSeries", "document_series"],
   ["categories", "product_categories"],
   ["imports", "imports"],
   ["products", "products"],
@@ -34,6 +35,10 @@ export const COLLECTIONS = [
   ["planVersions", "membership_plan_versions"],
   ["customers", "customers"],
   ["customerNotes", "customer_notes"],
+  ["suppliers", "suppliers"],
+  ["expenseCategories", "expense_categories"],
+  ["customerMemberships", "customer_memberships"],
+  ["tasks", "tasks"],
   ["cashSessions", "cash_sessions"],
   ["cashMovements", "cash_movements"],
   ["sales", "sales"],
@@ -41,16 +46,26 @@ export const COLLECTIONS = [
   ["invoices", "invoices"],
   ["invoiceItems", "invoice_items"],
   ["payments", "payments"],
+  ["membershipCharges", "membership_charges"],
+  ["expenses", "expenses"],
   ["cashClosings", "cash_closings"],
   ["importRecords", "import_records"],
 ] as const satisfies readonly (readonly [keyof Workspace, string])[];
 
 export type CollectionKey = (typeof COLLECTIONS)[number][0];
 
+/** Tablas que el servidor admite desde la migración 0900 (antes, sync_push las rechaza). */
+export const SCHEMA_900_TABLES = new Set(["document_series", "suppliers", "expense_categories", "customer_memberships", "tasks", "membership_charges", "expenses"]);
+
+/** Colecciones en las que quitar un elemento es un borrado real (solo líneas de borradores de factura; 0900). */
+export const DELETABLE: Partial<Record<CollectionKey, true>> = { invoiceItems: true };
+
 /** Campos que asigna el servidor y nunca se envían en una actualización. */
 export const SERVER_OWNED: Partial<Record<CollectionKey, string[]>> = {
   sales: ["number"],
   invoices: ["number"],
+  // El siguiente número lo incrementa el trigger de emisión en el servidor (sin huecos ni carreras entre dispositivos)
+  documentSeries: ["next_number"],
 };
 
 const FIELD_OVERRIDES: Partial<Record<CollectionKey, Record<string, string>>> = {
@@ -107,6 +122,7 @@ export function settingsFromRow(row: Row): OrganizationSettings {
     })),
     renewalNoticeDays: Number(row.renewal_notice_days ?? 7),
     requireCashSession: pos.require_cash_session ?? true,
+    onboarding: (row.onboarding as OrganizationSettings["onboarding"]) ?? undefined,
   };
 }
 
@@ -115,6 +131,8 @@ export function settingsToRow(s: OrganizationSettings): Row {
     activity_rules: s.activityRules.map((r) => ({ key: r.key, label: r.label, min_days: r.minDays, max_days: r.maxDays, severity: r.severity })),
     renewal_notice_days: s.renewalNoticeDays,
     pos_settings: { require_cash_session: s.requireCashSession, allow_negative_stock: true },
+    // Columna de 0900: un servidor anterior la ignora (sync_push solo escribe columnas existentes)
+    onboarding: s.onboarding ?? {},
   };
 }
 

@@ -37,6 +37,9 @@ export function visibleWorkspace(ws: Workspace): Workspace {
     payments: ws.payments.filter((p) => !isHidden(p) && (!p.saleId || saleIds.has(p.saleId)) && (!p.invoiceId || invoiceIds.has(p.invoiceId))),
     customers: ws.customers.filter((c) => !isHidden(c)),
     products: ws.products.filter((p) => !isHidden(p)),
+    expenses: ws.expenses.filter((e) => !isHidden(e)),
+    suppliers: ws.suppliers.filter((x) => !isHidden(x)),
+    customerMemberships: ws.customerMemberships.filter((m) => !isHidden(m)),
   };
   cache.set(ws, out);
   return out;

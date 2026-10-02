@@ -6,9 +6,10 @@
  * devuelve el nuevo. Si lanza, no se aplica nada (atomicidad, p. ej. en importaciones).
  */
 import type {
-  AuditLog, CashClosing, CashMovement, CashSession, Customer, CustomerNote, ImportJob, ImportRecordRow, Invoice,
-  InvoiceItem, Location, Member, MembershipPlan, MembershipPlanVersion, Organization, OrganizationSettings, Payment,
-  PaymentMethod, Product, ProductCategory, ProductPrice, Sale, SaleItem, TaxRate, UserAccount,
+  AuditLog, CashClosing, CashMovement, CashSession, Customer, CustomerMembership, CustomerNote, DocumentSeries, Expense,
+  ExpenseCategory, ImportJob, ImportRecordRow, Invoice, InvoiceItem, Location, Member, MembershipCharge, MembershipPlan,
+  MembershipPlanVersion, Organization, OrganizationSettings, Payment, PaymentMethod, Product, ProductCategory, ProductPrice,
+  Sale, SaleItem, Supplier, Task, TaxRate, UserAccount,
 } from "@/domain/types";
 import type { KV } from "./persistence";
 
@@ -21,6 +22,7 @@ export interface Workspace {
   locations: Location[];
   taxRates: TaxRate[];
   paymentMethods: PaymentMethod[];
+  documentSeries: DocumentSeries[];
   categories: ProductCategory[];
   products: Product[];
   productPrices: ProductPrice[];
@@ -28,6 +30,12 @@ export interface Workspace {
   planVersions: MembershipPlanVersion[];
   customers: Customer[];
   customerNotes: CustomerNote[];
+  customerMemberships: CustomerMembership[];
+  membershipCharges: MembershipCharge[];
+  tasks: Task[];
+  suppliers: Supplier[];
+  expenseCategories: ExpenseCategory[];
+  expenses: Expense[];
   cashSessions: CashSession[];
   cashMovements: CashMovement[];
   cashClosings: CashClosing[];
@@ -44,6 +52,18 @@ export interface Workspace {
   people?: { id: string; fullName: string }[];
   /** Equipo (modo Supabase). Solo lectura: se gestiona con RPC (add_member_by_email / update_member). */
   team?: (Member & { fullName?: string; email?: string })[];
+  /** Versión del esquema del servidor (modo Supabase). Ausente en modo local (todo disponible). */
+  server?: { schema: number };
+}
+
+/** Colecciones añadidas después de la primera versión: una caché antigua de IndexedDB no las trae. */
+const LATER_COLLECTIONS = ["documentSeries", "customerMemberships", "membershipCharges", "tasks", "suppliers", "expenseCategories", "expenses"] as const;
+
+export function normalizeWorkspace(ws: Workspace): Workspace {
+  if (LATER_COLLECTIONS.every((k) => Array.isArray(ws[k]))) return ws;
+  const out = { ...ws } as Workspace;
+  for (const k of LATER_COLLECTIONS) if (!Array.isArray(out[k])) (out as unknown as Record<string, unknown[]>)[k] = [];
+  return out;
 }
 
 export interface Meta {
@@ -90,7 +110,7 @@ export class Store {
   async openWorkspace(orgId: string): Promise<Workspace> {
     const ws = await this.kv.get<Workspace>(wsKey(orgId));
     if (!ws) throw new Error("Empresa no encontrada en este dispositivo");
-    this.ws = ws;
+    this.ws = normalizeWorkspace(ws);
     this.emit();
     return ws;
   }
@@ -128,7 +148,7 @@ export class Store {
 
   /** Sustituye el workspace por el estado del servidor (no genera cambios a sincronizar). */
   setWorkspace(ws: Workspace): void {
-    this.ws = ws;
+    this.ws = normalizeWorkspace(ws);
     this.scheduleSave();
     this.emit();
   }

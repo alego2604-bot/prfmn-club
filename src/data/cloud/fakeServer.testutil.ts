@@ -18,7 +18,8 @@ export function fakeServer() {
   let numberSeq = 1000;
   const tbl = (t: string) => tables.get(t) ?? tables.set(t, new Map()).get(t)!;
 
-  const rpc = async (_fn: string, args: { p_batch: { ops: Op[] } }) => {
+  const rpc = async (fn: string, args: { p_batch: { ops: Op[] } }) => {
+    if (fn === "server_capabilities") return { data: { schema: 900 }, error: null };
     const ops = args.p_batch.ops;
     const rows = ops.reduce((n, o) => n + o.rows.length, 0);
     calls.push(rows);
@@ -28,6 +29,10 @@ export function fakeServer() {
     for (const o of ops) if (o.op === "update") for (const r of o.rows) if (!tbl(o.table).has(String(r.id))) return { data: null, error: { code: "42501", message: `No se pudo actualizar ${o.table}` } };
     const out: { table: string; rows: Record<string, unknown>[] }[] = [];
     for (const o of ops) {
+      if (o.op === "delete") {
+        for (const r of o.rows) tbl(o.table).delete(String(r.id));
+        continue;
+      }
       const applied = o.rows.map((r) => {
         const merged = { ...tbl(o.table).get(String(r.id)), ...r };
         if (o.table === "sales" && o.op === "insert") merged.number = ++numberSeq;

@@ -1,4 +1,4 @@
-import type { ActivityRule, Organization, PaymentMethod, TaxRate } from "@/domain/types";
+import type { ActivityRule, DocumentSeries, OnboardingState, OnboardingStep, Organization, PaymentMethod, TaxRate } from "@/domain/types";
 import { nowISO, uid } from "@/lib/ids";
 import { normalizeKey } from "@/lib/text";
 import { assertCan, auditEntry, diff, ValidationError, type Ctx } from "../context";
@@ -118,4 +118,44 @@ export function updateActivityRules(ctx: Ctx, rules: ActivityRule[], requireCash
       auditLogs: [...ws.auditLogs, auditEntry(ws, ctx, { action: "update", entityType: "organization_settings", entityLabel: "Configuración", changes })],
     };
   });
+}
+
+/** Progreso de la puesta en marcha: marcar un paso como hecho u omitido, o cerrar la guía. */
+export function updateOnboarding(ctx: Ctx, change: { done?: OnboardingStep; skipped?: OnboardingStep; reopen?: OnboardingStep; dismiss?: boolean; complete?: boolean }) {
+  assertCan(ctx, "settings.manage");
+  ctx.store.update((ws) => {
+    const cur = ws.settings.onboarding ?? {};
+    const done = new Set(cur.done ?? []);
+    const skipped = new Set(cur.skipped ?? []);
+    if (change.done) { done.add(change.done); skipped.delete(change.done); }
+    if (change.skipped) { skipped.add(change.skipped); done.delete(change.skipped); }
+    if (change.reopen) { done.delete(change.reopen); skipped.delete(change.reopen); }
+    const next: OnboardingState = {
+      ...cur, done: [...done], skipped: [...skipped],
+      dismissedAt: change.dismiss ? nowISO() : change.dismiss === false ? undefined : cur.dismissedAt,
+      completedAt: change.complete ? nowISO() : cur.completedAt,
+    };
+    return { ...ws, settings: { ...ws.settings, onboarding: next } };
+  });
+}
+
+/** Serie de facturas para un año (p. ej. al cambiar de año). El correlativo empieza en 1 y lo lleva el servidor. */
+export function createInvoiceSeries(ctx: Ctx, input: { year: number; prefix?: string; code?: string; documentType?: DocumentSeries["documentType"] }): DocumentSeries {
+  assertCan(ctx, "settings.manage");
+  const code = (input.code ?? (input.documentType === "credit_note" ? "R" : "F")).trim().toUpperCase();
+  if (!/^[A-Z0-9]{1,6}$/.test(code)) throw new ValidationError("Código de serie no válido (letras y números)");
+  let created!: DocumentSeries;
+  ctx.store.update((ws) => {
+    if (ws.documentSeries.some((s) => s.code === code && s.year === input.year)) throw new ValidationError(`Ya existe la serie ${code} de ${input.year}`);
+    created = {
+      id: uid(), organizationId: ws.organization.id, code, documentType: input.documentType ?? "invoice", prefix: input.prefix ?? `${code}${input.year}-`,
+      nextNumber: 1, padding: 5, year: input.year, status: "active",
+    };
+    return {
+      ...ws,
+      documentSeries: [...ws.documentSeries, created],
+      auditLogs: [...ws.auditLogs, auditEntry(ws, ctx, { action: "insert", entityType: "document_series", entityId: created.id, entityLabel: `Serie ${created.prefix}` })],
+    };
+  });
+  return created;
 }

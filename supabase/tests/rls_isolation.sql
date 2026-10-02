@@ -383,6 +383,86 @@ do $$ declare r jsonb; begin
   raise notice 'PASS triggers y columnas generadas siguen funcionando tras revocar EXECUTE';
 end $$;
 
+-- ---------------------------------------------------------------------
+\echo '11. Gastos, membresías, tareas y borradores de factura (0900)'
+select pg_temp.login('00000000-0000-0000-0000-00000000000a');
+create or replace function pg_temp.op(t text, kind text, variadic rws jsonb[]) returns jsonb language sql as $f$
+  select jsonb_build_object('table', t, 'op', kind, 'rows', to_jsonb(rws));
+$f$;
+do $$ declare r jsonb; sup uuid := gen_random_uuid(); cat uuid := gen_random_uuid(); exp uuid := gen_random_uuid();
+  plan uuid := gen_random_uuid(); ver uuid := gen_random_uuid(); cus uuid := gen_random_uuid(); mem uuid := gen_random_uuid();
+  inv uuid := gen_random_uuid(); it1 uuid := gen_random_uuid(); it2 uuid := gen_random_uuid(); org text := current_setting('test.org_a');
+begin
+  if (public.server_capabilities() ->> 'schema')::int < 900 then raise exception 'FAIL: server_capabilities'; end if;
+  r := public.sync_push(org::uuid, jsonb_build_object(
+    'audit', jsonb_build_object(exp::text, jsonb_build_object('action','insert','label','Alquiler octubre')),
+    'ops', jsonb_build_array(
+      pg_temp.op('suppliers','insert', jsonb_build_object('id', sup, 'organization_id', org, 'name','Proveedor Ejemplo','tax_id','b-12345678')),
+      pg_temp.op('expense_categories','insert', jsonb_build_object('id', cat, 'organization_id', org, 'name','Alquiler')),
+      pg_temp.op('expenses','insert', jsonb_build_object('id', exp, 'organization_id', org, 'location_id', current_setting('test.loc_a'),
+        'supplier_id', sup, 'category_id', cat, 'issue_date', current_date, 'description','Alquiler octubre',
+        'subtotal', 100000, 'tax_rate_bp', 2100, 'tax_total', 21000, 'total', 121000, 'status','pending', 'notes','Sintético')),
+      pg_temp.op('membership_plans','insert', jsonb_build_object('id', plan, 'organization_id', org, 'name','Mensual','kind','recurring','billing_period','month')),
+      pg_temp.op('membership_plan_versions','insert', jsonb_build_object('id', ver, 'organization_id', org, 'plan_id', plan, 'version',1,'price',6000,'tax_rate_bp',2100,'valid_from', current_date)),
+      pg_temp.op('customers','insert', jsonb_build_object('id', cus, 'organization_id', org, 'first_name','Socia','status','active','tags','{}')),
+      pg_temp.op('customer_memberships','insert', jsonb_build_object('id', mem, 'organization_id', org, 'customer_id', cus,
+        'plan_id', plan, 'plan_version_id', ver, 'price', 6000, 'start_date', current_date, 'next_renewal_date', current_date + 30, 'status','active')),
+      pg_temp.op('membership_charges','insert', jsonb_build_object('id', gen_random_uuid(), 'organization_id', org,
+        'customer_membership_id', mem, 'period_start', current_date, 'period_end', current_date + 29, 'amount', 6000, 'status','scheduled')),
+      pg_temp.op('tasks','insert', jsonb_build_object('id', gen_random_uuid(), 'organization_id', org, 'customer_id', cus, 'title','Llamar para renovar')),
+      pg_temp.op('invoices','insert', jsonb_build_object('id', inv, 'organization_id', org, 'series_id', current_setting('test.series_a'),
+        'status','draft','customer_id', cus, 'customer_name','Socia','subtotal', 9917,'tax_total', 2083,'total', 12000, 'discount_total', 0)),
+      pg_temp.op('invoice_items','insert',
+        jsonb_build_object('id', it1, 'organization_id', org, 'invoice_id', inv, 'description','Cuota','quantity',1,'unit_price',6000,'tax_rate_bp',2100,'base_amount',4959,'tax_amount',1041,'total',6000),
+        jsonb_build_object('id', it2, 'organization_id', org, 'invoice_id', inv, 'description','Cuota 2','quantity',1,'unit_price',6000,'tax_rate_bp',2100,'base_amount',4958,'tax_amount',1042,'total',6000)))));
+  if not exists (select 1 from public.audit_logs where entity_id = exp and entity_label = 'Alquiler octubre') then raise exception 'FAIL: gasto sin auditoría'; end if;
+  if not exists (select 1 from public.audit_logs where entity_type = 'membership_charges') then raise exception 'FAIL: cargo sin auditoría'; end if;
+  -- Editar el borrador: borrar una línea
+  perform public.sync_push(org::uuid, jsonb_build_object('ops', jsonb_build_array(
+    pg_temp.op('invoice_items','delete', jsonb_build_object('id', it2)),
+    pg_temp.op('invoices','update', jsonb_build_object('id', inv, 'subtotal', 4959, 'tax_total', 1041, 'total', 6000)))));
+  if exists (select 1 from public.invoice_items where id = it2) then raise exception 'FAIL: no se borró la línea del borrador'; end if;
+  -- Emitir: número asignado por el servidor; después las líneas son intocables
+  r := public.sync_push(org::uuid, jsonb_build_object('ops', jsonb_build_array(
+    pg_temp.op('invoices','update', jsonb_build_object('id', inv, 'status','issued','issue_date', current_date)))));
+  if (r -> 0 -> 'rows' -> 0 ->> 'number') is null then raise exception 'FAIL: emisión sin número'; end if;
+  perform public.sync_push(org::uuid, jsonb_build_object('ops', jsonb_build_array(pg_temp.op('invoice_items','delete', jsonb_build_object('id', it1)))));
+  if not exists (select 1 from public.invoice_items where id = it1) then raise exception 'FAIL: se borró una línea de factura emitida'; end if;
+  begin
+    perform public.sync_push(org::uuid, jsonb_build_object('ops', jsonb_build_array(pg_temp.op('expenses','delete', jsonb_build_object('id', exp)))));
+    raise exception 'FAIL: se pudo borrar un gasto';
+  exception when insufficient_privilege then null; end;
+  perform set_config('test.expense_a', exp::text, false);
+  raise notice 'PASS gastos, proveedores, membresías, cargos y tareas por sync_push con auditoría';
+  raise notice 'PASS borrador editable (borrar líneas), emitida inmutable, gastos nunca se borran';
+end $$;
+select pg_temp.login('00000000-0000-0000-0000-00000000000b');
+do $$ begin
+  if exists (select 1 from public.expenses where organization_id = current_setting('test.org_a')::uuid)
+     or exists (select 1 from public.suppliers where organization_id = current_setting('test.org_a')::uuid)
+     or exists (select 1 from public.customer_memberships where organization_id = current_setting('test.org_a')::uuid)
+     or exists (select 1 from public.tasks where organization_id = current_setting('test.org_a')::uuid) then
+    raise exception 'FAIL: B ve gastos/proveedores/membresías/tareas de A';
+  end if;
+  begin
+    perform public.sync_push(current_setting('test.org_b')::uuid, jsonb_build_object('ops', jsonb_build_array(jsonb_build_object(
+      'table','expenses','op','update','rows', jsonb_build_array(jsonb_build_object('id', current_setting('test.expense_a'), 'total', 1, 'subtotal', 1, 'tax_total', 0))))));
+    raise exception 'FAIL: B modificó un gasto de A';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS gastos, proveedores, membresías y tareas aislados por empresa';
+end $$;
+select pg_temp.login('00000000-0000-0000-0000-00000000000e');
+do $$ begin
+  if exists (select 1 from public.expenses) then raise exception 'FAIL: employee ve gastos (sin finance.view)'; end if;
+  begin
+    perform public.sync_push(current_setting('test.org_a')::uuid, jsonb_build_object('ops', jsonb_build_array(jsonb_build_object(
+      'table','expenses','op','insert','rows', jsonb_build_array(jsonb_build_object('id', gen_random_uuid(), 'organization_id', current_setting('test.org_a'),
+        'issue_date', current_date, 'description','X','subtotal',1,'tax_total',0,'total',1))))));
+    raise exception 'FAIL: employee registró un gasto';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS employee no ve ni registra gastos';
+end $$;
+
 reset role;
 \echo ''
 \echo '✔ Todos los tests de aislamiento, permisos e integridad han pasado.'

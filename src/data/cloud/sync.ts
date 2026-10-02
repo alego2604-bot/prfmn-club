@@ -16,13 +16,13 @@ import type { KV } from "../persistence";
 import { liveTabs as defaultLiveTabs, tabId as defaultTabId } from "./tab";
 import { SCHEMA_VERSION, Store, type Workspace } from "../store";
 import {
-  auditFromRow, COLLECTIONS, entityToRow, organizationFromRow, organizationPatch, paymentFromRow, rowToEntity, SERVER_OWNED,
+  auditFromRow, COLLECTIONS, DELETABLE, entityToRow, SCHEMA_900_TABLES, organizationFromRow, organizationPatch, paymentFromRow, rowToEntity, SERVER_OWNED,
   settingsFromRow, settingsToRow, type CollectionKey, type Row,
 } from "./mapping";
 
 export interface Op {
   table: string;
-  op: "insert" | "update" | "set_modules";
+  op: "insert" | "update" | "delete" | "set_modules";
   rows: Row[];
 }
 /** Lotes que forman una única operación lógica (importación, demo…): progreso, espera y cancelación conjuntos. */
@@ -111,6 +111,7 @@ export function diffWorkspaces(prev: Workspace, next: Workspace): Omit<Batch, "i
   }
 
   const updates: Op[] = [];
+  const deletes: Op[] = [];
   for (const [key, table] of COLLECTIONS) {
     const a = prev[key] as { id: string }[];
     const b = next[key] as { id: string }[];
@@ -141,8 +142,13 @@ export function diffWorkspaces(prev: Workspace, next: Workspace): Omit<Batch, "i
     }
     if (inserted.length) ops.push({ table, op: "insert", rows: inserted });
     if (updated.length) updates.push({ table, op: "update", rows: updated });
+    if (DELETABLE[key]) {
+      const kept = new Set(b.map((e) => e.id));
+      const removed = a.filter((e) => !kept.has(e.id)).map((e) => ({ id: e.id }));
+      if (removed.length) deletes.push({ table, op: "delete", rows: removed });
+    }
   }
-  ops.push(...updates);
+  ops.push(...updates, ...deletes);
   if (!ops.length) return null;
 
   const known = new Set(prev.auditLogs.map((l) => l.id));
@@ -169,6 +175,16 @@ async function fetchAll(sb: SupabaseClient, table: string, orgId: string): Promi
   }
 }
 
+/** Versión del esquema del servidor: 900+ con `server_capabilities()`; 810 si la función aún no existe. */
+async function serverSchema(sb: SupabaseClient): Promise<number> {
+  try {
+    const caps = await sb.rpc("server_capabilities");
+    return caps.error ? 810 : Number((caps.data as { schema?: number } | null)?.schema ?? 810);
+  } catch {
+    return 810;
+  }
+}
+
 export interface Person { id: string; fullName: string }
 export interface TeamMember extends Member { fullName?: string; email?: string }
 
@@ -181,7 +197,12 @@ export async function pullWorkspace(sb: SupabaseClient, orgId: string): Promise<
   if (orgRes.error) throw new CloudError(orgRes.error.message, orgRes.error.code);
   const organization: Organization = organizationFromRow(orgRes.data as Row, (modRes.data ?? []) as { module_key: string; enabled: boolean }[]);
 
-  const results = await Promise.all(COLLECTIONS.map(([, table]) => fetchAll(sb, table, orgId)));
+  const schema = await serverSchema(sb);
+  // Las tablas de 0900 ya existían (lectura con RLS) en servidores anteriores: se leen siempre que se pueda
+  const results = await Promise.all(COLLECTIONS.map(([, table]) => fetchAll(sb, table, orgId).catch((e) => {
+    if (SCHEMA_900_TABLES.has(table) && schema < 900) return [] as Row[];
+    throw e;
+  })));
   const [prices, audit, team, people] = await Promise.all([
     fetchAll(sb, "product_prices", orgId),
     sb.from("audit_logs").select("*").eq("organization_id", orgId).order("id", { ascending: false }).limit(1000),
@@ -214,6 +235,7 @@ export async function pullWorkspace(sb: SupabaseClient, orgId: string): Promise<
     auditLogs: ((audit.data ?? []) as Row[]).map((r) => auditFromRow(r, names)).reverse() as AuditLog[],
     counters: { sale: sales.reduce((m, s) => Math.max(m, s.number ?? 0), 0) },
     people: [...names].map(([id, fullName]) => ({ id, fullName })),
+    server: { schema },
     team: ((team.data ?? []) as unknown as (Row & { roles: { key: string } | null })[]).map((m) => ({
       id: String(m.id), organizationId: String(m.organization_id), userId: String(m.user_id), role: (m.roles?.key ?? "read_only") as RoleKey,
       locationIds: (m.location_ids as string[] | null) ?? null, status: m.status as Member["status"], createdAt: String(m.created_at),

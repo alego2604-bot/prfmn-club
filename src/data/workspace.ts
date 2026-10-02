@@ -14,6 +14,7 @@ export function buildWorkspace(input: {
 }): Workspace {
   const orgId = uid();
   const now = nowISO();
+  const year = new Date().getFullYear();
   const organization: Organization = {
     id: orgId,
     name: input.name.trim(),
@@ -62,6 +63,10 @@ export function buildWorkspace(input: {
       pm("other", "Otro", "other", 7),
       { ...pm("unknown", "Desconocido (importado)", "unknown", 99), status: "inactive" },
     ],
+    documentSeries: [
+      { id: uid(), organizationId: orgId, code: "F", documentType: "invoice", prefix: `F${year}-`, nextNumber: 1, padding: 5, year, status: "active" },
+      { id: uid(), organizationId: orgId, code: "R", documentType: "credit_note", prefix: `R${year}-`, nextNumber: 1, padding: 5, year, status: "active" },
+    ],
     categories: [],
     products: [],
     productPrices: [],
@@ -69,6 +74,12 @@ export function buildWorkspace(input: {
     planVersions: [],
     customers: [],
     customerNotes: [],
+    customerMemberships: [],
+    membershipCharges: [],
+    tasks: [],
+    suppliers: [],
+    expenseCategories: DEFAULT_EXPENSE_CATEGORIES.map((c) => ({ id: uid(), organizationId: orgId, name: c.name, defaultTaxRateBp: c.taxBp, status: "active" as const })),
+    expenses: [],
     cashSessions: [],
     cashMovements: [],
     cashClosings: [],
@@ -85,3 +96,23 @@ export function buildWorkspace(input: {
 }
 
 export const CATEGORY_COLORS = ["#3b5bfd", "#12a150", "#f5a524", "#e5484d", "#8e4ec6", "#0ea5b7", "#d6409f", "#64748b"];
+
+/**
+ * Categorías de gasto iniciales (sector-neutrales). Son datos de la empresa: se pueden renombrar o archivar.
+ * El IVA sugerido es solo un valor por defecto del formulario, siempre editable.
+ */
+export const DEFAULT_EXPENSE_CATEGORIES: { name: string; taxBp?: number }[] = [
+  { name: "Alquiler", taxBp: 2100 },
+  { name: "Suministros", taxBp: 2100 },
+  { name: "Personal" },
+  { name: "Material y equipamiento", taxBp: 2100 },
+  { name: "Compras para venta", taxBp: 2100 },
+  { name: "Marketing", taxBp: 2100 },
+  { name: "Software y servicios", taxBp: 2100 },
+  { name: "Asesoría y gestoría", taxBp: 2100 },
+  { name: "Mantenimiento y limpieza", taxBp: 2100 },
+  { name: "Seguros", taxBp: 0 },
+  { name: "Impuestos y tasas", taxBp: 0 },
+  { name: "Comisiones bancarias", taxBp: 0 },
+  { name: "Otros", taxBp: 2100 },
+];
