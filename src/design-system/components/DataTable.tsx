@@ -67,6 +67,21 @@ export interface DataTableProps<T> {
 
 const PRIORITY_CLASS = { high: "", medium: "hidden lg:table-cell", low: "hidden xl:table-cell" } as const;
 
+/** true cuando la ventana cumple la consulta (se actualiza al girar el iPad o redimensionar). */
+export function useMediaQuery(query: string): boolean {
+  const get = () => (typeof window !== "undefined" && window.matchMedia ? window.matchMedia(query).matches : true);
+  const [match, setMatch] = useState(get);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const m = window.matchMedia(query);
+    const on = () => setMatch(m.matches);
+    on();
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, [query]);
+  return match;
+}
+
 function readHidden(key: string | undefined, cols: { id: string; defaultHidden?: boolean }[]): Set<string> {
   if (key) {
     try {
@@ -84,6 +99,8 @@ export function DataTable<T>({
   exportName, exportCompany = "Business OS", empty, storageKey, initialSort, rowClassName, footer, dense, mobile,
 }: DataTableProps<T>) {
   const [compact, setCompact] = useState<boolean>(() => dense ?? getPref(`table.density.${storageKey ?? "default"}`) === "compact");
+  // Una sola vista en el DOM: tarjetas en móvil, tabla desde 768 px
+  const wide = useMediaQuery("(min-width: 768px)");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<{ id: string; dir: "asc" | "desc" } | null>(initialSort ?? null);
   const [page, setPage] = useState(0);
@@ -226,7 +243,7 @@ export function DataTable<T>({
 
       <div className="surface-card overflow-hidden rounded-xl">
         {/* Móvil: lista de tarjetas */}
-        <ul className="divide-y divide-line md:hidden" data-testid="table-cards">
+        {!wide && <ul className="divide-y divide-line" data-testid="table-cards">
           {pageRows.map((r) => {
             const id = getRowId(r);
             const Tag = onRowClick ? "button" : "div";
@@ -251,9 +268,9 @@ export function DataTable<T>({
               </li>
             );
           })}
-        </ul>
+        </ul>}
         {/* Tablet / escritorio: tabla con cabecera fija (scroll interno cuando hay muchas filas) */}
-        <div className={cn("scrollbar-thin hidden overflow-x-auto md:block", pageRows.length > 14 && "md:max-h-[calc(100dvh-210px)] md:overflow-y-auto")}>
+        {wide && <div className={cn("scrollbar-thin overflow-x-auto", pageRows.length > 14 && "max-h-[calc(100dvh-210px)] overflow-y-auto")}>
           <table className="w-full border-collapse text-sm">
             <thead className="sticky top-0 z-10 bg-surface shadow-[0_1px_0_var(--border)]">
               <tr>
@@ -333,7 +350,7 @@ export function DataTable<T>({
               })}
             </tbody>
           </table>
-        </div>
+        </div>}
         {sorted.length === 0 && empty && (
           <EmptyState compact icon={empty.icon} title={query ? "Sin resultados" : empty.title} description={query ? `Nada coincide con «${query}».` : empty.description} action={query ? <Button onClick={() => setQuery("")}>Limpiar búsqueda</Button> : empty.action} />
         )}

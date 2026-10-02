@@ -31,7 +31,13 @@ export default function PosPage() {
   const ctx = useCtx();
   const toast = useToast();
   const { locations, current } = useLocationScope();
-  const [locationId, setLocationId] = useState<string | undefined>(current?.id ?? (locations.length === 1 ? locations[0]!.id : undefined));
+  // Centro de venta: el filtrado; si no, el único; si no, el único con la caja abierta (lo habitual al empezar el día)
+  const [locationId, setLocationId] = useState<string | undefined>(() => {
+    if (current) return current.id;
+    if (locations.length === 1) return locations[0]!.id;
+    const open = locations.filter((l) => openSessionFor(ws, l.id));
+    return open.length === 1 ? open[0]!.id : undefined;
+  });
   useEffect(() => {
     if (current) setLocationId(current.id);
   }, [current]);
@@ -314,9 +320,9 @@ export default function PosPage() {
   );
 
   return (
-    <div className="flex h-full flex-col md:flex-row">
+    <div className="flex h-full min-w-0 flex-col lg:flex-row">
       {/* Productos */}
-      <section className="flex min-h-0 flex-1 flex-col">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex flex-col gap-3 px-4 pb-3 pt-4 sm:px-5">
           <div className="flex items-center gap-2">
             <Input ref={searchRef} leading={<Search className="h-4 w-4" />} placeholder="Buscar producto o SKU" value={query} onChange={(e) => setQuery(e.target.value)} className="h-11 flex-1 text-[15px]" />
@@ -353,7 +359,7 @@ export default function PosPage() {
         {needsSession && locationId && <OpenSessionBar locationId={locationId} />}
         {!locationId && <div className="px-4 pb-3 sm:px-5"><Callout tone="warning" icon={Building2}>Elige el centro en el que estás vendiendo.</Callout></div>}
 
-        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-28 pt-1 sm:px-5 md:pb-5">
+        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-28 pt-1 sm:px-5 lg:pb-5">
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {visibleProducts.map((p) => {
               const q = qtyOf(p.id);
@@ -387,15 +393,15 @@ export default function PosPage() {
         </div>
       </section>
 
-      {/* Carrito: lateral en tablet/desktop */}
-      <aside className="hidden w-[360px] shrink-0 border-l border-line bg-surface md:flex lg:w-[400px] 2xl:w-[440px]">{cartPanel}</aside>
+      {/* Carrito: lateral desde 1024 px (iPad horizontal y escritorio) */}
+      <aside className="hidden w-[360px] shrink-0 border-l border-line bg-surface lg:flex xl:w-[400px] 2xl:w-[440px]">{cartPanel}</aside>
 
-      {/* Carrito: hoja inferior en móvil */}
-      <div className="md:hidden">
+      {/* Carrito: hoja inferior en móvil e iPad vertical */}
+      <div className="lg:hidden">
         {!sheetOpen && (
           <button
             onClick={() => setSheetOpen(true)}
-            className="fixed inset-x-3 bottom-3 z-30 flex h-14 items-center justify-between rounded-2xl bg-ink px-4 text-fg-inverse shadow-lg safe-bottom"
+            className="fixed inset-x-3 bottom-3 z-30 flex h-14 items-center justify-between rounded-2xl bg-ink px-4 text-fg-inverse shadow-lg safe-bottom md:left-[84px] md:right-4 md:h-16 md:px-6"
           >
             <span className="flex items-center gap-2 text-sm font-medium"><ChevronUp className="h-4 w-4" />{itemCount ? `${itemCount} artículos` : done ? `Venta #${done.number} ✓` : "Carrito vacío"}</span>
             <span className="text-lg font-semibold num">{formatMoney(totals.total)}</span>
@@ -404,7 +410,7 @@ export default function PosPage() {
         {sheetOpen && (
           <div className="fixed inset-0 z-40">
             <div className="absolute inset-0 animate-fade-in bg-[var(--overlay)]" onClick={() => setSheetOpen(false)} />
-            <div className="absolute inset-x-0 bottom-0 flex h-[90dvh] animate-slide-up flex-col overflow-hidden rounded-t-3xl bg-surface shadow-lg">
+            <div className="absolute inset-x-0 bottom-0 mx-auto flex h-[90dvh] max-w-[640px] animate-slide-up flex-col overflow-hidden rounded-t-3xl bg-surface shadow-lg md:h-[86dvh]">
               <div className="flex justify-center pt-2"><button className="h-1.5 w-10 rounded-full bg-line-strong" onClick={() => setSheetOpen(false)} aria-label="Cerrar" /></div>
               {cartPanel}
             </div>
