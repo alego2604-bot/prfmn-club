@@ -6,7 +6,7 @@ import { useServerReady } from "@/app/serverCaps";
 import { Amount, Button, Card, CardHeader, DeltaChip, Ledger, Page, Section, Segmented } from "@/design-system/components";
 import { BarList, FlowChart, Legend, StackedColumnChart } from "@/design-system/components/charts";
 import { computeKpis, percentChange, revenueSeries } from "@/domain/analytics";
-import { cashflowSummary, profitAndLoss, resultSeries, vatSummary } from "@/domain/finance";
+import { cashflowSummary, hasRevenueHistory, profitAndLoss, resultSeries, vatSummary } from "@/domain/finance";
 import { expenseKpis, expenseView, hasComparableHistory } from "@/domain/expenses";
 import { invoiceView } from "@/domain/invoicing";
 import { addMonths, capitalize, formatDate, makePeriod, monthName, monthShort, startOfMonth, toISODate } from "@/lib/dates";
@@ -49,6 +49,7 @@ export default function FinancePage() {
   const noExpenses = !pl.hasExpenses;
   // El resultado y los gastos solo se comparan si hay gastos registrados durante todo el periodo anterior
   const expComparable = hasComparableHistory(ws.expenses, prev.start);
+  const revComparable = hasRevenueHistory(ws, prev.start);
   const scopeLabel = current ? current.name : canSeeAll ? "Todos los centros" : "";
 
   return (
@@ -74,14 +75,14 @@ export default function FinancePage() {
             <p className="relative text-sm font-medium text-fg-2">Resultado del periodo</p>
             <p className={cn("relative mt-2 text-5xl leading-none sm:text-6xl", pl.result < 0 && "text-danger-fg")}><Amount cents={pl.result} size="hero" /></p>
             <div className="relative mt-3 flex flex-wrap items-center gap-2 text-xs text-fg-3">
-              {expComparable ? <DeltaChip size="md" value={percentChange(pl.result, plPrev.result)} label={`vs ${prev.label.toLowerCase()}`} /> : <span>Sin histórico de gastos para comparar con {prev.label.toLowerCase()}</span>}
+              {expComparable && revComparable ? <DeltaChip size="md" value={percentChange(pl.result, plPrev.result)} label={`vs ${prev.label.toLowerCase()}`} /> : <span>Sin histórico de gastos para comparar con {prev.label.toLowerCase()}</span>}
               {pl.margin !== null && <span>Margen {Math.round(pl.margin * 100)} % · sin IVA</span>}
             </div>
             <div className="relative mt-7 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line">
               <div className="bg-surface p-4">
                 <p className="flex items-center gap-1.5 text-xs font-medium text-fg-3"><span className="h-2 w-2 rounded-full bg-[var(--chart-1)]" />Ingresos</p>
                 <p className="mt-1 text-xl font-semibold tracking-tight num">{formatMoney(pl.revenueBase)}</p>
-                <p className="mt-0.5 text-xs text-fg-3"><DeltaChip value={percentChange(pl.revenueBase, plPrev.revenueBase)} /> <span className="ml-1">sin IVA</span></p>
+                <p className="mt-0.5 text-xs text-fg-3">{revComparable && <DeltaChip value={percentChange(pl.revenueBase, plPrev.revenueBase)} />} <span className="ml-1">sin IVA</span></p>
               </div>
               <div className="bg-surface p-4">
                 <p className="flex items-center gap-1.5 text-xs font-medium text-fg-3"><span className="h-2 w-2 rounded-full bg-[var(--chart-out)]" />Gastos</p>
@@ -94,7 +95,7 @@ export default function FinancePage() {
           <div className="border-t border-line px-6 py-4 sm:px-8 xl:border-l xl:border-t-0">
             <p className="mb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-3">Tesorería del periodo</p>
             <Ledger rows={[
-              { label: "Cobrado", value: formatMoney(cf.inflow), hint: <DeltaChip value={percentChange(cf.inflow, cashflowSummary(ws, ws.expenses, prev, filterId).inflow)} /> },
+              { label: "Cobrado", value: formatMoney(cf.inflow), hint: revComparable ? <DeltaChip value={percentChange(cf.inflow, cashflowSummary(ws, ws.expenses, prev, filterId).inflow)} /> : undefined },
               { label: "Pagado", value: formatMoney(cf.outflow), hint: <span className="text-fg-3">gastos pagados</span> },
               { label: "Flujo neto", value: <Amount cents={cf.net} sign muted={false} />, strong: true, tone: cf.net < 0 ? "negative" : undefined },
             ]} />

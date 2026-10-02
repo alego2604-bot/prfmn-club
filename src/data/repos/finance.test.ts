@@ -187,3 +187,12 @@ describe("Tareas y puesta en marcha", () => {
     expect(() => updateOnboarding(as("employee"), { done: "fiscal" })).toThrow(/permiso/);
   });
 });
+
+describe("hasRevenueHistory", () => {
+  it("solo permite comparar si hay ingresos desde el inicio del periodo anterior", async () => {
+    const { hasRevenueHistory } = await import("@/domain/finance");
+    const ds = { sales: [{ status: "completed", occurredAt: "2025-11-03T10:00:00Z" }], invoices: [] } as never;
+    expect(hasRevenueHistory(ds, new Date("2025-01-01T00:00:00"))).toBe(false);
+    expect(hasRevenueHistory(ds, new Date("2025-12-01T00:00:00"))).toBe(true);
+  });
+});

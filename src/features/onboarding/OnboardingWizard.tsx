@@ -82,8 +82,8 @@ export default function OnboardingWizard() {
       </div>
       <ProgressBar value={progress.doneCount} max={progress.total} className="mb-6 h-1" label="Progreso de la puesta en marcha" />
 
-      <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <nav aria-label="Pasos" className="lg:sticky lg:top-20 lg:self-start">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <nav aria-label="Pasos" className="min-w-0 lg:sticky lg:top-20 lg:self-start">
           <ol className="no-scrollbar flex gap-1 overflow-x-auto lg:flex-col">
             {ONBOARDING_STEPS.map((s, i) => {
               const st = progress.status(s.key);
@@ -108,7 +108,7 @@ export default function OnboardingWizard() {
           <div className="mb-6 flex items-start gap-4">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-fg"><step.icon className="h-5 w-5" /></span>
             <div className="min-w-0">
-              <p className="text-xs font-medium text-fg-3">Paso {idx + 1} de {ONBOARDING_STEPS.length}{step.optional ? " · opcional" : ""}</p>
+              <p className="text-xs font-medium text-fg-3">{idx + 1 < ONBOARDING_STEPS.length ? `Paso ${idx + 1} de ${progress.total}` : "Último paso"}{step.optional ? " · opcional" : ""}</p>
               <h2 className="text-xl font-semibold tracking-tight">{step.title}</h2>
               <p className="mt-0.5 text-sm text-fg-3">{step.description}</p>
             </div>

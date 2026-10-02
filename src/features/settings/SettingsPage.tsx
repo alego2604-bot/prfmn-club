@@ -419,23 +419,23 @@ function BillingTab() {
   const [prefix, setPrefix] = useState(`F${next}-`);
   const issued = (id: string) => ws.invoices.filter((i) => i.seriesId === id && i.status !== "draft").length;
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-[1fr_320px]">
+    <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
       <Card padded={false}>
         <div className="p-5 pb-3"><CardHeader className="mb-0" title="Series de facturación" description="El número se asigna al emitir, correlativo y sin huecos. Una serie emitida no se borra." /></div>
-        <table className="w-full text-sm">
-          <thead><tr className="border-y border-line bg-surface-2 text-xs text-fg-3"><th className="px-5 py-2 text-left font-medium">Serie</th><th className="px-3 py-2 text-left font-medium">Tipo</th><th className="px-3 py-2 text-left font-medium">Año</th><th className="px-3 py-2 text-right font-medium">Siguiente</th><th className="px-5 py-2 text-right font-medium">Emitidas</th></tr></thead>
+        <div className="overflow-x-auto"><table className="w-full whitespace-nowrap text-sm">
+          <thead><tr className="border-y border-line bg-surface-2 text-xs text-fg-3"><th className="px-5 py-2 text-left font-medium">Serie</th><th className="px-3 py-2 text-left font-medium">Tipo</th><th className="hidden px-3 py-2 text-left font-medium sm:table-cell">Año</th><th className="px-3 py-2 text-right font-medium">Siguiente</th><th className="px-5 py-2 text-right font-medium">Emitidas</th></tr></thead>
           <tbody>
             {ws.documentSeries.map((s) => (
               <tr key={s.id} className="border-b border-line last:border-0">
                 <td className="px-5 py-3 font-mono font-medium">{s.prefix}</td>
                 <td className="px-3 py-3 text-fg-2">{{ invoice: "Factura", simplified_invoice: "Simplificada", credit_note: "Rectificativa", sale_ticket: "Ticket" }[s.documentType]}</td>
-                <td className="px-3 py-3 text-fg-2">{s.year ?? "Sin reinicio"}</td>
+                <td className="hidden px-3 py-3 text-fg-2 sm:table-cell">{s.year ?? "Sin reinicio"}</td>
                 <td className="px-3 py-3 text-right font-mono text-fg-2">{s.prefix}{String(s.nextNumber).padStart(s.padding, "0")}</td>
                 <td className="px-5 py-3 text-right num">{issued(s.id)}</td>
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
         <p className="border-t border-line px-5 py-3 text-xs text-fg-3">Rectificativas, retenciones (IRPF) y envío a la AEAT (Verifactu) se activarán tras validarlos con tu asesoría: el modelo ya lo admite.</p>
       </Card>
       <Card>
@@ -459,7 +459,7 @@ function ExpenseCategoriesTab() {
   const [rate, setRate] = useState(2100);
   const count = (id: string) => ws.expenses.filter((e) => e.categoryId === id && e.status !== "void").length;
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-[1fr_320px]">
+    <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
       <Card padded={false}>
         <div className="p-5 pb-3"><CardHeader className="mb-0" title="Categorías de gasto" description="Son datos de tu empresa: renómbralas, archívalas o crea las tuyas. El IVA es solo la propuesta del formulario." /></div>
         {ws.expenseCategories.length ? (

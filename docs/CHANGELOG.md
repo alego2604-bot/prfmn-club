@@ -2,6 +2,40 @@
 
 Formato: fecha, fase, resumen. Más reciente arriba.
 
+## 2026-10-02 — Sprint: finanzas completas, gastos, facturación, membresías, Customer 360 y diseño V3
+
+### HECHO
+- **Migración 0900** (forward-only, no destructiva, con rollback): gastos, proveedores, categorías, membresías, cargos de cuota, tareas y series sincronizables; borrado de líneas solo en facturas en borrador; `server_capabilities()`. El cliente detecta servidores sin 0900 y desactiva esas escrituras con aviso.
+- **Finanzas** como hub (Resumen · Flujo de caja · Gastos · Proveedores · Facturas · Cobros · Impuestos): resultado = ingresos netos − gastos netos, tesorería, pendiente de cobro/pago, IVA repercutido/soportado orientativo por trimestre.
+- **Gastos y proveedores**: alta/edición, pendiente/pagado/vencido, pago en lote, anulación con motivo (nunca borrado), aviso de factura de proveedor duplicada, filtros, export XLSX/CSV, panel de evolución y categorías; ficha de proveedor.
+- **Facturación**: editor con líneas, descuentos y vista previa; estados borrador / pendiente / parcial / vencida / cobrada / anulada; número del servidor por serie; duplicar; cobro parcial; PDF e impresión; series en Ajustes.
+- **Membresías**: tarifas versionadas, alta con primera cuota, pausa/reanudación, baja, reactivación, cambio de tarifa, cobro de cuota con factura; estados ACTIVE / PAUSED / CANCELLED / EXPIRED / PENDING / PAST_DUE; MRR y evolución.
+- **Customer 360**: 9 pestañas, acción siguiente, acciones rápidas; listado con filtros por membresía y saldo. **Seguimiento** con tareas.
+- **Informes**: hub de 10 informes con filtros y comparación honesta; paquete gestoría con gastos e IVA soportado.
+- **Dashboard V3**, puesta en marcha guiada (10 pasos), ⌘K ampliado, navegación por grupos, Design System V3 (patrones, tokens categóricos, modo oscuro), `RouteErrorBoundary`.
+
+### FALLOS ENCONTRADOS Y CORREGIDOS
+1. Proveedores se enviaban antes que sus categorías de gasto (violación de FK al subir la demo).
+2. Demo con bajas anteriores al alta (`customer_memberships_check`); la baja ahora acota la fecha de fin.
+3. Flujo de caja infravalorado: facturas cobradas sin filas de cobro (importadas) no contaban.
+4. Periodos de membresía calculados con el día 1 del mes (`addMonths`) en vez de conservar el día.
+5. Comparaciones engañosas: +1.519 % en gastos sin histórico, −85 % en un trimestre en curso, +974 % de ingresos YTD sin ingresos el año anterior.
+6. El buscador de listas colisionaba con las etiquetas «Nombre»/«Email» de formularios (accesibilidad y E2E).
+7. Desbordamiento horizontal en la puesta en marcha (iPad vertical y móvil) y en Ajustes › Facturación (móvil); «4 de 9 pasos» frente a «Paso 2 de 10».
+8. El test de integración de finanzas consultaba capacidades antes de iniciar sesión y se omitía en falso.
+
+### TESTS
+- Unitarios: 94 en verde. SQL: 41 comprobaciones (sección 11 nueva).
+- Stack local con 0900: `test:cloud` 21/21, E2E negocio 16/16, persistencia 22/22, multiempresa 7/7, 0 errores de consola.
+- business-os-staging (sin 0900): demo completa por lotes sin errores; el test de finanzas se omite correctamente.
+
+### MIGRACIONES
+- `20261002000900_finance_memberships_sync.sql` — validada en local; **pendiente de aplicar en staging** (requiere `SUPABASE_ACCESS_TOKEN`).
+
+### PENDIENTE
+- Aplicar 0900 en staging y repetir `test:cloud` + E2E de negocio allí.
+- Validación fiscal por asesoría antes de emitir facturas reales; Stripe sin conectar (cobro automático de cuotas).
+
 ## 2026-10-02 — Sprint: lotes, pipeline de importación, multiempresa por pestaña, responsive y analítica honesta
 
 ### HECHO

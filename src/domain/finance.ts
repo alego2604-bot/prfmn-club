@@ -173,3 +173,10 @@ export function resultSeries(ds: Dataset, expenses: Expense[], end: Date, months
     return { date: start, revenue: pl.revenueBase, expenses: pl.expensesBase, result: pl.result };
   });
 }
+
+/** ¿Hay ingresos registrados desde el inicio del periodo anterior? Sin ellos, un porcentaje frente a ese periodo engaña. */
+export function hasRevenueHistory(ds: Dataset, prevStart: Date): boolean {
+  const limit = toISODate(prevStart);
+  return ds.sales.some((s) => s.status !== "voided" && s.occurredAt.slice(0, 10) <= limit)
+    || ds.invoices.some((i) => i.status !== "draft" && i.status !== "void" && !!i.issueDate && i.issueDate <= limit);
+}
