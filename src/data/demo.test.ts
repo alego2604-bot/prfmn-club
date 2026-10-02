@@ -14,7 +14,7 @@ describe("Demo sintética", () => {
     const again = fillDemoWorkspace(fresh(), "u1");
     const shape = (w: typeof ws) => ({
       sales: w.sales.length, revenue: w.sales.reduce((t, s) => t + s.total, 0), invoices: w.invoices.length, customers: w.customers.length,
-      closings: w.cashClosings.length, notes: w.customerNotes.length,
+      closings: w.cashClosings.length, notes: w.customerNotes.length, expenses: w.expenses.reduce((t, e) => t + e.total, 0), memberships: w.customerMemberships.length,
     });
     expect(shape(again)).toEqual(shape(ws));
   });
@@ -36,8 +36,29 @@ describe("Demo sintética", () => {
     expect(ws.customerNotes.length).toBeGreaterThan(10);
     expect(ws.imports).toHaveLength(1);
     expect(ws.importRecords.length).toBe(43);
-    expect(ws.invoiceItems).toHaveLength(ws.invoices.length);
+    for (const i of ws.invoices) expect(ws.invoiceItems.some((it) => it.invoiceId === i.id)).toBe(true);
     expect(visibleWorkspace(ws).sales).toHaveLength(ws.sales.length); // la importación de la demo está completada
+  });
+
+  it("finanzas y membresías coherentes: gastos con proveedor, cuotas con cargo, estados variados", () => {
+    const today = new Date().toISOString().slice(0, 10);
+    expect(ws.suppliers.length).toBeGreaterThanOrEqual(8);
+    expect(ws.expenses.length).toBeGreaterThan(100);
+    for (const e of ws.expenses) {
+      expect(e.total).toBe(e.subtotal + e.taxTotal);
+      expect(e.supplierId && e.categoryId).toBeTruthy();
+      expect(e.issueDate <= today).toBe(true);
+    }
+    expect(ws.expenses.some((e) => e.status === "pending" && e.dueDate && e.dueDate < today)).toBe(true);
+    expect(new Set(ws.expenses.map((e) => e.supplierInvoiceNumber)).size).toBe(ws.expenses.length);
+    // Una membresía por cliente con alta; las bajas sin próxima renovación
+    expect(ws.customerMemberships).toHaveLength(ws.customers.filter((c) => c.status !== "lead").length);
+    for (const m of ws.customerMemberships.filter((x) => x.status === "cancelled")) expect(m.nextRenewalDate).toBeUndefined();
+    expect(ws.customerMemberships.some((m) => m.status === "paused")).toBe(true);
+    expect(ws.membershipCharges.some((c) => c.status === "failed")).toBe(true);
+    for (const ch of ws.membershipCharges) expect(ws.invoices.some((i) => i.id === ch.invoiceId && i.customerMembershipId === ch.customerMembershipId)).toBe(true);
+    expect(ws.invoices.filter((i) => i.status === "draft")).toHaveLength(1);
+    expect(ws.tasks.length).toBeGreaterThan(3);
   });
 
   it("las bajas tienen fecha y no se facturan después", () => {

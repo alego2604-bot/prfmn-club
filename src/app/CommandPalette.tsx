@@ -106,7 +106,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     if (can("finance.view")) {
       for (const i of ws.invoices) {
         if (match(`${i.number ?? ""} ${i.externalNumber ?? ""} ${i.customerName ?? ""}`)) {
-          out.push({ id: `i-${i.id}`, group: "Facturas", label: i.number ?? i.externalNumber ?? "Factura", hint: `${i.customerName ?? ""} · ${formatMoney(i.total)}`, icon: Receipt, to: `/facturas?factura=${i.id}` });
+          out.push({ id: `i-${i.id}`, group: "Facturas", label: i.number ?? i.externalNumber ?? "Factura", hint: `${i.customerName ?? ""} · ${formatMoney(i.total)}`, icon: Receipt, to: `/facturas/${i.id}` });
           if (out.filter((x) => x.group === "Facturas").length >= 5) break;
         }
       }

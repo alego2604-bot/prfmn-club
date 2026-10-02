@@ -32,7 +32,7 @@ export default function ImportDetailPage() {
   const blockers = revertBlockers(ws, job.id);
   const state = importState(job);
   const link = (r: ImportRecordRow) =>
-    r.entityType === "sales" ? `/ventas?venta=${r.entityId}` : r.entityType === "invoices" ? `/facturas?factura=${r.entityId}` : r.entityType === "products" ? `/catalogo?producto=${r.entityId}` : null;
+    r.entityType === "sales" ? `/ventas?venta=${r.entityId}` : r.entityType === "invoices" ? `/facturas/${r.entityId}` : r.entityType === "products" ? `/catalogo?producto=${r.entityId}` : null;
   const columns: Column<ImportRecordRow>[] = [
     { id: "origin", header: "Origen", sortValue: (r) => `${r.sheet}${String(r.rowNumber).padStart(6, "0")}`, exportValue: (r) => `${r.sheet} fila ${r.rowNumber}`, cell: (r) => <span className="whitespace-nowrap text-fg-2">{r.sheet} · fila {r.rowNumber}</span> },
     { id: "status", header: "Resultado", sortValue: (r) => r.status, exportValue: (r) => REC_STATUS[r.status].label, cell: (r) => <Badge tone={REC_STATUS[r.status].tone}>{REC_STATUS[r.status].label}</Badge> },

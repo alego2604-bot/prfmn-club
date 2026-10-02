@@ -41,6 +41,15 @@ export function profitAndLoss(ds: Dataset, expenses: Expense[], p: Period, locat
   };
 }
 
+/**
+ * Facturas importadas que ya venían cobradas: el cobro consta en la propia factura (no hay fila de pago).
+ * Cuentan como entrada en su fecha de cobro (o de emisión) para no infravalorar la tesorería.
+ */
+function paidWithoutPayments(ds: Dataset, locationId?: string) {
+  const withPayments = new Set(ds.payments.filter((x) => x.invoiceId).map((x) => x.invoiceId));
+  return ds.invoices.filter((i) => i.amountPaid > 0 && i.status !== "void" && i.status !== "draft" && !withPayments.has(i.id) && (i.paidAt || i.issueDate) && (!locationId || !i.locationId || i.locationId === locationId));
+}
+
 export interface CashflowMonth {
   date: Date;
   inflow: Cents;
@@ -63,6 +72,10 @@ export function cashflowSeries(ds: Dataset, expenses: Expense[], end: Date, mont
     const i = idx(pay.paidAt);
     if (i < 0 || i >= months) continue;
     rows[i]!.inflow += pay.kind === "refund" ? -pay.amount : pay.amount;
+  }
+  for (const inv of paidWithoutPayments(ds, locationId)) {
+    const i = idx(inv.paidAt ?? inv.issueDate!);
+    if (i >= 0 && i < months) rows[i]!.inflow += inv.amountPaid;
   }
   for (const e of expenses) {
     if (e.status !== "paid" || (locationId && e.locationId !== locationId)) continue;
@@ -93,6 +106,7 @@ export function cashflowSummary(ds: Dataset, expenses: Expense[], p: Period, loc
     if (pay.status !== "succeeded" || !inP(pay.paidAt, p) || (locationId && pay.locationId && pay.locationId !== locationId)) continue;
     inflow += pay.kind === "refund" ? -pay.amount : pay.amount;
   }
+  for (const inv of paidWithoutPayments(ds, locationId)) if (inP(inv.paidAt ?? inv.issueDate, p)) inflow += inv.amountPaid;
   const outflow = expenses.filter((e) => e.status === "paid" && inP(e.paidAt ?? e.issueDate, p) && (!locationId || e.locationId === locationId)).reduce((s, e) => s + e.total, 0);
   const recv = ds.invoices.filter((i) => (i.status === "issued" || i.status === "partially_paid") && (!locationId || !i.locationId || i.locationId === locationId));
   const pay = expenses.filter((e) => e.status === "pending" && (!locationId || e.locationId === locationId));

@@ -118,3 +118,9 @@ export function duplicateSupplierInvoice(expenses: Expense[], e: Pick<Expense, "
   if (!n || !e.supplierId) return undefined;
   return expenses.find((x) => x.id !== e.id && x.status !== "void" && x.supplierId === e.supplierId && x.supplierInvoiceNumber?.trim().toUpperCase() === n);
 }
+
+/** ¿Hay histórico de gastos que cubra todo el periodo de comparación? Si no, comparar engaña (p. ej. +1.500 %). */
+export function hasComparableHistory(expenses: Pick<Expense, "issueDate" | "status">[], prevStart: Date): boolean {
+  const first = expenses.filter((e) => e.status !== "void").reduce<string | null>((m, e) => (!m || e.issueDate < m ? e.issueDate : m), null);
+  return !!first && new Date(`${first}T00:00:00`).getTime() <= prevStart.getTime();
+}

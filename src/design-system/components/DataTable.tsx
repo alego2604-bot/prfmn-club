@@ -63,6 +63,8 @@ export interface DataTableProps<T> {
   dense?: boolean;
   /** Presentación en móvil. Si no se indica, se deduce de las columnas (primera = título, importe = valor, estado). */
   mobile?: MobileCard<T>;
+  /** Barra de filtros (FilterBar) en la misma fila que el recuento, columnas y exportar */
+  filters?: ReactNode;
 }
 
 const PRIORITY_CLASS = { high: "", medium: "hidden lg:table-cell", low: "hidden xl:table-cell" } as const;
@@ -96,7 +98,7 @@ function readHidden(key: string | undefined, cols: { id: string; defaultHidden?:
 
 export function DataTable<T>({
   rows, columns, getRowId, onRowClick, searchText, searchPlaceholder = "Buscar…", toolbar, selectable, bulkActions, pageSize = 50,
-  exportName, exportCompany = "Business OS", empty, storageKey, initialSort, rowClassName, footer, dense, mobile,
+  exportName, exportCompany = "Business OS", empty, storageKey, initialSort, rowClassName, footer, dense, mobile, filters,
 }: DataTableProps<T>) {
   const [compact, setCompact] = useState<boolean>(() => dense ?? getPref(`table.density.${storageKey ?? "default"}`) === "compact");
   // Una sola vista en el DOM: tarjetas en móvil, tabla desde 768 px
@@ -172,6 +174,7 @@ export function DataTable<T>({
   return (
     <div className="flex flex-col">
       <div className="flex flex-wrap items-center gap-2 pb-3">
+        {filters && <div className="min-w-0 flex-1 basis-full sm:basis-0">{filters}</div>}
         {searchText && (
           <Input
             leading={<Search className="h-4 w-4" />}

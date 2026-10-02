@@ -1,7 +1,7 @@
 import {
   BarChart3, CalendarCheck, Contact, CreditCard, FileText, FolderOpen, Home, Inbox, Landmark,
   MessageSquareText, Package, PieChart, Receipt, ScrollText, Settings, ShoppingBag, Sparkles, Store, Truck, Upload,
-  UserPlus, Users, UsersRound, MapPin, Wallet, type LucideIcon,
+  UserPlus, Users, UsersRound, MapPin, Wallet, Scale, type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "@/domain/permissions";
 import type { ModuleStatus } from "@/design-system/components";
@@ -27,6 +27,8 @@ export interface NavGroup {
 }
 
 /**
+ * Navegación (2026-10-03): grupos cortos por tarea (Operaciones, Clientes, Finanzas, Datos, Análisis, Catálogo, Empresa).
+ * Proveedores vive dentro de Finanzas → Gastos (subnavegación) para no alargar el menú.
  * Navegación (2026-10-02): grupos cortos por tarea. Los módulos DESIGNED que forman parte de la estructura del
  * producto (Membresías, Seguimiento, Gastos, Documentos) aparecen en su grupo marcados «Pronto»; el resto de lo no
  * construido vive en «Próximamente». Empresa → Equipo / Centros / Ajustes abren las pestañas de Ajustes.
@@ -42,37 +44,33 @@ export const NAV: NavGroup[] = [
       { to: "/caja", label: "Caja", icon: Store, perm: "pos.sell", status: "TESTED", description: "Vender en segundos, táctil" },
       { to: "/ventas", label: "Ventas", icon: ShoppingBag, perm: "sales.view", status: "TESTED", description: "Histórico de operaciones, anulaciones y exportación" },
       { to: "/cierres", label: "Cierres", icon: Wallet, perm: "sales.view", status: "TESTED", description: "Apertura, arqueo y cuadre por método de pago" },
+      { to: "/catalogo", label: "Catálogo", icon: Package, perm: "catalog.view", status: "TESTED", description: "Productos, servicios, categorías y tarifas de membresía con histórico de precios" },
     ],
   },
   {
     label: "Clientes",
     items: [
-      { to: "/clientes", label: "Clientes", icon: Users, perm: "customers.view", status: "FUNCTIONAL", description: "Fichas, notas, compras y facturas" },
-      { to: "/membresias", label: "Membresías", icon: Contact, perm: "customers.view", status: "DESIGNED", inline: true, description: "Tarifas versionadas (por créditos, ilimitadas, bonos…), altas, renovaciones, bajas y MRR.", module: "fitness" },
-      { to: "/seguimiento", label: "Seguimiento", icon: Sparkles, perm: "customers.view", status: "DESIGNED", inline: true, description: "Con quién hablar hoy y por qué: inactividad, renovaciones y pagos pendientes, siempre con el motivo explicado." },
+      { to: "/clientes", label: "Clientes", icon: Users, perm: "customers.view", status: "FUNCTIONAL", description: "Fichas 360: membresía, compras, facturas, notas, tareas y saldo" },
+      { to: "/membresias", label: "Membresías", icon: Contact, perm: "customers.view", status: "FUNCTIONAL", description: "Tarifas con versiones de precio, altas, pausas, bajas, renovaciones, cuotas y MRR" },
+      { to: "/seguimiento", label: "Seguimiento", icon: Sparkles, perm: "customers.view", status: "FUNCTIONAL", description: "Tareas y avisos: con quién hablar hoy y por qué (renovaciones, cuotas vencidas, inactividad)" },
     ],
   },
   {
     label: "Finanzas",
     items: [
-      { to: "/finanzas", label: "Resumen financiero", icon: Landmark, perm: "finance.view", status: "FUNCTIONAL", description: "Ingresos, IVA, pendientes de cobro y métodos de pago del periodo" },
-      { to: "/facturas", label: "Facturas", icon: Receipt, perm: "finance.view", status: "FUNCTIONAL", description: "Facturas, estados de cobro, IVA repercutido y pendientes" },
-      { to: "/gastos", label: "Gastos", icon: ScrollText, perm: "finance.view", status: "DESIGNED", inline: true, description: "Facturas recibidas, categorías configurables, IVA soportado y lectura de tickets/PDF con validación." },
-      { to: "/pagos", label: "Pagos", icon: CreditCard, perm: "finance.view", status: "FUNCTIONAL", description: "Todos los movimientos de dinero por método" },
+      { to: "/finanzas", label: "Resumen", icon: Landmark, perm: "finance.view", status: "FUNCTIONAL", description: "Ingresos, gastos, resultado, flujo de caja, cobros e IVA del periodo" },
+      { to: "/gastos", label: "Gastos", icon: ScrollText, perm: "finance.view", status: "FUNCTIONAL", description: "Facturas recibidas y gastos por categoría, proveedor y centro, con IVA soportado" },
+      { to: "/facturas", label: "Facturas", icon: Receipt, perm: "finance.view", status: "FUNCTIONAL", description: "Emitir, cobrar, duplicar y descargar facturas; vencidas y pendientes" },
+      { to: "/pagos", label: "Cobros", icon: CreditCard, perm: "finance.view", status: "FUNCTIONAL", description: "Todo el dinero cobrado y devuelto, por método y centro" },
+      { to: "/impuestos", label: "Impuestos", icon: Scale, perm: "finance.view", status: "FUNCTIONAL", description: "IVA repercutido, soportado y posición estimada por trimestre (orientativo)" },
     ],
   },
   {
     label: "Datos",
     items: [
+      { to: "/informes", label: "Informes", icon: FileText, perm: "analytics.view", status: "FUNCTIONAL", description: "Ventas, ingresos, gastos, caja, cobros, facturas, clientes, membresías, productos y centros; paquete para la gestoría" },
       { to: "/importaciones", label: "Importaciones", icon: Upload, perm: "imports.run", status: "TESTED", description: "Importar Excel/CSV por lotes con análisis, mapeo, validación, duplicados y reversión" },
-      { to: "/documentos", label: "Documentos", icon: FolderOpen, perm: "documents.manage", status: "DESIGNED", inline: true, description: "Gestor documental por año y tipo, con metadatos y vínculo a facturas, gastos e importaciones." },
-    ],
-  },
-  {
-    label: "Análisis",
-    items: [
-      { to: "/informes", label: "Informes", icon: FileText, perm: "analytics.view", status: "TESTED", description: "Paquete para la gestoría en Excel, PDF y CSV para cualquier periodo" },
-      { to: "/catalogo", label: "Catálogo", icon: Package, perm: "catalog.view", status: "TESTED", description: "Productos, servicios y categorías con histórico de precios" },
+      { to: "/documentos", label: "Documentos", icon: FolderOpen, perm: "documents.manage", status: "DESIGNED", description: "Gestor documental por año y tipo, con metadatos y vínculo a facturas, gastos e importaciones." },
     ],
   },
   {
@@ -87,7 +85,6 @@ export const NAV: NavGroup[] = [
     items: [
       { to: "/asistencia", label: "Asistencia", icon: CalendarCheck, perm: "customers.view", status: "DESIGNED", description: "Importación de asistencia (Excel/CSV o integración), última visita, frecuencia y cambios de frecuencia.", module: "fitness" },
       { to: "/leads", label: "Leads", icon: UserPlus, perm: "customers.view", status: "DESIGNED", description: "Pipeline de oportunidades configurable (Lead → Contacto → Prueba → Cliente / Perdido) con conversión." },
-      { to: "/proveedores", label: "Proveedores", icon: Truck, perm: "finance.view", status: "DESIGNED", description: "Ficha de proveedor, histórico de compras y evolución de precios." },
       { to: "/conciliacion", label: "Conciliación", icon: Landmark, perm: "finance.view", status: "PLANNED", description: "Extracto bancario ↔ cobros y gastos, con sugerencias de emparejamiento." },
       { to: "/inbox", label: "Inbox", icon: Inbox, perm: "customers.view", status: "DESIGNED", description: "WhatsApp Business (API oficial) y email en un único hilo por cliente, con registro en el timeline." },
       { to: "/plantillas", label: "Plantillas", icon: MessageSquareText, perm: "customers.view", status: "DESIGNED", description: "Inactividad, renovación, drop-in, pago pendiente, bienvenida, cumpleaños y recuperación. La IA propone, tú envías." },
@@ -102,9 +99,16 @@ export const isPlanned = (i: NavItem) => i.status === "PLANNED" || i.status === 
 
 export const SETTINGS_ITEM: NavItem = { to: "/ajustes", label: "Ajustes", icon: Settings, perm: "dashboard.view", status: "FUNCTIONAL", description: "Empresa, centros, equipo, métodos de pago, IVA y auditoría" };
 
-export const ALL_ITEMS: NavItem[] = [...NAV.flatMap((g) => g.items), SETTINGS_ITEM];
 
 /** Rutas reales (sin query) de los elementos navegables, para enrutado y página «planificado». */
 export const routePath = (i: NavItem) => i.to.split("?")[0]!;
 
 export const MOBILE_TABS = ["/", "/caja", "/ventas", "/clientes"];
+
+/** Elementos que no están en el menú pero sí en la paleta ⌘K. */
+export const EXTRA_ITEMS: NavItem[] = [
+  { to: "/proveedores", label: "Proveedores", icon: Truck, perm: "finance.view", status: "FUNCTIONAL", description: "Fichas de proveedor con gastos, pendientes y contacto" },
+  { to: "/flujo-de-caja", label: "Flujo de caja", icon: Wallet, perm: "finance.view", status: "FUNCTIONAL", description: "Entradas y salidas de dinero por mes, por cobrar y por pagar" },
+];
+
+export const ALL_ITEMS: NavItem[] = [...NAV.flatMap((g) => g.items), ...EXTRA_ITEMS, SETTINGS_ITEM];

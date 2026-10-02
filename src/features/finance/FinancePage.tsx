@@ -1,236 +1,224 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowUpRight, Clock3, FileText, Lock, Receipt } from "lucide-react";
-import { useLocationScope, useWorkspace } from "@/app/session";
-import { Card, CardHeader, DeltaChip, Page, RangeSelector, SectionTitle } from "@/design-system/components";
-import { BarList, ColumnChart, Legend, StackedColumnChart } from "@/design-system/components/charts";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowUpRight, CircleDollarSign, Clock3, FileText, Plus, Receipt, ScrollText } from "lucide-react";
+import { useLocationScope, useSession, useWorkspace } from "@/app/session";
+import { useServerReady } from "@/app/serverCaps";
+import { Amount, Button, Card, CardHeader, DeltaChip, Ledger, Page, Section, Segmented } from "@/design-system/components";
+import { BarList, FlowChart, Legend, StackedColumnChart } from "@/design-system/components/charts";
 import { computeKpis, percentChange, revenueSeries } from "@/domain/analytics";
-import { buildGestoriaReport } from "@/features/reports/gestoria";
-import { addDays, addMonths, capitalize, formatDate, comparablePrevious, makePeriod, monthName, monthShort, startOfMonth, toISODate, type PeriodPreset } from "@/lib/dates";
-import { formatMoney, formatRate } from "@/lib/money";
+import { cashflowSummary, profitAndLoss, resultSeries, vatSummary } from "@/domain/finance";
+import { expenseKpis, expenseView, hasComparableHistory } from "@/domain/expenses";
+import { invoiceView } from "@/domain/invoicing";
+import { addMonths, capitalize, formatDate, makePeriod, monthName, monthShort, startOfMonth, toISODate } from "@/lib/dates";
+import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/cn";
+import { ExpenseDrawer } from "@/features/expenses/ExpenseDrawer";
+import { FinanceHeader, periodSpan, useFinancePeriod } from "./shared";
 
-type Range = "month" | "quarter" | "ytd" | "1y" | "custom";
-const RANGES: { value: Exclude<Range, "custom">; label: string; long: string }[] = [
-  { value: "month", label: "Mes", long: "Mes en curso" },
-  { value: "quarter", label: "Trim.", long: "Trimestre en curso" },
-  { value: "ytd", label: "YTD", long: "Año en curso hasta hoy" },
-  { value: "1y", label: "1A", long: "Últimos 12 meses" },
-];
-
-/** Finanzas: ingresos, cobros, IVA y pendientes. Gastos y resultado aparecen cuando exista el módulo de Gastos (nunca cifras inventadas). */
+/**
+ * Finanzas · Resumen. Un extracto con una cifra protagonista (resultado) y, debajo, por qué: ingresos frente a gastos,
+ * de dónde viene el dinero, a dónde va, qué está pendiente y la posición de IVA. Todo desde registros, nunca estimado.
+ */
 export default function FinancePage() {
   const ws = useWorkspace();
-  const { filterId } = useLocationScope();
-  const now = useMemo(() => new Date(), []);
-  const [range, setRange] = useState<Range>("quarter");
-  const [custom, setCustom] = useState({ start: toISODate(addDays(now, -89)), end: toISODate(now) });
-  const period = useMemo(
-    () => makePeriod(range as PeriodPreset, now, range === "custom" ? { start: new Date(`${custom.start}T00:00`), end: new Date(`${custom.end}T00:00`) } : undefined),
-    [range, now, custom],
-  );
-  const prev = useMemo(() => comparablePrevious(period, now), [period, now]);
-  const k = useMemo(() => computeKpis(ws, period, filterId), [ws, period, filterId]);
-  const kp = useMemo(() => computeKpis(ws, prev, filterId), [ws, prev, filterId]);
-  const report = useMemo(() => buildGestoriaReport(ws, period, filterId), [ws, period, filterId]);
+  const navigate = useNavigate();
+  const { can } = useSession();
+  const ready = useServerReady();
+  const { filterId, current, canSeeAll } = useLocationScope();
+  const { now, period, prev, control } = useFinancePeriod();
+  const [newExpense, setNewExpense] = useState(false);
+  const [flow, setFlow] = useState<"result" | "split">("result");
+  const today = toISODate(now);
 
-  // Cobros (entradas de dinero) por mes, 12 meses: cargos − devoluciones
-  const cashIn = useMemo(() => {
-    const first = addMonths(startOfMonth(now), -11);
-    const rows = Array.from({ length: 12 }, (_, i) => ({ date: addMonths(first, i), amount: 0 }));
-    const idx = new Map(rows.map((r) => [toISODate(r.date).slice(0, 7), r]));
-    for (const p of ws.payments) {
-      if (p.status !== "succeeded" || (filterId && p.locationId && p.locationId !== filterId)) continue;
-      const r = idx.get(toISODate(new Date(p.paidAt)).slice(0, 7));
-      if (r) r.amount += p.kind === "refund" ? -p.amount : p.amount;
-    }
-    for (const i of ws.invoices) {
-      // Facturas importadas cobradas sin pago registrado: el cobro consta en la propia factura
-      if (i.status !== "paid" || ws.payments.some((p) => p.invoiceId === i.id) || !i.paidAt && !i.issueDate) continue;
-      const r = idx.get((i.paidAt ?? i.issueDate!).slice(0, 7));
-      if (r) r.amount += i.amountPaid;
-    }
-    return rows;
-  }, [ws, filterId, now]);
-  const collected = k.byMethod.reduce((s, m) => s + m.amount, 0);
-  const collectedPrev = kp.byMethod.reduce((s, m) => s + m.amount, 0);
-  const pendingList = ws.invoices
-    .filter((i) => (i.status === "issued" || i.status === "partially_paid") && (!filterId || !i.locationId || i.locationId === filterId))
-    .sort((a, b) => (a.issueDate ?? "").localeCompare(b.issueDate ?? ""));
-  const vatTotal = report.vat.reduce((s, v) => s + v.tax, 0);
-  const vatByRate = [...report.vat.reduce((m, v) => m.set(v.rateBp, { base: (m.get(v.rateBp)?.base ?? 0) + v.base, tax: (m.get(v.rateBp)?.tax ?? 0) + v.tax }), new Map<number, { base: number; tax: number }>())].sort((a, b) => b[0] - a[0]);
+  const k = useMemo(() => computeKpis(ws, period, filterId), [ws, period, filterId]);
+  const pl = useMemo(() => profitAndLoss(ws, ws.expenses, period, filterId), [ws, period, filterId]);
+  const plPrev = useMemo(() => profitAndLoss(ws, ws.expenses, prev, filterId), [ws, prev, filterId]);
+  const cf = useMemo(() => cashflowSummary(ws, ws.expenses, period, filterId), [ws, period, filterId]);
+  const vat = useMemo(() => vatSummary(ws, ws.expenses, period, filterId), [ws, period, filterId]);
+  const ex = useMemo(() => expenseKpis(ws.expenses, { categories: ws.expenseCategories, suppliers: ws.suppliers, locations: ws.locations }, period, filterId, today), [ws, period, filterId, today]);
+  const results = useMemo(() => resultSeries(ws, ws.expenses, now, 12, filterId), [ws, now, filterId]);
   const split12 = useMemo(() => {
     const p12 = makePeriod("custom", now, { start: addMonths(startOfMonth(now), -11), end: now });
-    return revenueSeries(ws, p12, "month", filterId).map((m) => ({
-      key: m.key, label: capitalize(monthShort(m.date.getMonth())), tooltipLabel: capitalize(`${monthName(m.date.getMonth())} ${m.date.getFullYear()}`), a: m.invoices, b: m.sales,
-    }));
+    return revenueSeries(ws, p12, "month", filterId).map((m) => ({ key: m.key, label: capitalize(monthShort(m.date.getMonth())), tooltipLabel: capitalize(`${monthName(m.date.getMonth())} ${m.date.getFullYear()}`), a: m.invoices, b: m.sales }));
   }, [ws, now, filterId]);
-  const periodInvoices = ws.invoices.filter((i) => i.status !== "void" && i.status !== "draft" && i.issueDate && (!filterId || !i.locationId || i.locationId === filterId) && new Date(`${i.issueDate}T00:00`) >= period.start && new Date(`${i.issueDate}T00:00`) < period.end);
-  const paidShare = periodInvoices.length ? Math.round((periodInvoices.filter((i) => i.status === "paid").length / periodInvoices.length) * 100) : null;
-  const prevLabel = <span title={`${formatDate(prev.start)} – ${formatDate(addDays(prev.end, -1))}`}>vs {prev.label.toLowerCase()}</span>;
+
+  const receivable = ws.invoices
+    .filter((i) => (i.status === "issued" || i.status === "partially_paid") && (!filterId || !i.locationId || i.locationId === filterId))
+    .sort((a, b) => (a.dueDate ?? a.issueDate ?? "").localeCompare(b.dueDate ?? b.issueDate ?? ""));
+  const payable = ws.expenses.filter((e) => e.status === "pending" && (!filterId || e.locationId === filterId)).sort((a, b) => (a.dueDate ?? a.issueDate).localeCompare(b.dueDate ?? b.issueDate));
+  const noExpenses = !pl.hasExpenses;
+  // El resultado y los gastos solo se comparan si hay gastos registrados durante todo el periodo anterior
+  const expComparable = hasComparableHistory(ws.expenses, prev.start);
+  const scopeLabel = current ? current.name : canSeeAll ? "Todos los centros" : "";
 
   return (
     <Page wide>
-      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-sm text-fg-3">{period.label} · {formatDate(period.start)} – {formatDate(addDays(period.end, -1))}</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-[-0.03em]">Finanzas</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <RangeSelector value={range} onChange={setRange} options={RANGES} custom="custom" customValue={custom} onCustomChange={setCustom} />
-          <Link to="/informes" className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-surface px-3.5 text-sm font-medium shadow-xs transition-colors hover:border-line-strong"><FileText className="h-4 w-4" />Informe gestoría</Link>
-        </div>
-      </div>
+      <FinanceHeader
+        title="Finanzas"
+        eyebrow={<>{period.label} · {periodSpan(period)}{scopeLabel ? ` · ${scopeLabel}` : ""}</>}
+        control={control}
+        actions={
+          <>
+            <Link to="/informes" className="hidden sm:block"><Button icon={FileText}>Informes</Button></Link>
+            {can("expenses.manage") && <Button icon={Plus} disabled={!ready} onClick={() => setNewExpense(true)}>Gasto</Button>}
+            {can("invoices.manage") && <Button variant="primary" icon={Plus} disabled={!ready} onClick={() => navigate("/facturas/nueva")}>Factura</Button>}
+          </>
+        }
+      />
 
-      {/* Extracto: una cifra protagonista y el resto como líneas de un estado de cuentas */}
-      <Card className="mb-8" padded={false}>
-        <div className="grid lg:grid-cols-[1.15fr_1fr]">
-          <div className="p-6 sm:p-7">
-            <p className="text-sm font-medium text-fg-2">Ingresos del periodo</p>
-            <p className="figure mt-2 text-5xl leading-none sm:text-6xl">{formatMoney(k.revenue)}</p>
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-fg-3">
-              <DeltaChip size="md" value={percentChange(k.revenue, kp.revenue)} label={prevLabel} />
-              <span>IVA incluido · caja {formatMoney(k.salesRevenue)} · cuotas y facturas {formatMoney(k.invoiceRevenue)}</span>
+      {/* Extracto: resultado protagonista + cuenta de resultados y tesorería como líneas */}
+      <Card className="mb-8 overflow-hidden" padded={false}>
+        <div className="grid xl:grid-cols-[1.1fr_1fr]">
+          <div className="relative p-6 sm:p-8">
+            <div className="pointer-events-none absolute -left-24 -top-24 h-64 w-64 rounded-full bg-[radial-gradient(closest-side,var(--accent-soft),transparent)] opacity-70" aria-hidden />
+            <p className="relative text-sm font-medium text-fg-2">Resultado del periodo</p>
+            <p className={cn("relative mt-2 text-5xl leading-none sm:text-6xl", pl.result < 0 && "text-danger-fg")}><Amount cents={pl.result} size="hero" /></p>
+            <div className="relative mt-3 flex flex-wrap items-center gap-2 text-xs text-fg-3">
+              {expComparable ? <DeltaChip size="md" value={percentChange(pl.result, plPrev.result)} label={`vs ${prev.label.toLowerCase()}`} /> : <span>Sin histórico de gastos para comparar con {prev.label.toLowerCase()}</span>}
+              {pl.margin !== null && <span>Margen {Math.round(pl.margin * 100)} % · sin IVA</span>}
             </div>
+            <div className="relative mt-7 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line">
+              <div className="bg-surface p-4">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-fg-3"><span className="h-2 w-2 rounded-full bg-[var(--chart-1)]" />Ingresos</p>
+                <p className="mt-1 text-xl font-semibold tracking-tight num">{formatMoney(pl.revenueBase)}</p>
+                <p className="mt-0.5 text-xs text-fg-3"><DeltaChip value={percentChange(pl.revenueBase, plPrev.revenueBase)} /> <span className="ml-1">sin IVA</span></p>
+              </div>
+              <div className="bg-surface p-4">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-fg-3"><span className="h-2 w-2 rounded-full bg-[var(--chart-out)]" />Gastos</p>
+                <p className="mt-1 text-xl font-semibold tracking-tight num">{formatMoney(pl.expensesBase)}</p>
+                <p className="mt-0.5 text-xs text-fg-3">{noExpenses ? <Link to="/gastos" className="text-accent-fg hover:underline">Registrar gastos →</Link> : <>{expComparable && <DeltaChip value={percentChange(pl.expensesBase, plPrev.expensesBase)} invert />} <span className="ml-1">sin IVA</span></>}</p>
+              </div>
+            </div>
+            {noExpenses && <p className="relative mt-3 text-xs text-fg-3">Aún no hay gastos registrados: el resultado coincide con los ingresos. En cuanto añadas gastos verás el resultado real.</p>}
           </div>
-          <dl className="divide-y divide-line border-t border-line text-sm lg:border-l lg:border-t-0">
-            <StatementRow label="Cobrado" value={formatMoney(collected)} extra={<DeltaChip value={percentChange(collected, collectedPrev)} />} />
-            <StatementRow label="Pendiente de cobro" value={formatMoney(k.pendingInvoices.amount)} extra={<span className="text-xs text-fg-3">{k.pendingInvoices.count} factura{k.pendingInvoices.count === 1 ? "" : "s"}</span>} to="/facturas?estado=pendiente" />
-            <StatementRow label="IVA repercutido" value={formatMoney(vatTotal)} extra={<span className="text-xs text-fg-3">{vatByRate.length} tipo{vatByRate.length === 1 ? "" : "s"}</span>} />
-            <StatementRow label="Gastos" soon />
-            <StatementRow label="Resultado neto" soon />
-          </dl>
+          <div className="border-t border-line px-6 py-4 sm:px-8 xl:border-l xl:border-t-0">
+            <p className="mb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-3">Tesorería del periodo</p>
+            <Ledger rows={[
+              { label: "Cobrado", value: formatMoney(cf.inflow), hint: <DeltaChip value={percentChange(cf.inflow, cashflowSummary(ws, ws.expenses, prev, filterId).inflow)} /> },
+              { label: "Pagado", value: formatMoney(cf.outflow), hint: <span className="text-fg-3">gastos pagados</span> },
+              { label: "Flujo neto", value: <Amount cents={cf.net} sign muted={false} />, strong: true, tone: cf.net < 0 ? "negative" : undefined },
+            ]} />
+            <p className="mb-1 mt-5 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-3">Pendiente</p>
+            <Ledger rows={[
+              { label: <Link to="/facturas?estado=pendiente" className="hover:text-fg">Por cobrar</Link>, value: formatMoney(cf.receivable.amount), hint: `${cf.receivable.count} fact.` },
+              { label: <Link to="/gastos?estado=pending" className="hover:text-fg">Por pagar</Link>, value: formatMoney(cf.payable.amount), hint: `${cf.payable.count} gastos` },
+              { label: <Link to="/impuestos" className="hover:text-fg">IVA estimado a ingresar</Link>, value: formatMoney(Math.max(0, vat.position)), hint: vat.position < 0 ? `a compensar ${formatMoney(-vat.position)}` : "orientativo" },
+            ]} />
+          </div>
         </div>
       </Card>
 
-      <div className="flex flex-col gap-8">
-        <section>
-          <SectionTitle>Ingresos</SectionTitle>
-          <div className="grid gap-4 md:grid-cols-12 [&>*]:min-w-0">
-            <Card className="md:col-span-12 xl:col-span-8">
-              <CardHeader title="Recurrente frente a puntual" description="Por mes de emisión · IVA incluido · últimos 12 meses" action={<Legend items={[{ label: "Cuotas y facturas", color: "var(--chart-1)", shape: "bar" }, { label: "Caja", color: "var(--chart-1-mid)", shape: "bar" }]} />} />
-              <StackedColumnChart data={split12} aLabel="Cuotas y facturas" bLabel="Caja" height={240} partialLast />
-            </Card>
-            <Card className="md:col-span-12 xl:col-span-4">
-              <CardHeader title="Composición del periodo" description={period.label} />
-              <BarList rows={[{ key: "inv", label: "Cuotas y facturas", value: k.invoiceRevenue }, { key: "pos", label: "Caja / TPV", value: k.salesRevenue }].filter((r) => r.value > 0)} emptyText="Sin ingresos en el periodo" />
-              {k.byCategory.filter((c) => c.id !== "invoices").length > 0 && (
-                <>
-                  <p className="mb-3 mt-6 text-xs font-medium text-fg-3">Caja por categoría</p>
-                  <BarList rows={k.byCategory.filter((c) => c.id !== "invoices").map((c) => ({ key: c.id, label: c.name, value: c.amount }))} max={4} />
-                </>
-              )}
-            </Card>
-          </div>
-        </section>
-
-        <section>
-          <SectionTitle>Caja · entradas de dinero</SectionTitle>
-          <div className="grid gap-4 md:grid-cols-12 [&>*]:min-w-0">
-            <Card className="md:col-span-12 xl:col-span-8">
-              <CardHeader title="Cobrado por mes" description="Cargos − devoluciones · últimos 12 meses" />
-              <ColumnChart
-                height={240}
-                partialLast
-                currentLabel="Cobrado"
-                data={cashIn.map((r) => ({ key: toISODate(r.date), label: capitalize(monthShort(r.date.getMonth())), tooltipLabel: capitalize(`${monthName(r.date.getMonth())} ${r.date.getFullYear()}`), current: Math.max(0, r.amount) }))}
-              />
-            </Card>
-            <Card className="md:col-span-12 xl:col-span-4">
-              <CardHeader title="Métodos de pago" description="Cobrado en el periodo" />
-              <BarList rows={k.byMethod.filter((m) => m.amount > 0).map((m) => ({ key: m.key, label: m.name, value: m.amount }))} max={6} emptyText="Sin cobros en el periodo" />
-              {k.uncollected > 0 && <p className="mt-4 rounded-lg border border-dashed border-line-strong px-3 py-2 text-sm text-fg-2">Aún sin cobrar del periodo: <span className="font-semibold num">{formatMoney(k.uncollected)}</span></p>}
-            </Card>
-          </div>
-        </section>
-
-        <section>
-          <SectionTitle action={<Link to="/facturas" className="text-sm font-medium text-fg-3 hover:text-fg">Facturas →</Link>}>Facturación</SectionTitle>
-          <div className="grid gap-4 md:grid-cols-12 [&>*]:min-w-0">
-            <Card className="md:col-span-12 xl:col-span-8" padded={false}>
-              <div className="flex items-start justify-between p-5 pb-3">
-                <CardHeader className="mb-0" title="Pendiente de cobro" description="Facturas emitidas sin cobrar, de la más antigua a la más reciente" />
-                <Link to="/facturas?estado=pendiente" className="shrink-0 text-sm font-medium text-fg-3 hover:text-fg">Ver todas →</Link>
-              </div>
-              {pendingList.length ? (
-                <ul>
-                  {pendingList.slice(0, 6).map((i) => {
-                    const days = i.issueDate ? Math.max(0, Math.round((now.getTime() - new Date(`${i.issueDate}T00:00`).getTime()) / 86_400_000)) : 0;
-                    return (
-                      <li key={i.id} className="flex items-center gap-4 border-t border-line px-5 py-3 text-sm">
-                        <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", days > 30 ? "bg-danger-soft text-danger-fg" : "bg-warning-soft text-warning-fg")}><Clock3 className="h-4 w-4" /></span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium">{i.customerName ?? "Sin cliente"}</span>
-                          <span className="block truncate text-xs text-fg-3">{i.number ?? i.externalNumber ?? "Factura"} · {i.issueDate ? formatDate(i.issueDate) : "—"} · {days === 0 ? "hoy" : days === 1 ? "hace 1 día" : `hace ${days} días`}</span>
-                        </span>
-                        <span className="font-semibold num">{formatMoney(i.total - i.amountPaid)}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <div className="flex items-center gap-3 border-t border-line px-5 py-6 text-sm text-fg-3"><Receipt className="h-4 w-4" />Todo cobrado. No hay facturas pendientes.</div>
-              )}
-              {pendingList.length > 6 && <Link to="/facturas?estado=pendiente" className="flex items-center gap-1 border-t border-line px-5 py-3 text-sm font-medium text-fg-2 hover:text-fg">Y {pendingList.length - 6} más <ArrowUpRight className="h-3.5 w-3.5" /></Link>}
-            </Card>
-            <Card className="md:col-span-12 xl:col-span-4">
-              <CardHeader title="Facturas del periodo" description={period.label} />
-              <dl className="divide-y divide-line text-sm">
-                <div className="flex justify-between py-2.5"><dt className="text-fg-3">Emitidas</dt><dd className="font-semibold num">{periodInvoices.length.toLocaleString("es-ES")}</dd></div>
-                <div className="flex justify-between py-2.5"><dt className="text-fg-3">Importe</dt><dd className="font-semibold num">{formatMoney(periodInvoices.reduce((t, i) => t + i.total, 0))}</dd></div>
-                <div className="flex justify-between py-2.5"><dt className="text-fg-3">Cobradas</dt><dd className="font-semibold num">{paidShare === null ? "—" : `${paidShare} %`}</dd></div>
-                <div className="flex justify-between py-2.5"><dt className="text-fg-3">Importe medio</dt><dd className="font-semibold num">{periodInvoices.length ? formatMoney(Math.round(periodInvoices.reduce((t, i) => t + i.total, 0) / periodInvoices.length)) : "—"}</dd></div>
-              </dl>
-            </Card>
-          </div>
-        </section>
-
-        <section>
-          <SectionTitle action={<Link to="/informes" className="text-sm font-medium text-fg-3 hover:text-fg">Informe para la gestoría →</Link>}>Impuestos</SectionTitle>
-          <Card padded={false}>
-            <div className="p-5 pb-3"><CardHeader className="mb-0" title="IVA repercutido" description="Por tipo · ventas por fecha de operación, facturas por fecha de emisión" /></div>
-            {vatByRate.length ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead><tr className="border-y border-line text-xs text-fg-3"><th className="px-5 py-2 text-left font-medium">Tipo</th><th className="px-3 py-2 text-right font-medium">Base imponible</th><th className="px-5 py-2 text-right font-medium">Cuota</th></tr></thead>
-                  <tbody>
-                    {vatByRate.map(([rate, v]) => (
-                      <tr key={rate} className="border-b border-line">
-                        <td className="px-5 py-3 font-medium">{formatRate(rate)}</td>
-                        <td className="px-3 py-3 text-right text-fg-2 num">{formatMoney(v.base)}</td>
-                        <td className="px-5 py-3 text-right font-semibold num">{formatMoney(v.tax)}</td>
-                      </tr>
-                    ))}
-                    <tr className="bg-surface-2">
-                      <td className="px-5 py-3 font-semibold">Total</td>
-                      <td className="px-3 py-3 text-right font-semibold num">{formatMoney(vatByRate.reduce((s, [, v]) => s + v.base, 0))}</td>
-                      <td className="px-5 py-3 text-right font-semibold num">{formatMoney(vatTotal)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            ) : <p className="px-5 pb-6 pt-2 text-sm text-fg-3">Sin operaciones con IVA en el periodo.</p>}
-            <p className="flex items-center gap-2 border-t border-line px-5 py-3 text-xs text-fg-3"><Lock className="h-3.5 w-3.5" />IVA soportado y liquidación (modelo 303) llegarán con el módulo de Gastos. Nunca se muestran cifras estimadas.</p>
+      <Section
+        title="Ingresos frente a gastos"
+        description="Por mes · sin IVA · últimos 12 meses"
+        action={<Segmented size="sm" value={flow} onChange={setFlow} items={[{ value: "result", label: "Resultado" }, { value: "split", label: "Recurrente / puntual" }]} />}
+      >
+        <div className="grid gap-4 md:grid-cols-12 [&>*]:min-w-0">
+          <Card className="md:col-span-12 xl:col-span-8">
+            {flow === "result" ? (
+              <>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-fg-3">{noExpenses ? "Sin gastos registrados todavía: la línea de resultado coincide con los ingresos." : "Barras: ingresos y gastos. Línea: resultado."}</p>
+                  <Legend items={[{ label: "Ingresos", color: "var(--chart-1)", shape: "bar" }, { label: "Gastos", color: "var(--chart-out)", shape: "bar" }, { label: "Resultado", color: "var(--text)" }]} />
+                </div>
+                <FlowChart partialLast height={260} inLabel="Ingresos" outLabel="Gastos" netLabel="Resultado" data={results.map((r) => ({ key: toISODate(r.date), label: capitalize(monthShort(r.date.getMonth())), tooltipLabel: capitalize(`${monthName(r.date.getMonth())} ${r.date.getFullYear()}`), inflow: r.revenue, outflow: r.expenses, net: r.result }))} />
+              </>
+            ) : (
+              <>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-fg-3">Por mes de emisión · IVA incluido</p>
+                  <Legend items={[{ label: "Cuotas y facturas", color: "var(--chart-1)", shape: "bar" }, { label: "Caja", color: "var(--chart-1-mid)", shape: "bar" }]} />
+                </div>
+                <StackedColumnChart data={split12} aLabel="Cuotas y facturas" bLabel="Caja" height={260} partialLast />
+              </>
+            )}
           </Card>
-        </section>
-      </div>
+          <Card className="md:col-span-12 xl:col-span-4">
+            <CardHeader title="Composición" description={`${period.label} · IVA incluido`} />
+            <p className="mb-2 text-xs font-medium text-fg-3">Ingresos</p>
+            <BarList rows={[{ key: "inv", label: "Cuotas y facturas", value: k.invoiceRevenue }, { key: "pos", label: "Caja / TPV", value: k.salesRevenue }].filter((r) => r.value > 0)} emptyText="Sin ingresos en el periodo" />
+            <p className="mb-2 mt-6 text-xs font-medium text-fg-3">Gastos por categoría</p>
+            <BarList tone="out" max={4} rows={ex.byCategory.map((c) => ({ key: c.id, label: c.name, value: c.amount }))} emptyText="Sin gastos en el periodo" />
+          </Card>
+        </div>
+      </Section>
+
+      <Section title="Pendiente" description="Lo que te deben y lo que debes, de lo más antiguo a lo más reciente">
+        <div className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
+          <PendingList
+            title="Por cobrar"
+            icon={Receipt}
+            empty="Todo cobrado. No hay facturas pendientes."
+            to="/facturas?estado=pendiente"
+            items={receivable.map((i) => {
+              const v = invoiceView(i, today);
+              return { id: i.id, title: i.customerName ?? "Sin cliente", sub: `${i.number ?? i.externalNumber ?? "Factura"} · ${i.dueDate ? `vence ${formatDate(i.dueDate)}` : i.issueDate ? formatDate(i.issueDate) : ""}`, amount: i.total - i.amountPaid, late: v === "overdue", to: `/facturas/${i.id}` };
+            })}
+          />
+          <PendingList
+            title="Por pagar"
+            icon={ScrollText}
+            empty={noExpenses ? "Registra tus gastos para controlar qué debes pagar y cuándo." : "Todo pagado. No hay gastos pendientes."}
+            to="/gastos?estado=pending"
+            items={payable.map((e) => ({ id: e.id, title: e.description, sub: `${ws.suppliers.find((s) => s.id === e.supplierId)?.name ?? "Sin proveedor"} · ${e.dueDate ? `vence ${formatDate(e.dueDate)}` : formatDate(e.issueDate)}`, amount: e.total, late: expenseView(e, today) === "overdue", to: "/gastos?estado=pending" }))}
+          />
+        </div>
+      </Section>
+
+      <Section title="Impuestos" description="IVA del periodo · estimación orientativa, no sustituye a tu asesoría" action={<Link to="/impuestos" className="text-sm font-medium text-fg-3 hover:text-fg">Detalle por tipo →</Link>}>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <TaxTile label="IVA repercutido" value={vat.outputTax} sub="De ventas y facturas emitidas" />
+          <TaxTile label="IVA soportado" value={vat.inputTax} sub={noExpenses ? "Sin gastos registrados" : "De gastos con factura"} />
+          <TaxTile label={vat.position >= 0 ? "Posición estimada · a ingresar" : "Posición estimada · a compensar"} value={Math.abs(vat.position)} sub="Repercutido − soportado" strong />
+        </div>
+      </Section>
+
+      <ExpenseDrawer open={newExpense} onClose={() => setNewExpense(false)} />
     </Page>
   );
 }
 
-/** Línea del extracto: etiqueta, importe y contexto. `soon`: aún sin datos reales (módulo pendiente), nunca estimado. */
-function StatementRow({ label, value, extra, soon, to }: { label: string; value?: string; extra?: React.ReactNode; soon?: boolean; to?: string }) {
-  const body = (
-    <>
-      <dt className={cn("text-fg-2", soon && "text-fg-3")}>{label}</dt>
-      <dd className="flex items-center gap-2.5">
-        {soon ? <span className="inline-flex items-center gap-1.5 text-xs text-fg-3"><Lock className="h-3 w-3" />Con el módulo de Gastos</span> : <>{extra}<span className="text-base font-semibold num">{value}</span></>}
-      </dd>
-    </>
+function PendingList({ title, icon: Icon, items, empty, to }: { title: string; icon: typeof Receipt; items: { id: string; title: string; sub: string; amount: number; late: boolean; to: string }[]; empty: string; to: string }) {
+  const total = items.reduce((s, i) => s + i.amount, 0);
+  const late = items.filter((i) => i.late);
+  return (
+    <Card padded={false}>
+      <div className="flex items-start justify-between gap-3 p-5 pb-3">
+        <div>
+          <p className="flex items-center gap-2 text-[15px] font-semibold"><Icon className="h-4 w-4 text-fg-3" />{title}</p>
+          <p className="mt-0.5 text-sm text-fg-3"><span className="font-medium text-fg num">{formatMoney(total)}</span> · {items.length} {items.length === 1 ? "documento" : "documentos"}{late.length ? <span className="text-danger-fg"> · {late.length} vencido{late.length === 1 ? "" : "s"}</span> : null}</p>
+        </div>
+        <Link to={to} className="shrink-0 text-sm font-medium text-fg-3 hover:text-fg">Ver todo →</Link>
+      </div>
+      {items.length ? (
+        <ul>
+          {items.slice(0, 5).map((i) => (
+            <li key={i.id}>
+              <Link to={i.to} className="flex items-center gap-3 border-t border-line px-5 py-3 text-sm transition-colors hover:bg-surface-2">
+                <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", i.late ? "bg-danger-soft text-danger-fg" : "bg-surface-sunken text-fg-3")}><Clock3 className="h-4 w-4" /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">{i.title}</span>
+                  <span className={cn("block truncate text-xs", i.late ? "text-danger-fg" : "text-fg-3")}>{i.sub}</span>
+                </span>
+                <span className="font-semibold num">{formatMoney(i.amount)}</span>
+              </Link>
+            </li>
+          ))}
+          {items.length > 5 && <li><Link to={to} className="flex items-center gap-1 border-t border-line px-5 py-3 text-sm font-medium text-fg-2 hover:text-fg">Y {items.length - 5} más <ArrowUpRight className="h-3.5 w-3.5" /></Link></li>}
+        </ul>
+      ) : (
+        <p className="flex items-center gap-3 border-t border-line px-5 py-6 text-sm text-fg-3"><CircleDollarSign className="h-4 w-4" />{empty}</p>
+      )}
+    </Card>
   );
-  return to ? (
-    <Link to={to} className="flex items-center justify-between gap-4 px-6 py-3.5 transition-colors hover:bg-surface-2">{body}</Link>
-  ) : (
-    <div className="flex items-center justify-between gap-4 px-6 py-3.5">{body}</div>
+}
+
+function TaxTile({ label, value, sub, strong }: { label: string; value: number; sub: string; strong?: boolean }) {
+  return (
+    <div className={cn("rounded-xl border p-5", strong ? "border-transparent bg-surface-inverse text-fg-inverse" : "surface-card")}>
+      <p className={cn("text-xs font-medium", strong ? "text-fg-inverse/70" : "text-fg-3")}>{label}</p>
+      <p className="mt-1.5 text-2xl font-semibold tracking-tight"><Amount cents={value} /></p>
+      <p className={cn("mt-1 text-xs", strong ? "text-fg-inverse/60" : "text-fg-3")}>{sub}</p>
+    </div>
   );
 }

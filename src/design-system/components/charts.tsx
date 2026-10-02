@@ -7,7 +7,7 @@
  *  - Animación discreta (≤ 500 ms) y desactivada con prefers-reduced-motion.
  */
 import { useId, useMemo, type ReactNode } from "react";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/cn";
 
@@ -180,7 +180,9 @@ export interface ColumnPoint {
  * Columnas por periodo: actual (acento) y, opcional, comparación (gris). ≤ 24px, extremo redondeado, 2px de aire.
  * `partialLast`: el último periodo está en curso (incompleto) y se dibuja atenuado; el histórico, completo, en sólido.
  */
-export function ColumnChart({ data, currentLabel, previousLabel, height = 220, format = formatMoney, axisFormat = compactMoney, partialLast }: {
+export function ColumnChart({ data, currentLabel, previousLabel, height = 220, format = formatMoney, axisFormat = compactMoney, partialLast, tone = "accent" }: {
+  /** "out" = dinero que sale (gastos) */
+  tone?: "accent" | "out";
   data: ColumnPoint[];
   currentLabel: string;
   previousLabel?: string;
@@ -217,8 +219,8 @@ export function ColumnChart({ data, currentLabel, previousLabel, height = 220, f
             }}
           />
           {hasPrev && <Bar dataKey="previous" fill="var(--chart-2-bar)" radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!reduced} animationDuration={400} />}
-          <Bar dataKey="current" name={currentLabel} fill="var(--chart-1)" radius={[4, 4, 0, 0]} maxBarSize={hasPrev ? 18 : 24} isAnimationActive={!reduced} animationDuration={450}>
-            {partialLast && data.map((d, i) => <Cell key={d.key} fill="var(--chart-1)" fillOpacity={i === data.length - 1 ? 0.42 : 1} />)}
+          <Bar dataKey="current" name={currentLabel} fill={tone === "out" ? "var(--chart-out)" : "var(--chart-1)"} radius={[4, 4, 0, 0]} maxBarSize={hasPrev ? 18 : 24} isAnimationActive={!reduced} animationDuration={450}>
+            {partialLast && data.map((d, i) => <Cell key={d.key} fill={tone === "out" ? "var(--chart-out)" : "var(--chart-1)"} fillOpacity={i === data.length - 1 ? 0.42 : 1} />)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -304,12 +306,14 @@ export function Sparkline({ values, width = 96, height = 28, className, tone = "
 }
 
 /** Ranking horizontal en un solo tono: etiqueta, importe, cuota y variación opcional. */
-export function BarList({ rows, format = (v) => formatMoney(v), max: maxRows = 8, emptyText = "Sin datos en este periodo", showShare = true }: {
+export function BarList({ rows, format = (v) => formatMoney(v), max: maxRows = 8, emptyText = "Sin datos en este periodo", showShare = true, tone = "accent" }: {
   rows: { key: string; label: ReactNode; value: number; sub?: ReactNode; delta?: ReactNode }[];
   format?: (v: number) => string;
   max?: number;
   emptyText?: string;
   showShare?: boolean;
+  /** "out" = dinero que sale (gastos) */
+  tone?: "accent" | "out";
 }) {
   const total = rows.reduce((s, r) => s + r.value, 0);
   const top = rows.slice(0, maxRows);
@@ -333,13 +337,105 @@ export function BarList({ rows, format = (v) => formatMoney(v), max: maxRows = 8
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-surface-sunken">
               <div
-                className={cn("h-full rounded-full bg-[var(--chart-1)] transition-[width] duration-700 ease-out", r.key === "_other" && "bg-[var(--chart-2)]")}
+                className={cn("h-full rounded-full transition-[width] duration-700 ease-out", tone === "out" ? "bg-[var(--chart-out)]" : "bg-[var(--chart-1)]", r.key === "_other" && "bg-[var(--chart-2)]")}
                 style={{ width: `${Math.max(1.5, (r.value / max) * 100)}%` }}
               />
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+export interface FlowPoint {
+  key: string;
+  label: string;
+  tooltipLabel: string;
+  inflow: number;
+  outflow: number;
+  net: number;
+}
+
+/**
+ * Entradas frente a salidas por periodo (ingresos vs gastos, cobros vs pagos) con el neto como línea.
+ * Entradas = acento; salidas = coral apagado (dinero que sale, no un error); neto = tinta.
+ */
+export function FlowChart({ data, inLabel, outLabel, netLabel = "Resultado", height = 260, format = formatMoney, axisFormat = compactMoney, partialLast }: {
+  data: FlowPoint[];
+  inLabel: string;
+  outLabel: string;
+  netLabel?: string;
+  height?: number;
+  format?: (v: number) => string;
+  axisFormat?: (v: number) => string;
+  partialLast?: boolean;
+}) {
+  const lastKey = data[data.length - 1]?.key;
+  return (
+    <div style={{ height }} className="w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={data} margin={{ top: 10, right: 8, left: 0, bottom: 0 }} barGap={2} barCategoryGap="28%">
+          <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
+          <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} dy={6} interval="preserveStartEnd" minTickGap={8} />
+          <YAxis tick={axisTick} tickLine={false} axisLine={false} tickFormatter={axisFormat} width={52} tickCount={5} allowDecimals={false} />
+          <ReferenceLine y={0} stroke="var(--border-strong)" />
+          <Tooltip
+            cursor={{ fill: "var(--surface-sunken)", radius: 6 }}
+            isAnimationActive={false}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const p = payload[0]!.payload as FlowPoint;
+              return (
+                <ChartTooltip
+                  title={partialLast && p.key === lastKey ? `${p.tooltipLabel} · en curso` : p.tooltipLabel}
+                  value={`${netLabel}: ${format(p.net)}`}
+                  rows={[{ label: inLabel, value: format(p.inflow), color: "var(--chart-1)" }, { label: outLabel, value: format(p.outflow), color: "var(--chart-out)" }]}
+                />
+              );
+            }}
+          />
+          <Bar dataKey="inflow" name={inLabel} fill="var(--chart-1)" radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!reduced} animationDuration={400}>
+            {data.map((d) => <Cell key={d.key} fillOpacity={partialLast && d.key === lastKey ? 0.42 : 1} />)}
+          </Bar>
+          <Bar dataKey="outflow" name={outLabel} fill="var(--chart-out)" radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!reduced} animationDuration={450}>
+            {data.map((d) => <Cell key={d.key} fillOpacity={partialLast && d.key === lastKey ? 0.42 : 1} />)}
+          </Bar>
+          <Line type="monotone" dataKey="net" name={netLabel} stroke="var(--text)" strokeWidth={1.75} dot={{ r: 2.5, fill: "var(--surface)", strokeWidth: 1.5 }} activeDot={{ r: 4 }} isAnimationActive={!reduced} animationDuration={500} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** Recuentos en el tiempo (membresías activas, clientes): área en acento, eje entero. */
+export function CountTrend({ data, label, height = 200 }: { data: { key: string; label: string; tooltipLabel: string; value: number; sub?: string }[]; label: string; height?: number }) {
+  const gid = useId().replace(/:/g, "");
+  return (
+    <div style={{ height }} className="w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id={`ct-${gid}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.16} />
+              <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.01} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
+          <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} dy={6} interval="preserveStartEnd" minTickGap={8} />
+          <YAxis tick={axisTick} tickLine={false} axisLine={false} width={36} tickCount={4} allowDecimals={false} />
+          <Tooltip
+            cursor={{ stroke: "var(--chart-cursor)", strokeDasharray: "3 3" }}
+            isAnimationActive={false}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const p = payload[0]!.payload as { tooltipLabel: string; value: number; sub?: string };
+              return <ChartTooltip title={p.tooltipLabel} value={`${p.value.toLocaleString("es-ES")} ${label}`} rows={p.sub ? [{ label: p.sub, value: "", color: "transparent" }] : undefined} />;
+            }}
+          />
+          <Area type="monotone" dataKey="value" stroke="var(--chart-1)" strokeWidth={2} fill={`url(#ct-${gid})`} dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--surface)" }} isAnimationActive={!reduced} animationDuration={500} />
+        </AreaChart>
+      </ResponsiveContainer>
     </div>
   );
 }

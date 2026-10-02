@@ -38,7 +38,7 @@ export default function CustomerDetailPage() {
     const activeInv = invoices.filter((i) => i.status !== "void");
     const pending = activeInv.filter((i) => i.status === "issued" || i.status === "partially_paid");
     const timeline = [
-      ...invoices.map((i) => ({ at: `${i.issueDate}T12:00:00`, kind: "invoice", icon: Receipt, title: `Factura ${i.number ?? i.externalNumber} · ${formatMoney(i.total)}`, sub: `${i.concept ?? ""}${i.servicePeriodStart ? ` · periodo ${formatDate(`${i.servicePeriodStart}T00:00`).slice(3)}` : ""} · ${INVOICE_STATUS[i.status].label}`, to: `/facturas?factura=${i.id}` })),
+      ...invoices.map((i) => ({ at: `${i.issueDate}T12:00:00`, kind: "invoice", icon: Receipt, title: `Factura ${i.number ?? i.externalNumber} · ${formatMoney(i.total)}`, sub: `${i.concept ?? ""}${i.servicePeriodStart ? ` · periodo ${formatDate(`${i.servicePeriodStart}T00:00`).slice(3)}` : ""} · ${INVOICE_STATUS[i.status].label}`, to: `/facturas/${i.id}` })),
       ...sales.map((s) => ({ at: s.occurredAt, kind: "purchase", icon: ShoppingBag, title: `Compra #${s.number} · ${formatMoney(s.total)}${s.status === "voided" ? " (anulada)" : ""}`, sub: items.get(s.id) ?? "", to: `/ventas?venta=${s.id}` })),
       ...notes.map((n) => ({ at: n.createdAt, kind: "note", icon: StickyNote, title: "Nota interna", sub: n.body, to: undefined as string | undefined })),
       ...ws.auditLogs.filter((l) => l.entityId === c.id && l.entityType === "customers" && l.action !== "note").map((l) => {
@@ -113,7 +113,7 @@ export default function CustomerDetailPage() {
         </div>
         {/* Acciones rápidas: lo frecuente a la vista; lo que aún no existe, en «Más» y marcado como Pronto */}
         <div className="flex flex-wrap gap-2">
-          {data.pending.length > 0 && can("payments.manage") && <Link to={`/facturas?factura=${data.pending[0]!.id}`}><Button variant="primary" icon={CreditCard}>Registrar cobro</Button></Link>}
+          {data.pending.length > 0 && can("payments.manage") && <Link to={`/facturas/${data.pending[0]!.id}`}><Button variant="primary" icon={CreditCard}>Registrar cobro</Button></Link>}
           {can("customers.manage") && <Button icon={NotebookPen} onClick={() => setTab("notes")}>Nota</Button>}
           {waNumber && <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noreferrer" title="Abre WhatsApp con este número (envío manual)"><Button icon={MessageCircle}>Mensaje</Button></a>}
           {c.email && <a href={`mailto:${c.email}`}><Button icon={Mail}>Email</Button></a>}
@@ -224,7 +224,7 @@ export default function CustomerDetailPage() {
               <tbody>
                 {data.invoices.map((i) => (
                   <tr key={i.id} className="border-b border-line last:border-0 hover:bg-surface-2">
-                    <td className="px-4 py-2.5"><Link className="font-mono text-xs text-accent-fg hover:underline" to={`/facturas?factura=${i.id}`}>{i.number ?? i.externalNumber}</Link></td>
+                    <td className="px-4 py-2.5"><Link className="font-mono text-xs text-accent-fg hover:underline" to={`/facturas/${i.id}`}>{i.number ?? i.externalNumber}</Link></td>
                     <td className="px-4 py-2.5">{i.issueDate ? formatDate(`${i.issueDate}T00:00`) : "—"}</td>
                     <td className="hidden px-4 py-2.5 text-fg-2 sm:table-cell">{i.concept}</td>
                     <td className="px-4 py-2.5 text-right font-medium num">{formatMoney(i.total)}</td>

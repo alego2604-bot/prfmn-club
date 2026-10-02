@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Input, Select } from "@/design-system/components";
+import { CalendarRange } from "lucide-react";
+import { FilterSelect, Input, Select } from "@/design-system/components";
 import { addDays, inPeriod, makePeriod, quarterPeriod, toISODate, type Period, type PeriodPreset } from "@/lib/dates";
 
 export type ListPreset = PeriodPreset | "all" | "prev_quarter";
@@ -48,5 +49,35 @@ export function usePeriodFilter(initial: ListPreset = "all") {
       )}
     </div>
   );
-  return { filter, control };
+  /** Variante en píldora para la barra de filtros unificada (FilterBar) */
+  const pill = (
+    <>
+      <FilterSelect
+        label="Periodo"
+        icon={CalendarRange}
+        allLabel="Todo el histórico"
+        value={preset === "all" ? "" : preset}
+        onChange={(v) => setPreset((v || "all") as ListPreset)}
+        options={PERIOD_OPTIONS}
+      />
+      {preset === "custom" && (
+        <span className="flex items-center gap-1.5">
+          <Input type="date" aria-label="Desde" value={custom.start} onChange={(e) => setCustom({ ...custom, start: e.target.value })} className="h-8 w-[140px]" />
+          <Input type="date" aria-label="Hasta" value={custom.end} min={custom.start} onChange={(e) => setCustom({ ...custom, end: e.target.value })} className="h-8 w-[140px]" />
+        </span>
+      )}
+    </>
+  );
+  return { filter, control, pill, preset, setPreset };
 }
+
+const PERIOD_OPTIONS: { value: Exclude<ListPreset, "all">; label: string }[] = [
+  { value: "today", label: "Hoy" },
+  { value: "7d", label: "Últimos 7 días" },
+  { value: "30d", label: "Últimos 30 días" },
+  { value: "month", label: "Este mes" },
+  { value: "quarter", label: "Este trimestre" },
+  { value: "prev_quarter", label: "Trimestre anterior" },
+  { value: "year", label: "Este año" },
+  { value: "custom", label: "Personalizado…" },
+];

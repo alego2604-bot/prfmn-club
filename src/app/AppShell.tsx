@@ -80,7 +80,7 @@ function NavRow({ item, onNavigate, rail }: { item: NavItem; onNavigate?: () => 
       onClick={onNavigate}
       aria-current={isActive ? "page" : undefined}
       className={cn(
-        "group relative flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13.5px] transition-colors duration-100",
+        "group relative flex h-[31px] items-center gap-2.5 rounded-md px-2.5 text-[13.5px] transition-colors duration-100",
         isActive ? "bg-surface font-medium text-fg shadow-xs ring-1 ring-line" : soon ? "text-fg-3 hover:bg-surface-sunken hover:text-fg-2" : "text-fg-2 hover:bg-surface-sunken hover:text-fg",
       )}
     >
@@ -107,7 +107,7 @@ function NavTree({ onNavigate }: { onNavigate?: () => void }) {
       {groups.map((g, i) => {
         const isCollapsed = !!g.label && collapsed.includes(g.label) && !g.items.some((it) => isActive(it));
         return (
-          <div key={i} className={cn(g.label && "mt-4")}>
+          <div key={i} className={cn(g.label && "mt-3.5")}>
             {g.label && (
               <button onClick={() => toggle(g.label!)} className="group mb-0.5 flex h-6 w-full items-center gap-1 px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-3 hover:text-fg-2" aria-expanded={!isCollapsed}>
                 {g.label}

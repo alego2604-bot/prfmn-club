@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { CreditCard } from "lucide-react";
 import { useLocationScope, useWorkspace } from "@/app/session";
-import { Badge, DataTable, Kpi, Page, PageHeader, Select, type Column } from "@/design-system/components";
+import { Badge, DataTable, Kpi, Page, Select, type Column } from "@/design-system/components";
+import { FinanceHeader } from "../finance/shared";
 import { BarList } from "@/design-system/components/charts";
 import type { Payment } from "@/domain/types";
 import { formatDateTime } from "@/lib/dates";
@@ -33,14 +34,14 @@ export default function PaymentsPage() {
     { id: "date", header: "Fecha", sortValue: (p) => p.paidAt, exportValue: (p) => new Date(p.paidAt), exportFormat: "datetime", cell: (p) => formatDateTime(p.paidAt) },
     { id: "kind", header: "Tipo", exportValue: (p) => (p.kind === "refund" ? "Devolución" : "Cobro"), cell: (p) => (p.kind === "refund" ? <Badge tone="danger">Devolución</Badge> : <Badge tone="success" dot>Cobro</Badge>) },
     { id: "method", header: "Método", sortValue: (p) => p.methodKey, exportValue: (p) => methodName.get(p.methodKey) ?? p.methodKey, cell: (p) => methodName.get(p.methodKey) ?? p.methodKey },
-    { id: "ref", header: "Referencia", priority: "medium", exportValue: ref, cell: (p) => <Link onClick={(e) => e.stopPropagation()} className="text-accent-fg hover:underline" to={p.saleId ? `/ventas?venta=${p.saleId}` : `/facturas?factura=${p.invoiceId}`}>{ref(p)}</Link> },
+    { id: "ref", header: "Referencia", priority: "medium", exportValue: ref, cell: (p) => <Link onClick={(e) => e.stopPropagation()} className="text-accent-fg hover:underline" to={p.saleId ? `/ventas?venta=${p.saleId}` : `/facturas/${p.invoiceId}`}>{ref(p)}</Link> },
     { id: "source", header: "Origen", priority: "low", exportValue: (p) => SOURCE[p.source], cell: (p) => <span className="text-fg-2">{SOURCE[p.source]}</span> },
     { id: "amount", header: "Importe", align: "right", sortValue: (p) => (p.kind === "refund" ? -p.amount : p.amount), exportValue: (p) => (p.kind === "refund" ? -p.amount : p.amount) / 100, exportFormat: "money", cell: (p) => <span className={p.kind === "refund" ? "text-danger-fg" : "font-medium"}>{p.kind === "refund" ? "−" : ""}{formatMoney(p.amount)}</span> },
   ];
 
   return (
     <Page wide>
-      <PageHeader title="Pagos y cobros" description="Cada movimiento de dinero, separado de la venta o factura que lo origina. Las devoluciones compensan, nunca borran." />
+      <FinanceHeader title="Cobros" eyebrow="Cada movimiento de dinero, separado de la venta o factura que lo origina. Las devoluciones compensan, nunca borran." />
       <div className="mb-5 grid gap-3 lg:grid-cols-3">
         <div className="grid grid-cols-2 gap-3 lg:col-span-1 lg:grid-cols-1">
           <Kpi label="Cobrado neto" value={formatMoney(net)} hint={filter.period?.label ?? "Todo el histórico"} />

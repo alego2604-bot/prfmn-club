@@ -1,5 +1,5 @@
 /*
- * Business OS · Design tokens V2 — "Graphite & Cobalt"
+ * Business OS · Design tokens V3 — "Graphite & Cobalt"
  *
  * Identidad: un instrumento financiero de precisión. Neutros cálidos (off-white, piedra, grafito, negro),
  * un único acento propio (cobalto) que solo marca lo importante —la serie principal, la acción primaria,
@@ -57,6 +57,23 @@
   --chart-2-bar: #dcdbd5;
   --chart-grid: #efeee9;
   --chart-cursor: #c9c8c1;
+  /* Dinero que sale (gastos): coral apagado, nunca rojo de error */
+  --chart-out: #e8875f;
+  --chart-out-soft: #f8dccf;
+  /* Paleta categórica (categorías, centros): cobalto primero, después tonos con la misma luminosidad */
+  --cat-1: #3646f5;
+  --cat-2: #13a37a;
+  --cat-3: #e8875f;
+  --cat-4: #8e5bd8;
+  --cat-5: #d9a40c;
+  --cat-6: #2f9fc7;
+  --cat-7: #c2508f;
+  --cat-8: #8a8983;
+
+  /* Estados de interacción */
+  --hover: rgba(18, 18, 17, 0.035);
+  --pressed: rgba(18, 18, 17, 0.06);
+  --selected: #eef0ff;
 
   /* Elevación: sombras muy suaves, nunca duras */
   --shadow-xs: 0 1px 1px rgba(18, 18, 17, 0.03);
@@ -86,8 +103,9 @@
   --ring: #8390ff;
 
   --text: #ededea;
-  --text-2: #a7a6a0;
-  --text-3: #73726c;
+  --text-2: #b0afa9;
+  /* Texto terciario con contraste AA sobre las superficies oscuras (≥ 4,5:1) */
+  --text-3: #8b8a84;
   --text-inverse: #121211;
 
   --ink: #ededea;
@@ -118,6 +136,20 @@
   --chart-2-bar: #2e2e2b;
   --chart-grid: #1f1f1d;
   --chart-cursor: #3d3d39;
+  --chart-out: #f29a74;
+  --chart-out-soft: #4a2a1d;
+  --cat-1: #7c89ff;
+  --cat-2: #3cc79a;
+  --cat-3: #f29a74;
+  --cat-4: #b08cf0;
+  --cat-5: #e8c04a;
+  --cat-6: #5cbfe3;
+  --cat-7: #e07ab3;
+  --cat-8: #8b8a84;
+
+  --hover: rgba(255, 255, 255, 0.035);
+  --pressed: rgba(255, 255, 255, 0.06);
+  --selected: #1b1e38;
 
   --shadow-xs: 0 1px 1px rgba(0, 0, 0, 0.3);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);

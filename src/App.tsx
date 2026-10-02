@@ -24,6 +24,13 @@ const ImportDetailPage = lazy(() => import("@/features/imports/ImportDetailPage"
 const ReportsPage = lazy(() => import("@/features/reports/ReportsPage"));
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
 const FinancePage = lazy(() => import("@/features/finance/FinancePage"));
+const CashflowPage = lazy(() => import("@/features/finance/CashflowPage"));
+const TaxesPage = lazy(() => import("@/features/finance/TaxesPage"));
+const ExpensesPage = lazy(() => import("@/features/expenses/ExpensesPage"));
+const SuppliersPage = lazy(() => import("@/features/expenses/SuppliersPage"));
+const SupplierDetailPage = lazy(() => import("@/features/expenses/SuppliersPage").then((m) => ({ default: m.SupplierDetailPage })));
+const InvoiceEditorPage = lazy(() => import("@/features/invoices/InvoiceEditorPage"));
+const InvoiceDetailPage = lazy(() => import("@/features/invoices/InvoiceDetailPage"));
 
 function PageFallback() {
   return (
@@ -94,7 +101,15 @@ const router = createBrowserRouter([
       { path: "clientes", element: <Guard perm="customers.view"><CustomersPage /></Guard> },
       { path: "clientes/:id", element: <Guard perm="customers.view"><CustomerDetailPage /></Guard> },
       { path: "finanzas", element: <Guard perm="finance.view"><FinancePage /></Guard> },
+      { path: "flujo-de-caja", element: <Guard perm="finance.view"><CashflowPage /></Guard> },
+      { path: "impuestos", element: <Guard perm="finance.view"><TaxesPage /></Guard> },
+      { path: "gastos", element: <Guard perm="finance.view"><ExpensesPage /></Guard> },
+      { path: "proveedores", element: <Guard perm="finance.view"><SuppliersPage /></Guard> },
+      { path: "proveedores/:id", element: <Guard perm="finance.view"><SupplierDetailPage /></Guard> },
       { path: "facturas", element: <Guard perm="finance.view"><InvoicesPage /></Guard> },
+      { path: "facturas/nueva", element: <Guard perm="invoices.manage"><InvoiceEditorPage /></Guard> },
+      { path: "facturas/:id", element: <Guard perm="finance.view"><InvoiceDetailPage /></Guard> },
+      { path: "facturas/:id/editar", element: <Guard perm="invoices.manage"><InvoiceEditorPage /></Guard> },
       { path: "pagos", element: <Guard perm="finance.view"><PaymentsPage /></Guard> },
       { path: "importaciones", element: <Guard perm="imports.run"><ImportsPage /></Guard> },
       { path: "importaciones/nueva", element: <Guard perm="imports.run"><ImportWizardPage /></Guard> },

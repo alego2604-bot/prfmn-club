@@ -5,3 +5,4 @@ export * from "./feedback";
 export * from "./layout";
 export * from "./DataTable";
 export * from "./metrics";
+export * from "./patterns";
