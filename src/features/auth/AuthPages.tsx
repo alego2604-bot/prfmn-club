@@ -110,7 +110,7 @@ export function AuthPage() {
       </form>
       <p className="mt-6 text-center text-sm text-fg-3">
         {mode === "login" ? "¿No tienes cuenta? " : "¿Ya tienes cuenta? "}
-        <button className="font-medium text-accent-fg hover:underline" onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(null); }}>
+        <button type="button" className="font-medium text-accent-fg hover:underline" onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(null); }}>
           {mode === "login" ? "Crear cuenta" : "Inicia sesión"}
         </button>
       </p>
@@ -169,7 +169,7 @@ export function OnboardingPage() {
           <p className="mt-1.5 text-sm text-fg-3">Hola, {s.user?.fullName.split(" ")[0]}. ¿Dónde trabajamos hoy?</p>
           <div className="mt-6 flex flex-col gap-2">
             {orgs.map((o) => (
-              <button key={o.id} onClick={() => s.switchOrganization(o.id)} className="flex items-center gap-3 rounded-lg border border-line p-3.5 text-left transition-colors hover:border-line-strong hover:bg-surface-2">
+              <button type="button" key={o.id} onClick={() => s.switchOrganization(o.id)} className="flex items-center gap-3 rounded-lg border border-line p-3.5 text-left transition-colors hover:border-line-strong hover:bg-surface-2">
                 <span className={cn("flex h-9 w-9 items-center justify-center rounded-md", o.isDemo ? "bg-warning-soft text-warning-fg" : "bg-accent-soft text-accent-fg")}>
                   {o.isDemo ? <FlaskConical className="h-4 w-4" /> : <Building2 className="h-4 w-4" />}
                 </span>

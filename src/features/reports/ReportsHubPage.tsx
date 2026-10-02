@@ -199,7 +199,7 @@ function ReportView({ reportKey }: { reportKey: ReportKey }) {
         )}
       </Card>
       {report.notes.length > 0 && <p className="mt-3 text-xs text-fg-3">{report.notes.join(" ")}</p>}
-      <p className="mt-6 text-sm text-fg-3">Otros informes: {REPORTS.filter((r) => r.key !== reportKey).map((r, i) => <span key={r.key}>{i ? " · " : ""}<button className="font-medium text-fg-2 hover:text-fg hover:underline" onClick={() => navigate(`/informes/${r.key}`)}>{r.title}</button></span>)}</p>
+      <p className="mt-6 text-sm text-fg-3">Otros informes: {REPORTS.filter((r) => r.key !== reportKey).map((r, i) => <span key={r.key}>{i ? " · " : ""}<button type="button" className="font-medium text-fg-2 hover:text-fg hover:underline" onClick={() => navigate(`/informes/${r.key}`)}>{r.title}</button></span>)}</p>
     </Page>
   );
 }

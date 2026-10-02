@@ -136,7 +136,7 @@ export default function ReportsPage() {
                 ["pdf", FileText, "PDF", "Resumen ejecutivo para enviar o imprimir"],
                 ["csv", Sheet, "CSV", "Un archivo por sección (separador ;)"],
               ] as const).map(([v, Icon, label, desc]) => (
-                <button
+                <button type="button"
                   key={v}
                   role="radio"
                   aria-checked={format === v}

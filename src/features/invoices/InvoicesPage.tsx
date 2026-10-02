@@ -101,9 +101,9 @@ export default function InvoicesPage() {
       <ServerNotice what="La emisión de facturas" />
       <KpiStrip className="mb-5">
         <Kpi label="Facturado este mes" value={formatMoney(sumIn("month"))} hint={`Trimestre ${formatMoney(sumIn("quarter"))} · año ${formatMoney(sumIn("year"))}`} />
-        <Kpi label="Pendiente de cobro" value={formatMoney(open.reduce((s, i) => s + i.total - i.amountPaid, 0))} hint={<button className="hover:underline" onClick={() => setStatus("open")}>{open.length === 1 ? "1 factura" : `${open.length.toLocaleString("es-ES", NUM)} facturas`}</button>} />
-        <Kpi label="Vencidas" value={formatMoney(overdue.reduce((s, i) => s + i.total - i.amountPaid, 0))} hint={overdue.length ? <button className="text-danger-fg hover:underline" onClick={() => setStatus("overdue")}>{overdue.length} sin cobrar tras su vencimiento</button> : "Ninguna vencida"} />
-        <Kpi label="Borradores" value={drafts.length.toLocaleString("es-ES", NUM)} hint={drafts.length ? <button className="hover:underline" onClick={() => setStatus("draft")}>Pendientes de emitir</button> : "Nada pendiente de emitir"} />
+        <Kpi label="Pendiente de cobro" value={formatMoney(open.reduce((s, i) => s + i.total - i.amountPaid, 0))} hint={<button type="button" className="hover:underline" onClick={() => setStatus("open")}>{open.length === 1 ? "1 factura" : `${open.length.toLocaleString("es-ES", NUM)} facturas`}</button>} />
+        <Kpi label="Vencidas" value={formatMoney(overdue.reduce((s, i) => s + i.total - i.amountPaid, 0))} hint={overdue.length ? <button type="button" className="text-danger-fg hover:underline" onClick={() => setStatus("overdue")}>{overdue.length} sin cobrar tras su vencimiento</button> : "Ninguna vencida"} />
+        <Kpi label="Borradores" value={drafts.length.toLocaleString("es-ES", NUM)} hint={drafts.length ? <button type="button" className="hover:underline" onClick={() => setStatus("draft")}>Pendientes de emitir</button> : "Nada pendiente de emitir"} />
       </KpiStrip>
 
       <DataTable

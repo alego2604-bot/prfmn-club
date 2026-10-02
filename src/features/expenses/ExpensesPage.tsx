@@ -167,11 +167,11 @@ export default function ExpensesPage() {
             </Card>
             <Card className="md:col-span-6 xl:col-span-5">
               <CardHeader title="Por categoría" description={period.label} action={<Tag className="h-4 w-4 text-fg-3" />} />
-              <BarList tone="out" max={6} rows={k.byCategory.map((c) => ({ key: c.id, label: <button className="hover:underline" onClick={() => setCat(c.id)}>{c.name}</button>, value: c.amount }))} emptyText="Sin gastos en el periodo" />
+              <BarList tone="out" max={6} rows={k.byCategory.map((c) => ({ key: c.id, label: <button type="button" className="hover:underline" onClick={() => setCat(c.id)}>{c.name}</button>, value: c.amount }))} emptyText="Sin gastos en el periodo" />
             </Card>
             <Card className="md:col-span-6 xl:col-span-7">
               <CardHeader title="Principales proveedores" description={period.label} action={<Truck className="h-4 w-4 text-fg-3" />} />
-              <BarList tone="out" max={5} rows={k.bySupplier.map((s) => ({ key: s.id, label: s.id === "none" ? s.name : <button className="hover:underline" onClick={() => navigate(`/proveedores/${s.id}`)}>{s.name}</button>, value: s.amount, sub: `${s.count}` }))} emptyText="Sin gastos en el periodo" />
+              <BarList tone="out" max={5} rows={k.bySupplier.map((s) => ({ key: s.id, label: s.id === "none" ? s.name : <button type="button" className="hover:underline" onClick={() => navigate(`/proveedores/${s.id}`)}>{s.name}</button>, value: s.amount, sub: `${s.count}` }))} emptyText="Sin gastos en el periodo" />
             </Card>
             {!current && locations.length > 1 && (
               <Card className="md:col-span-12 xl:col-span-5">
@@ -295,7 +295,7 @@ function ExpenseDetail({ expense: e, onClose, onEdit, onDuplicate, onPaid, onVoi
           { label: "Total", value: formatMoney(e.total), strong: true },
         ]} />
         <Ledger rows={[
-          { label: "Proveedor", value: sup ? <button className="font-medium text-accent-fg hover:underline" onClick={() => navigate(`/proveedores/${sup.id}`)}>{sup.name}</button> : "—" },
+          { label: "Proveedor", value: sup ? <button type="button" className="font-medium text-accent-fg hover:underline" onClick={() => navigate(`/proveedores/${sup.id}`)}>{sup.name}</button> : "—" },
           { label: "Nº de factura", value: e.supplierInvoiceNumber ?? "—" },
           { label: "Categoría", value: ws.expenseCategories.find((c) => c.id === e.categoryId)?.name ?? "—" },
           { label: "Centro", value: ws.locations.find((l) => l.id === e.locationId)?.name ?? "Gastos generales" },

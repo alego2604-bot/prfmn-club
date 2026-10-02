@@ -132,9 +132,12 @@ await step(page, "crear cuenta y empresa con Centro A", async () => {
 // ───────────────────────── Puesta en marcha (10 pasos)
 const cont = (name = "Continuar") => page.getByRole("button", { name, exact: true }).click();
 const heading = (t) => page.locator("h2:visible", { hasText: new RegExp(`^${t}$`) }).first().waitFor();
-await step(page, "onboarding 1-2: empresa y datos fiscales", async () => {
+await step(page, "onboarding 1-2: empresa y datos fiscales (obligatorios antes de guardar)", async () => {
+  await page.goto(BASE + "/bienvenida?paso=company");
+  await heading("Tu empresa");
   await cont("Guardar y continuar");
   await heading("Datos fiscales");
+  if (await page.getByRole("button", { name: "Guardar y continuar" }).isEnabled()) throw new Error("se puede guardar sin los datos fiscales obligatorios");
   await page.getByLabel("Razón social").fill(`${C1} S.L.`);
   await page.getByLabel("NIF / CIF").fill("B12345678");
   await page.getByLabel("Dirección fiscal").fill("Calle Ejemplo 1");

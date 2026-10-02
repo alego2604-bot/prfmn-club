@@ -473,7 +473,7 @@ function ExpenseCategoriesTab() {
             ))}
           </ul>
         ) : (
-          <div className="border-t border-line p-5 text-sm text-fg-3">Aún no hay categorías. {ready && <button className="font-medium text-accent-fg hover:underline" onClick={() => { try { ensureExpenseCategories(ctx); toast.success("Categorías sugeridas creadas"); } catch (e) { toast.fromError(e); } }}>Crear las sugeridas</button>}</div>
+          <div className="border-t border-line p-5 text-sm text-fg-3">Aún no hay categorías. {ready && <button type="button" className="font-medium text-accent-fg hover:underline" onClick={() => { try { ensureExpenseCategories(ctx); toast.success("Categorías sugeridas creadas"); } catch (e) { toast.fromError(e); } }}>Crear las sugeridas</button>}</div>
         )}
       </Card>
       <Card>

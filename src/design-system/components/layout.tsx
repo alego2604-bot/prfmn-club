@@ -27,7 +27,7 @@ export function Tabs<T extends string>({ value, onChange, items, className }: { 
       {items.map((it) => {
         const active = it.value === value;
         return (
-          <button
+          <button type="button"
             key={it.value}
             role="tab"
             aria-selected={active}
@@ -85,7 +85,7 @@ export function Segmented<T extends string>({ value, onChange, items, size = "md
   return (
     <ScrollFade className={cn("inline-block max-w-full rounded-lg bg-surface-sunken", className)} innerClassName="flex p-0.5">
       {items.map((it) => (
-        <button
+        <button type="button"
           key={it.value}
           aria-pressed={it.value === value}
           onClick={() => onChange(it.value)}

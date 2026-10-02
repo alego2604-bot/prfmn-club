@@ -236,8 +236,8 @@ export function DataTable<T>({
             <span className="font-medium num">{selectedRows.length} seleccionado{selectedRows.length === 1 ? "" : "s"}</span>
             <span className="h-4 w-px bg-fg-inverse/20" />
             <div className="flex items-center gap-1.5 [&_button]:border-transparent [&_button]:bg-fg-inverse/10 [&_button]:text-fg-inverse [&_button:hover]:bg-fg-inverse/20">{bulkActions?.(selectedRows, () => setSelected(new Set()))}</div>
-            {exportName && <button className="h-8 rounded-md px-2.5 text-fg-inverse/80 hover:bg-fg-inverse/10 hover:text-fg-inverse" onClick={() => exportRows("xlsx")}>Exportar</button>}
-            <button className="flex h-8 w-8 items-center justify-center rounded-md text-fg-inverse/70 hover:bg-fg-inverse/10 hover:text-fg-inverse" onClick={() => setSelected(new Set())} aria-label="Limpiar selección">
+            {exportName && <button type="button" className="h-8 rounded-md px-2.5 text-fg-inverse/80 hover:bg-fg-inverse/10 hover:text-fg-inverse" onClick={() => exportRows("xlsx")}>Exportar</button>}
+            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md text-fg-inverse/70 hover:bg-fg-inverse/10 hover:text-fg-inverse" onClick={() => setSelected(new Set())} aria-label="Limpiar selección">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -300,7 +300,7 @@ export function DataTable<T>({
                       )}
                     >
                       {c.sortValue ? (
-                        <button
+                        <button type="button"
                           className={cn("group/sort inline-flex items-center gap-1 rounded transition-colors hover:text-fg", active && "text-fg")}
                           onClick={() => setSort(active && sort!.dir === "desc" ? { id: c.id, dir: "asc" } : active && sort!.dir === "asc" ? null : { id: c.id, dir: "desc" })}
                         >

@@ -183,7 +183,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                 idx++;
                 const i = idx;
                 return (
-                  <button
+                  <button type="button"
                     key={r.id}
                     data-idx={i}
                     onMouseMove={() => setActive(i)}

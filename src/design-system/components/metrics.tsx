@@ -141,7 +141,7 @@ export function RangeSelector<T extends string>({ value, onChange, options, cust
     <div className="relative flex items-center gap-1.5" ref={ref}>
       <div className="no-scrollbar inline-flex max-w-full overflow-x-auto rounded-lg border border-line bg-surface p-0.5 shadow-xs" role="radiogroup" aria-label="Periodo">
         {options.map((o) => (
-          <button
+          <button type="button"
             key={o.value}
             role="radio"
             aria-checked={o.value === value}
@@ -156,7 +156,7 @@ export function RangeSelector<T extends string>({ value, onChange, options, cust
           </button>
         ))}
         {custom && (
-          <button
+          <button type="button"
             role="radio"
             aria-checked={value === custom}
             onClick={() => setOpen((o) => !o)}
@@ -177,7 +177,7 @@ export function RangeSelector<T extends string>({ value, onChange, options, cust
             <label className="text-xs text-fg-3">Desde<input type="date" value={draft.start} onChange={(e) => setDraft({ ...draft, start: e.target.value })} className="mt-1 h-9 w-full rounded-md border border-line bg-surface px-2 text-sm text-fg" /></label>
             <label className="text-xs text-fg-3">Hasta<input type="date" value={draft.end} min={draft.start} onChange={(e) => setDraft({ ...draft, end: e.target.value })} className="mt-1 h-9 w-full rounded-md border border-line bg-surface px-2 text-sm text-fg" /></label>
           </div>
-          <button
+          <button type="button"
             disabled={!draft.start || !draft.end || draft.end < draft.start}
             onClick={() => { onCustomChange?.(draft); onChange(custom); setOpen(false); }}
             className="mt-3 flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-ink text-sm font-medium text-fg-inverse disabled:opacity-40"

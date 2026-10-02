@@ -37,12 +37,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   <p className="text-sm font-medium">{t.title}</p>
                   {t.description && <p className="mt-0.5 text-sm text-fg-3">{t.description}</p>}
                   {t.action && (
-                    <button className="mt-1.5 text-sm font-medium text-accent-fg hover:underline" onClick={t.action.onClick}>
+                    <button type="button" className="mt-1.5 text-sm font-medium text-accent-fg hover:underline" onClick={t.action.onClick}>
                       {t.action.label}
                     </button>
                   )}
                 </div>
-                <button className="text-fg-3 hover:text-fg" onClick={() => setToasts((ts) => ts.filter((x) => x.id !== t.id))} aria-label="Cerrar">
+                <button type="button" className="text-fg-3 hover:text-fg" onClick={() => setToasts((ts) => ts.filter((x) => x.id !== t.id))} aria-label="Cerrar">
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -91,7 +91,7 @@ export function ErrorState({ title = "No hemos podido cargar estos datos", descr
       <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-warning-soft text-warning-fg"><AlertTriangle className="h-5 w-5" /></div>
       <h3 className="text-[15px] font-semibold">{title}</h3>
       <p className="mt-1 max-w-sm text-sm text-fg-3">{description}</p>
-      {onRetry && <button onClick={onRetry} className="mt-5 h-9 rounded-md bg-ink px-3.5 text-sm font-medium text-fg-inverse transition-colors hover:bg-ink-hover">Reintentar</button>}
+      {onRetry && <button type="button" onClick={onRetry} className="mt-5 h-9 rounded-md bg-ink px-3.5 text-sm font-medium text-fg-inverse transition-colors hover:bg-ink-hover">Reintentar</button>}
       {error !== undefined && (
         <details className="mt-4 max-w-md text-left text-xs text-fg-3">
           <summary className="cursor-pointer select-none text-center">Detalles técnicos</summary>

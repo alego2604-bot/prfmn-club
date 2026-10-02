@@ -110,7 +110,7 @@ function NavTree({ onNavigate }: { onNavigate?: () => void }) {
         return (
           <div key={i} className={cn(g.label && "mt-3.5")}>
             {g.label && (
-              <button onClick={() => toggle(g.label!)} className="group mb-0.5 flex h-6 w-full items-center gap-1 px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-3 hover:text-fg-2" aria-expanded={!isCollapsed}>
+              <button type="button" onClick={() => toggle(g.label!)} className="group mb-0.5 flex h-6 w-full items-center gap-1 px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-3 hover:text-fg-2" aria-expanded={!isCollapsed}>
                 {g.label}
                 <ChevronDown className={cn("h-3 w-3 opacity-0 transition-all group-hover:opacity-100", isCollapsed && "-rotate-90 opacity-100")} />
               </button>
@@ -121,7 +121,7 @@ function NavTree({ onNavigate }: { onNavigate?: () => void }) {
       })}
       {planned.length > 0 && (
         <div className="mt-4">
-          <button onClick={() => setSoonOpen((o) => !o)} className="flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-[13px] text-fg-3 transition-colors hover:bg-surface-sunken hover:text-fg-2" aria-expanded={soonOpen}>
+          <button type="button" onClick={() => setSoonOpen((o) => !o)} className="flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-[13px] text-fg-3 transition-colors hover:bg-surface-sunken hover:text-fg-2" aria-expanded={soonOpen}>
             <Layers className="h-4 w-4" strokeWidth={1.75} />
             <span className="flex-1 text-left">{SOON}</span>
             <span className="rounded-md bg-surface-sunken px-1.5 text-[11px] font-medium num">{planned.length}</span>
@@ -195,7 +195,7 @@ function UserMenu() {
     <Menu
       width={240}
       trigger={(_, toggle) => (
-        <button onClick={toggle} className="ml-1 flex h-8 w-8 items-center justify-center rounded-full bg-ink text-[11px] font-semibold text-fg-inverse ring-2 ring-canvas transition-transform active:scale-95" aria-label="Cuenta">
+        <button type="button" onClick={toggle} className="ml-1 flex h-8 w-8 items-center justify-center rounded-full bg-ink text-[11px] font-semibold text-fg-inverse ring-2 ring-canvas transition-transform active:scale-95" aria-label="Cuenta">
           {s.user?.fullName.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()}
         </button>
       )}
@@ -234,7 +234,7 @@ function Notifications() {
         ) : (
           <div className="flex flex-col gap-2">
             {alerts.map((a) => (
-              <button key={a.id} onClick={() => { setOpen(false); navigate(a.to); }} className="flex items-start gap-3 rounded-lg border border-line p-3.5 text-left transition-colors hover:bg-surface-2">
+              <button type="button" key={a.id} onClick={() => { setOpen(false); navigate(a.to); }} className="flex items-start gap-3 rounded-lg border border-line p-3.5 text-left transition-colors hover:bg-surface-2">
                 <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", tone[a.severity])} />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-medium">{a.title}</span>
@@ -285,7 +285,7 @@ function MobileTabBar({ onMore }: { onMore: () => void }) {
           </Link>
         );
       })}
-      <button onClick={onMore} className="flex h-14 flex-col items-center justify-center gap-0.5 text-2xs font-medium text-fg-3">
+      <button type="button" onClick={onMore} className="flex h-14 flex-col items-center justify-center gap-0.5 text-2xs font-medium text-fg-3">
         <MoreHorizontal className="h-5 w-5" />
         Más
       </button>
@@ -308,7 +308,7 @@ function SyncIndicator() {
     : "Guardado";
   const dot = state === "offline" || state === "error" ? "bg-warning" : state === "syncing" || pending ? "bg-accent animate-pulse" : "bg-success";
   return (
-    <button
+    <button type="button"
       onClick={() => void s.refresh().catch(() => undefined)}
       title={s.sync.lastSyncedAt ? `Última sincronización: ${new Date(s.sync.lastSyncedAt).toLocaleTimeString("es-ES")}` : "Sincronizar"}
       className="hidden h-8 max-w-[280px] items-center gap-2 truncate rounded-md px-2.5 text-xs font-medium text-fg-3 transition-colors hover:bg-surface-sunken hover:text-fg sm:flex"
@@ -362,13 +362,13 @@ export function AppShell() {
         <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-line bg-canvas/80 px-3 backdrop-blur-xl backdrop-saturate-150 sm:px-5">
           <IconButton icon={MenuIcon} label="Menú" className="md:hidden" onClick={() => setMobileOpen(true)} />
           <Link to="/" className="md:hidden" aria-label="Resumen"><LogoMark size={26} /></Link>
-          <button onClick={() => setMobileOpen(true)} className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left md:hidden" aria-label={`Empresa activa: ${ws.organization.name}`}>
+          <button type="button" onClick={() => setMobileOpen(true)} className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left md:hidden" aria-label={`Empresa activa: ${ws.organization.name}`}>
             <OrgAvatar name={ws.organization.name} logo={ws.organization.logoDataUrl} demo={ws.organization.isDemo} size={22} />
             <span className="max-w-[34vw] truncate text-sm font-semibold">{ws.organization.name}</span>
           </button>
           <div className="hidden md:block"><LocationSwitcher /></div>
           <div className="ml-auto flex items-center gap-1">
-            <button
+            <button type="button"
               onClick={() => setPaletteOpen(true)}
               className="hidden h-9 w-64 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm text-fg-3 shadow-xs transition-colors hover:border-line-strong hover:text-fg-2 lg:flex"
             >

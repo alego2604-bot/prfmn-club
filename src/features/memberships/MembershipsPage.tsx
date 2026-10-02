@@ -93,7 +93,7 @@ export default function MembershipsPage() {
       <KpiStrip className="mb-5">
         <Kpi label="Membresías activas" value={(sum.active + sum.pastDue).toLocaleString("es-ES")} hint={`${sum.paused} en pausa · ${sum.pending} por empezar`} />
         <Kpi label="MRR" tooltip="Ingreso recurrente mensual sin IVA de las membresías vivas (anuales y trimestrales prorrateadas al mes)" value={formatMoney(sum.mrr)} hint="Sin IVA · anuales prorrateadas" />
-        <Kpi label="Cuotas vencidas" value={sum.pastDue.toLocaleString("es-ES")} hint={sum.pastDue ? <button className="text-danger-fg hover:underline" onClick={() => { setTab("members"); setStatus("PAST_DUE"); }}>{formatMoney(pastDueAmount)} sin cobrar</button> : "Todo al día"} />
+        <Kpi label="Cuotas vencidas" value={sum.pastDue.toLocaleString("es-ES")} hint={sum.pastDue ? <button type="button" className="text-danger-fg hover:underline" onClick={() => { setTab("members"); setStatus("PAST_DUE"); }}>{formatMoney(pastDueAmount)} sin cobrar</button> : "Todo al día"} />
         <Kpi label="Renovaciones 7 días" value={sum.upcoming.count.toLocaleString("es-ES")} hint={formatMoney(sum.upcoming.amount)} />
         <Kpi label="Altas / bajas del mes" value={`+${sum.newInPeriod} / −${sum.cancelledInPeriod}`} hint={sum.active ? `Neto ${sum.newInPeriod - sum.cancelledInPeriod >= 0 ? "+" : ""}${sum.newInPeriod - sum.cancelledInPeriod}` : undefined} />
       </KpiStrip>
@@ -112,7 +112,7 @@ export default function MembershipsPage() {
               </Card>
               <Card className="md:col-span-5">
                 <CardHeader title="MRR por tarifa" description="Ingreso recurrente mensual · sin IVA" action={<BadgeEuro className="h-4 w-4 text-fg-3" />} />
-                <BarList rows={sum.byPlan.map((p) => ({ key: p.id, label: <button className="hover:underline" onClick={() => setPlanF(p.id)}>{p.name} <span className="text-xs text-fg-3">· {p.count}</span></button>, value: p.mrr }))} emptyText="Sin membresías vivas" />
+                <BarList rows={sum.byPlan.map((p) => ({ key: p.id, label: <button type="button" className="hover:underline" onClick={() => setPlanF(p.id)}>{p.name} <span className="text-xs text-fg-3">· {p.count}</span></button>, value: p.mrr }))} emptyText="Sin membresías vivas" />
               </Card>
             </div>
             <DataTable

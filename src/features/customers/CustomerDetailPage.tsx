@@ -196,7 +196,7 @@ export default function CustomerDetailPage() {
       <div className={cn("mb-5 flex flex-wrap items-center gap-3 rounded-xl px-4 py-3", ACTION_TONE[action.tone])}>
         <CalendarClock className="h-4 w-4 shrink-0" />
         <p className="min-w-0 flex-1 text-sm"><span className="font-semibold">Próxima acción: {action.label}</span><span className="opacity-80"> · {action.reason}</span></p>
-        {action.kind !== "none" && <button onClick={runAction} className="inline-flex items-center gap-1 text-sm font-semibold hover:underline">Hacerlo ahora<ArrowRight className="h-3.5 w-3.5" /></button>}
+        {action.kind !== "none" && <button type="button" onClick={runAction} className="inline-flex items-center gap-1 text-sm font-semibold hover:underline">Hacerlo ahora<ArrowRight className="h-3.5 w-3.5" /></button>}
       </div>
 
       <div className="surface-card mb-6 grid grid-cols-2 overflow-hidden rounded-xl sm:grid-cols-3 xl:grid-cols-6">
@@ -231,13 +231,13 @@ export default function CustomerDetailPage() {
       {tab === "overview" && (
         <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr] [&>*]:min-w-0">
           <Card>
-            <CardHeader title="Relación con el cliente" description="Lo último: compras, cuotas, cobros, notas, tareas y cambios" action={data.timeline.length > 8 ? <button onClick={() => setTab("timeline")} className="text-sm font-medium text-fg-3 hover:text-fg">Ver todo →</button> : undefined} />
+            <CardHeader title="Relación con el cliente" description="Lo último: compras, cuotas, cobros, notas, tareas y cambios" action={data.timeline.length > 8 ? <button type="button" onClick={() => setTab("timeline")} className="text-sm font-medium text-fg-3 hover:text-fg">Ver todo →</button> : undefined} />
             <Timeline items={data.timeline.slice(0, 8)} />
           </Card>
           <div className="flex flex-col gap-4">
             {m && (
               <Card>
-                <CardHeader className="mb-3" title="Membresía" action={<button onClick={() => setTab("membership")} className="text-sm font-medium text-fg-3 hover:text-fg">Detalle →</button>} />
+                <CardHeader className="mb-3" title="Membresía" action={<button type="button" onClick={() => setTab("membership")} className="text-sm font-medium text-fg-3 hover:text-fg">Detalle →</button>} />
                 <div className="flex items-baseline justify-between gap-3">
                   <p className="truncate text-[17px] font-semibold">{plan?.name}</p>
                   {mv && <Badge tone={MEMBERSHIP_VIEW[mv].tone} dot>{MEMBERSHIP_VIEW[mv].label}</Badge>}
@@ -260,7 +260,7 @@ export default function CustomerDetailPage() {
               <div key={n.id} className="rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-fg"><Pin className="mr-1.5 inline h-3.5 w-3.5" />{n.body}</div>
             ))}
             <Card>
-              <CardHeader className="mb-1" title="Datos" action={can("customers.manage") ? <button onClick={() => setEditing(true)} className="text-sm font-medium text-fg-3 hover:text-fg">Editar</button> : undefined} />
+              <CardHeader className="mb-1" title="Datos" action={can("customers.manage") ? <button type="button" onClick={() => setEditing(true)} className="text-sm font-medium text-fg-3 hover:text-fg">Editar</button> : undefined} />
               <DescriptionList
                 items={[
                   { label: "Email", value: c.email ?? "—" },

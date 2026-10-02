@@ -94,11 +94,11 @@ export function CompanySwitcher({ variant = "full", onNavigate }: { variant?: "f
       width={300}
       trigger={(open, toggle) =>
         variant === "rail" ? (
-          <button onClick={toggle} className={cn("flex h-10 w-10 items-center justify-center rounded-lg transition-colors hover:bg-surface-sunken", open && "bg-surface-sunken")} title={`${current.name} · cambiar de empresa`} aria-label={`Empresa activa: ${current.name}. Cambiar de empresa`} data-testid="company-switcher">
+          <button type="button" onClick={toggle} className={cn("flex h-10 w-10 items-center justify-center rounded-lg transition-colors hover:bg-surface-sunken", open && "bg-surface-sunken")} title={`${current.name} · cambiar de empresa`} aria-label={`Empresa activa: ${current.name}. Cambiar de empresa`} data-testid="company-switcher">
             <OrgAvatar name={current.name} logo={current.logoDataUrl} demo={current.isDemo} size={30} />
           </button>
         ) : (
-          <button
+          <button type="button"
             onClick={() => { toggle(); setTimeout(() => searchRef.current?.focus(), 30); }}
             className={cn("flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-surface-sunken", open && "bg-surface-sunken")}
             aria-label={`Empresa activa: ${current.name}. Cambiar de empresa`}
@@ -169,7 +169,7 @@ export function LocationSwitcher({ compact }: { compact?: boolean }) {
       width={240}
       align="start"
       trigger={(open, toggle) => (
-        <button
+        <button type="button"
           onClick={toggle}
           className={cn("inline-flex h-8 max-w-[220px] items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-colors", open ? "border-line-strong bg-surface" : "border-line bg-surface/60 hover:border-line-strong hover:bg-surface")}
           aria-label={`Centro: ${label}. Cambiar de centro`}

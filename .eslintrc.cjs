@@ -9,5 +9,10 @@ module.exports = {
   rules: {
     "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
     "no-empty": ["error", { allowEmptyCatch: true }],
+    // Un <button> sin type dentro de un <form> lo envía: un selector o interruptor guardaría el formulario a medias
+    "no-restricted-syntax": ["error", {
+      selector: "JSXOpeningElement[name.name='button']:not(:has(JSXAttribute[name.name='type']))",
+      message: "Indica type=\"button\" (o \"submit\") en cada <button>.",
+    }],
   },
 };

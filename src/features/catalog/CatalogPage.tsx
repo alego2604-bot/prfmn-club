@@ -237,7 +237,7 @@ function CategoryDialog({ categoryId, onClose }: { categoryId?: string; onClose:
         <Field label="Color">
           <div className="flex gap-2">
             {CATEGORY_COLORS.map((c) => (
-              <button key={c} onClick={() => setColor(c)} className={cn("h-7 w-7 rounded-full ring-offset-2 ring-offset-surface", color === c && "ring-2 ring-ink")} style={{ background: c }} aria-label={c} />
+              <button type="button" key={c} onClick={() => setColor(c)} className={cn("h-7 w-7 rounded-full ring-offset-2 ring-offset-surface", color === c && "ring-2 ring-ink")} style={{ background: c }} aria-label={c} />
             ))}
           </div>
         </Field>

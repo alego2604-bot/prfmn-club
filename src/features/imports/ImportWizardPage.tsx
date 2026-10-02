@@ -174,7 +174,7 @@ export default function ImportWizardPage() {
       {/* 1. Subir */}
       {step === 0 && (
         <div>
-          <button
+          <button type="button"
             onClick={() => inputRef.current?.click()}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) void onFile(f); }}

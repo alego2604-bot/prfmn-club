@@ -171,7 +171,7 @@ function StepBody({ k, onDone, onSkip, done }: { k: OnboardingStep; onDone: () =
             <Field label="Ciudad"><Input value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })} /></Field>
             <Field label="Teléfono"><Input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
           </div>
-          <Footer optional onSkip={onSkip} onDone={() => run(() => updateOrganization(ctx, { legalName: f.legalName || undefined, taxId: f.taxId || undefined, address: f.address || undefined, postalCode: f.postalCode || undefined, city: f.city || undefined, email: f.email || undefined, phone: f.phone || undefined }), "Datos fiscales guardados") && onDone()} />
+          <Footer optional onSkip={onSkip} onDone={() => run(() => updateOrganization(ctx, { legalName: f.legalName || undefined, taxId: f.taxId || undefined, address: f.address || undefined, postalCode: f.postalCode || undefined, city: f.city || undefined, email: f.email || undefined, phone: f.phone || undefined }), "Datos fiscales guardados") && onDone()}  disabled={!f.legalName.trim() || !f.taxId.trim() || !f.address.trim() || (tax.kind !== "empty" && !tax.valid)}/>
         </>
       );
     case "locations":

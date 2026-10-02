@@ -271,7 +271,7 @@ export default function DashboardPage() {
               <ul className="-mx-2">
                 {alerts.slice(0, 3).map((a) => (
                   <li key={a.id}>
-                    <button onClick={() => navigate(a.to)} className="group flex w-full items-start gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-surface-2">
+                    <button type="button" onClick={() => navigate(a.to)} className="group flex w-full items-start gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-surface-2">
                       <span className={cn("mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md", a.severity === "danger" ? "bg-danger-soft text-danger-fg" : a.severity === "warning" ? "bg-warning-soft text-warning-fg" : "bg-surface-sunken text-fg-2")}>
                         {a.severity === "info" ? <CircleDot className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
                       </span>

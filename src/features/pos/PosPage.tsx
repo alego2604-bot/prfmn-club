@@ -203,7 +203,7 @@ export default function PosPage() {
           const a = computeLine({ unitPrice: l.unitPrice, quantity: l.quantity, discount: l.discount, taxRateBp: l.product.taxRateBp });
           return (
             <div key={`${l.productId}-${i}`} className="flex animate-rise items-center gap-2 rounded-xl px-2 py-2 transition-colors hover:bg-surface-2">
-              <button className="min-w-0 flex-1 text-left" onClick={() => setEditing(i)}>
+              <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setEditing(i)}>
                 <p className="truncate text-sm font-medium">{l.product.name}</p>
                 <p className="text-xs text-fg-3 num">
                   {formatMoney(l.unitPrice)}
@@ -212,9 +212,9 @@ export default function PosPage() {
                 </p>
               </button>
               <div className="flex items-center rounded-lg bg-surface-sunken">
-                <button className="flex h-10 w-10 items-center justify-center rounded-lg text-fg-2 transition-colors hover:bg-surface hover:text-fg active:scale-90" onClick={() => setQty(i, l.quantity - 1)} aria-label="Restar"><Minus className="h-4 w-4" /></button>
+                <button type="button" className="flex h-10 w-10 items-center justify-center rounded-lg text-fg-2 transition-colors hover:bg-surface hover:text-fg active:scale-90" onClick={() => setQty(i, l.quantity - 1)} aria-label="Restar"><Minus className="h-4 w-4" /></button>
                 <span className="w-7 text-center text-sm font-semibold num">{l.quantity}</span>
-                <button className="flex h-10 w-10 items-center justify-center rounded-lg text-fg-2 transition-colors hover:bg-surface hover:text-fg active:scale-90" onClick={() => setQty(i, l.quantity + 1)} aria-label="Sumar"><Plus className="h-4 w-4" /></button>
+                <button type="button" className="flex h-10 w-10 items-center justify-center rounded-lg text-fg-2 transition-colors hover:bg-surface hover:text-fg active:scale-90" onClick={() => setQty(i, l.quantity + 1)} aria-label="Sumar"><Plus className="h-4 w-4" /></button>
               </div>
               <span className="w-[76px] text-right text-sm font-semibold num">{formatMoney(a.total)}</span>
             </div>
@@ -224,7 +224,7 @@ export default function PosPage() {
 
       <div className="border-t border-line px-5 pb-4 pt-3 safe-bottom">
         <div className="flex items-center gap-2">
-          <button onClick={() => setPickCustomer(true)} className={cn("flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 text-left text-sm transition-colors", customer ? "bg-accent-soft text-accent-fg" : "border border-dashed border-line-strong text-fg-3 hover:bg-surface-2 hover:text-fg-2")}>
+          <button type="button" onClick={() => setPickCustomer(true)} className={cn("flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 text-left text-sm transition-colors", customer ? "bg-accent-soft text-accent-fg" : "border border-dashed border-line-strong text-fg-3 hover:bg-surface-2 hover:text-fg-2")}>
             <UserRound className="h-4 w-4 shrink-0" />
             <span className="flex-1 truncate">{customer ? customerName(customer) : "Cliente (opcional)"}</span>
             {customer && <X className="h-4 w-4 shrink-0" onClick={(e) => { e.stopPropagation(); setCustomerId(undefined); }} />}
@@ -248,7 +248,7 @@ export default function PosPage() {
                 const Icon = METHOD_ICON[m.kind];
                 const active = method === m.key;
                 return (
-                  <button
+                  <button type="button"
                     key={m.id}
                     role="radio"
                     aria-checked={active}
@@ -268,7 +268,7 @@ export default function PosPage() {
             {otherMethods.length > 0 && (
               <div className="no-scrollbar mt-2 flex gap-1.5 overflow-x-auto">
                 {otherMethods.map((m) => (
-                  <button
+                  <button type="button"
                     key={m.id}
                     disabled={!lines.length || needsSession}
                     onClick={() => { setMethod(m.key); setReceived(null); }}
@@ -299,7 +299,7 @@ export default function PosPage() {
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="mr-1 text-xs font-medium text-fg-3">Entregado</span>
               {[totals.total, ...[500, 1000, 2000, 5000].filter((v) => v > totals.total)].slice(0, 4).map((v, i) => (
-                <button key={v} onClick={() => setReceived(v)} className={cn("h-9 rounded-lg border px-3 text-sm font-medium transition-colors num", received === v ? "border-ink bg-ink text-fg-inverse" : "border-line hover:bg-surface-2")}>
+                <button type="button" key={v} onClick={() => setReceived(v)} className={cn("h-9 rounded-lg border px-3 text-sm font-medium transition-colors num", received === v ? "border-ink bg-ink text-fg-inverse" : "border-line hover:bg-surface-2")}>
                   {i === 0 ? "Exacto" : formatMoney(v, { compact: true })}
                 </button>
               ))}
@@ -340,7 +340,7 @@ export default function PosPage() {
           </div>
           <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1" role="tablist">
             {[{ id: "all", name: "Todo", color: "" }, ...categories].map((c) => (
-              <button
+              <button type="button"
                 key={c.id}
                 role="tab"
                 aria-selected={category === c.id}
@@ -367,7 +367,7 @@ export default function PosPage() {
               const low = p.trackStock && p.minStock !== undefined && (p.stockQuantity ?? 0) <= p.minStock;
               const cat = ws.categories.find((c) => c.id === p.categoryId);
               return (
-                <button
+                <button type="button"
                   key={p.id}
                   onClick={() => add(p)}
                   disabled={needsSession || !locationId}
@@ -400,7 +400,7 @@ export default function PosPage() {
       {/* Carrito: hoja inferior en móvil e iPad vertical */}
       <div className="lg:hidden">
         {!sheetOpen && (
-          <button
+          <button type="button"
             onClick={() => setSheetOpen(true)}
             className="fixed inset-x-3 bottom-3 z-30 flex h-14 items-center justify-between rounded-2xl bg-ink px-4 text-fg-inverse shadow-lg safe-bottom md:left-[84px] md:right-4 md:h-16 md:px-6"
           >
@@ -412,7 +412,7 @@ export default function PosPage() {
           <div className="fixed inset-0 z-40">
             <div className="absolute inset-0 animate-fade-in bg-[var(--overlay)]" onClick={() => setSheetOpen(false)} />
             <div className="absolute inset-x-0 bottom-0 mx-auto flex h-[90dvh] max-w-[640px] animate-slide-up flex-col overflow-hidden rounded-t-3xl bg-surface shadow-lg md:h-[86dvh]">
-              <div className="flex justify-center pt-2"><button className="h-1.5 w-10 rounded-full bg-line-strong" onClick={() => setSheetOpen(false)} aria-label="Cerrar" /></div>
+              <div className="flex justify-center pt-2"><button type="button" className="h-1.5 w-10 rounded-full bg-line-strong" onClick={() => setSheetOpen(false)} aria-label="Cerrar" /></div>
               {cartPanel}
             </div>
           </div>
@@ -519,7 +519,7 @@ function CustomerPicker({ open, onClose, onPick }: { open: boolean; onClose: () 
       <Input autoFocus leading={<Search className="h-4 w-4" />} placeholder="Nombre, NIF, teléfono…" value={q} onChange={(e) => setQ(e.target.value)} />
       <div className="mt-3 flex max-h-[50vh] flex-col overflow-y-auto">
         {list.map((c) => (
-          <button key={c.id} onClick={() => onPick(c.id)} className="flex items-center justify-between rounded-md px-2.5 py-2.5 text-left hover:bg-surface-2">
+          <button type="button" key={c.id} onClick={() => onPick(c.id)} className="flex items-center justify-between rounded-md px-2.5 py-2.5 text-left hover:bg-surface-2">
             <span className="text-sm font-medium">{customerName(c)}</span>
             <span className="text-xs text-fg-3">{c.taxId ?? c.phone ?? ""}</span>
           </button>

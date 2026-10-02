@@ -87,7 +87,7 @@ export default function TaxesPage() {
               <tbody>
                 {quarters.map(({ n, v }) => (
                   <tr key={n} className={cn("border-b border-line last:border-0", String(n) === q && "bg-accent-soft/40")}>
-                    <td className="px-5 py-3 font-medium"><button className="hover:underline" onClick={() => setQ(String(n))}>T{n} {year}</button></td>
+                    <td className="px-5 py-3 font-medium"><button type="button" className="hover:underline" onClick={() => setQ(String(n))}>T{n} {year}</button></td>
                     <td className="px-3 py-3 text-right num">{formatMoney(v.outputTax)}</td>
                     <td className="px-3 py-3 text-right text-fg-2 num">{formatMoney(v.inputTax)}</td>
                     <td className={cn("px-5 py-3 text-right font-semibold num", v.position < 0 && "text-success-fg")}><Amount cents={v.position} muted={false} /></td>
