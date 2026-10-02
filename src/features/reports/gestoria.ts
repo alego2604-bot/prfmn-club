@@ -90,7 +90,27 @@ export function buildGestoriaReport(ws: Workspace, p: Period, locationId?: strin
   if (sales.some((s) => s.source === "import" && !paysBySale.has(s.id))) warnings.push("Hay ventas importadas sin método de pago (el Excel de origen no lo indicaba).");
   if (ws.products.some((p) => p.importId && p.taxRateBp === 1000)) warnings.push("El IVA de algunos productos importados es una propuesta por categoría (10 %): pendiente de validar.");
   if (inv.some((i) => !i.customerTaxId)) warnings.push(`${inv.filter((i) => !i.customerTaxId).length} facturas sin NIF del cliente.`);
-  warnings.push("Gastos y facturas recibidas: módulo aún no activo; no se incluyen en este paquete.");
+  // Gastos (facturas recibidas) por fecha de factura: IVA soportado
+  const expAll = ws.expenses.filter((e) => inP(e.issueDate) && loc(e.locationId)).sort((a, b) => a.issueDate.localeCompare(b.issueDate));
+  const exps = expAll.filter((e) => e.status !== "void");
+  const supName = new Map(ws.suppliers.map((x) => [x.id, x]));
+  const expCat = new Map(ws.expenseCategories.map((x) => [x.id, x.name]));
+  const inputVat = new Map<number, { base: number; tax: number; total: number }>();
+  for (const e of exps) {
+    const rate = e.taxRateBp ?? inferRateBp(e.subtotal, e.taxTotal);
+    const r = inputVat.get(rate) ?? { base: 0, tax: 0, total: 0 };
+    r.base += e.subtotal; r.tax += e.taxTotal; r.total += e.total;
+    inputVat.set(rate, r);
+  }
+  const inputTax = exps.reduce((t, e) => t + e.taxTotal, 0);
+  kpis.push(
+    { label: "Gastos (base imponible)", value: exps.reduce((t, e) => t + e.subtotal, 0), format: "money" },
+    { label: "IVA soportado", value: inputTax, format: "money" },
+    { label: "Posición IVA estimada (repercutido − soportado)", value: vat.reduce((s, v) => s + v.tax, 0) - inputTax, format: "money" },
+  );
+  if (!ws.expenses.length) warnings.push("No hay gastos registrados: el IVA soportado no está incluido.");
+  if (exps.some((e) => !e.supplierId)) warnings.push(`${exps.filter((e) => !e.supplierId).length} gastos sin proveedor asignado.`);
+  if (exps.some((e) => e.supplierId && !supName.get(e.supplierId)?.taxId)) warnings.push("Hay gastos de proveedores sin NIF registrado.");
 
   const title = `${ws.organization.name} · ${p.label}`;
   const sub = `Periodo ${p.start.toLocaleDateString("es-ES")} – ${addDays(p.end, -1).toLocaleDateString("es-ES")}${locationId ? ` · ${locName.get(locationId)}` : ""} · generado ${new Date().toLocaleString("es-ES", NUM)}`;
@@ -180,6 +200,18 @@ export function buildGestoriaReport(ws: Workspace, p: Period, locationId?: strin
       columns: [{ header: "Origen", width: 28 }, { header: "Tipo IVA", format: "percent" }, { header: "Base imponible", format: "money", width: 16 }, { header: "Cuota IVA", format: "money", width: 14 }, { header: "Total", format: "money", width: 14 }],
       rows: vat.map((v) => [v.source, v.rateBp / 10000, euros(v.base), euros(v.tax), euros(v.total)]),
       totals: ["TOTAL", null, euros(vat.reduce((s, v) => s + v.base, 0)), euros(vat.reduce((s, v) => s + v.tax, 0)), euros(vat.reduce((s, v) => s + v.total, 0))],
+    },
+    {
+      name: "Gastos", title: "Gastos y facturas recibidas (por fecha de factura)", subtitle: sub,
+      columns: [{ header: "Fecha", format: "date", width: 12 }, { header: "Proveedor", width: 26 }, { header: "NIF", width: 13 }, { header: "Nº factura", width: 16 }, { header: "Concepto", width: 30 }, { header: "Categoría", width: 18 }, { header: "Centro", width: 14 }, { header: "Base", format: "money" }, { header: "% IVA", format: "percent" }, { header: "IVA soportado", format: "money" }, { header: "Total", format: "money" }, { header: "Estado", width: 12 }],
+      rows: expAll.map((e) => [new Date(`${e.issueDate}T00:00`), supName.get(e.supplierId ?? "")?.name ?? "", supName.get(e.supplierId ?? "")?.taxId ?? "", e.supplierInvoiceNumber ?? "", e.description, expCat.get(e.categoryId ?? "") ?? "", locName.get(e.locationId ?? "") ?? "General", euros(e.subtotal), (e.taxRateBp ?? 0) / 10000, euros(e.taxTotal), euros(e.total), e.status === "void" ? "ANULADO" : e.status === "paid" ? "Pagado" : "Pendiente"]),
+      totals: ["TOTAL (sin anulados)", null, null, null, null, null, null, euros(exps.reduce((t, e) => t + e.subtotal, 0)), null, euros(inputTax), euros(exps.reduce((t, e) => t + e.total, 0))],
+    },
+    {
+      name: "IVA soportado", title: "IVA soportado por tipo", subtitle: sub,
+      columns: [{ header: "Tipo IVA", format: "percent" }, { header: "Base imponible", format: "money", width: 16 }, { header: "Cuota", format: "money", width: 14 }, { header: "Total", format: "money", width: 14 }],
+      rows: [...inputVat.entries()].sort((a, b) => b[0] - a[0]).map(([r, v]) => [r / 10000, euros(v.base), euros(v.tax), euros(v.total)]),
+      totals: ["TOTAL", euros([...inputVat.values()].reduce((t, v) => t + v.base, 0)), euros(inputTax), euros([...inputVat.values()].reduce((t, v) => t + v.total, 0))],
     },
     {
       name: "Métodos de pago", title: "Cobros por método de pago", subtitle: sub,

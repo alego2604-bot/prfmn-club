@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, Download, FileSpreadsheet, FileText, Sheet } from "lucide-react";
+import { Link } from "react-router-dom";
+import { AlertTriangle, ArrowLeft, Download, FileSpreadsheet, FileText, Sheet } from "lucide-react";
 import { useLocationScope, useSession, useWorkspace } from "@/app/session";
 import { Badge, Button, Card, Checkbox, Field, Input, Page, PageHeader, Segmented, Select, useToast } from "@/design-system/components";
 import { cn } from "@/lib/cn";
@@ -46,7 +47,7 @@ export default function ReportsPage() {
   const report = useMemo(() => buildGestoriaReport(ws, period, locationId || undefined), [ws, period, locationId]);
   const empty = report.kpis[0]!.value === 0;
   const companyMeta = { company: ws.organization.name };
-  const [include, setInclude] = useState<Record<SectionKey, boolean>>({ sales: true, invoices: true, tax: true, cash: true, customers: true });
+  const [include, setInclude] = useState<Record<SectionKey, boolean>>({ sales: true, invoices: true, expenses: true, tax: true, cash: true, customers: true });
   const [format, setFormat] = useState<"xlsx" | "pdf" | "csv">("xlsx");
   const sheetNames = new Set(["Resumen", ...SECTIONS.filter((x) => include[x.key]).flatMap((x) => x.sheets)]);
   const sheets = report.sheets.filter((x) => sheetNames.has(x.name));
@@ -71,7 +72,8 @@ export default function ReportsPage() {
 
   return (
     <Page wide>
-      <PageHeader title="Informes" description="Genera el paquete para tu gestoría a partir de los registros: cualquier periodo, en Excel, PDF o CSV." />
+      <Link to="/informes" className="mb-4 inline-flex items-center gap-1.5 text-sm text-fg-3 hover:text-fg"><ArrowLeft className="h-4 w-4" />Informes</Link>
+      <PageHeader title="Paquete para la gestoría" description="A partir de los registros: ventas, facturas emitidas, gastos, IVA repercutido y soportado, caja y clientes. Cualquier periodo, en Excel, PDF o CSV." />
       <div className="grid items-start gap-5 lg:grid-cols-[1.35fr_1fr] [&>*]:min-w-0">
         <div className="flex flex-col gap-4">
           <Card>
@@ -198,11 +200,12 @@ export default function ReportsPage() {
   );
 }
 
-type SectionKey = "sales" | "invoices" | "tax" | "cash" | "customers";
+type SectionKey = "sales" | "invoices" | "expenses" | "tax" | "cash" | "customers";
 const SECTIONS: { key: SectionKey; label: string; description: string; sheets: string[] }[] = [
   { key: "sales", label: "Ventas", description: "Caja diaria, líneas de venta, categorías, productos y métodos de pago", sheets: ["Caja diaria", "Ventas", "Categorías", "Productos", "Métodos de pago"] },
   { key: "invoices", label: "Facturas", description: "Facturas emitidas por fecha de emisión", sheets: ["Facturación"] },
-  { key: "tax", label: "Impuestos", description: "IVA repercutido por tipo y origen", sheets: ["IVA"] },
+  { key: "expenses", label: "Gastos", description: "Facturas recibidas con proveedor, NIF, base e IVA soportado", sheets: ["Gastos"] },
+  { key: "tax", label: "Impuestos", description: "IVA repercutido y soportado por tipo", sheets: ["IVA", "IVA soportado"] },
   { key: "cash", label: "Caja", description: "Cierres de caja con arqueo y descuadres", sheets: ["Cierres"] },
   { key: "customers", label: "Clientes", description: "Clientes facturados con base, IVA y total", sheets: ["Clientes"] },
 ];

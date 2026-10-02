@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, CornerDownLeft, FileText, Moon, Package, Plus, Receipt, Search, ShoppingBag, Upload, User, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowRight, Contact, CornerDownLeft, FileText, ListTodo, Moon, Package, Plus, Receipt, Rocket, ScrollText, Search, ShoppingBag, Truck, Upload, User, Wallet, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { normalizeKey } from "@/lib/text";
 import { formatMoney } from "@/lib/money";
@@ -60,8 +60,13 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       can("imports.run") && { id: "a-import", group: "Acciones", label: "Importar datos (Excel / CSV)", icon: Upload, to: "/importaciones/nueva", keywords: "excel csv subir" },
       can("catalog.manage") && { id: "a-product", group: "Acciones", label: "Nuevo producto", icon: Package, to: "/catalogo?nuevo=1" },
       can("customers.manage") && { id: "a-customer", group: "Acciones", label: "Nuevo cliente", icon: User, to: "/clientes?nuevo=1" },
+      can("invoices.manage") && { id: "a-invoice", group: "Acciones", label: "Nueva factura", icon: Receipt, to: "/facturas/nueva", keywords: "emitir facturar borrador" },
+      can("expenses.manage") && { id: "a-expense", group: "Acciones", label: "Registrar gasto", icon: ScrollText, to: "/gastos?nuevo=1", keywords: "factura proveedor ticket compra pago" },
+      can("memberships.manage") && { id: "a-membership", group: "Acciones", label: "Nueva membresía", icon: Contact, to: "/membresias", keywords: "alta cuota tarifa suscripcion socio" },
+      can("customers.manage") && { id: "a-task", group: "Acciones", label: "Nueva tarea de seguimiento", icon: ListTodo, to: "/seguimiento", keywords: "recordar llamar pendiente" },
+      can("settings.manage") && { id: "a-setup", group: "Acciones", label: "Puesta en marcha de la empresa", icon: Rocket, to: "/bienvenida", keywords: "onboarding configurar empezar" },
       can("cash.operate") && { id: "a-close", group: "Acciones", label: "Cerrar caja", icon: Wallet, to: "/cierres", keywords: "arqueo cuadre" },
-      can("analytics.view") && { id: "a-report", group: "Acciones", label: "Generar informe para la gestoría", icon: FileText, to: "/informes", keywords: "trimestre q3 exportar excel pdf csv iva" },
+      can("analytics.view") && { id: "a-report", group: "Acciones", label: "Generar informe para la gestoría", icon: FileText, to: "/informes/gestoria", keywords: "trimestre q3 exportar excel pdf csv iva" },
       can("finance.view") && pending > 0 && { id: "a-pending", group: "Acciones", label: `Ver ${pending} factura${pending === 1 ? "" : "s"} pendiente${pending === 1 ? "" : "s"} de cobro`, icon: Receipt, to: "/facturas?estado=pendiente", keywords: "cobrar impagos" },
       { id: "a-theme", group: "Acciones", label: "Cambiar tema claro / oscuro", icon: Moon, to: "#theme", keywords: "dark modo noche apariencia" },
     ].filter(Boolean) as Entry[];
@@ -95,6 +100,21 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         if (match(`${p.name} ${p.sku ?? ""}`)) out.push({ id: `p-${p.id}`, group: "Productos", label: p.name, hint: formatMoney(p.price), icon: Package, to: `/catalogo?producto=${p.id}` });
         if (out.filter((x) => x.group === "Productos").length >= 5) break;
       }
+    }
+    if (can("finance.view")) {
+      for (const sp of ws.suppliers) {
+        if (sp.status === "archived" || !match(`${sp.name} ${sp.taxId ?? ""} ${sp.email ?? ""}`)) continue;
+        out.push({ id: `sp-${sp.id}`, group: "Proveedores", label: sp.name, hint: sp.taxId ?? sp.email, icon: Truck, to: `/proveedores/${sp.id}` });
+        if (out.filter((x) => x.group === "Proveedores").length >= 4) break;
+      }
+      for (const e of ws.expenses) {
+        if (e.status === "void" || !match(`${e.description} ${e.supplierInvoiceNumber ?? ""}`)) continue;
+        out.push({ id: `e-${e.id}`, group: "Gastos", label: e.description, hint: `${formatDate(e.issueDate)} · ${formatMoney(e.total)}`, icon: ScrollText, to: `/gastos?q=${encodeURIComponent(e.description)}` });
+        if (out.filter((x) => x.group === "Gastos").length >= 4) break;
+      }
+    }
+    if (can("customers.view")) {
+      for (const pl of ws.membershipPlans) if (pl.status !== "archived" && match(pl.name)) out.push({ id: `pl-${pl.id}`, group: "Tarifas", label: pl.name, hint: "Tarifa de membresía", icon: Contact, to: "/membresias?tab=tarifas" });
     }
     if (can("sales.view")) {
       const num = /^#?(\d+)$/.exec(q.trim());

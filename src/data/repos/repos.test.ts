@@ -135,14 +135,14 @@ describe("Permisos y centros", () => {
 });
 
 describe("Informe gestoría", () => {
-  it("genera las 10 hojas con IVA cuadrado y nombre de archivo Q3_2026", () => {
+  it("genera las 12 hojas con IVA cuadrado y nombre de archivo Q3_2026", () => {
     const { agua, drop } = seed();
     openCashSession(owner, loc, 0);
     createSale(owner, { locationId: loc, lines: [{ productId: agua.id, quantity: 3 }, { productId: drop.id, quantity: 1 }], payments: [{ methodKey: "card", amount: 1800 }] });
     const now = new Date();
     const q = quarterPeriod(now.getFullYear(), Math.floor(now.getMonth() / 3) + 1);
     const r = buildGestoriaReport(owner.store.requireWorkspace(), q);
-    expect(r.sheets.map((s) => s.name)).toEqual(["Resumen", "Caja diaria", "Ventas", "Facturación", "IVA", "Métodos de pago", "Categorías", "Productos", "Clientes", "Cierres"]);
+    expect(r.sheets.map((s) => s.name)).toEqual(["Resumen", "Caja diaria", "Ventas", "Facturación", "IVA", "Gastos", "IVA soportado", "Métodos de pago", "Categorías", "Productos", "Clientes", "Cierres"]);
     expect(r.vat.reduce((s, v) => s + v.total, 0)).toBe(1800);
     expect(r.vat.find((v) => v.rateBp === 1000)!.base + r.vat.find((v) => v.rateBp === 1000)!.tax).toBe(300);
     expect(r.fileBase).toBe(`Q${Math.floor(now.getMonth() / 3) + 1}_${now.getFullYear()}_EmpresaEjemplo`);

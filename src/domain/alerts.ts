@@ -5,6 +5,7 @@
 import type { Workspace } from "@/data/store";
 import { daysBetween, formatDate, isSameDay } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
+import { membershipView } from "./memberships";
 
 export interface Alert {
   id: string;
@@ -107,6 +108,28 @@ export function computeAlerts(ws: Workspace, now = new Date(), locationId?: stri
 
   if (!ws.cashSessions.some((s) => s.status === "open" && (!locationId || s.locationId === locationId)) && ws.products.some((p) => p.status === "active")) {
     out.push({ id: "cash-closed", severity: "info", title: "La caja está cerrada", reason: "Ábrela para empezar a registrar ventas de hoy.", to: "/caja", cta: "Abrir caja" });
+  }
+
+  // Membresías con cuota vencida (cargo devuelto o renovación sin cobrar pasado el margen)
+  const todayIso = now.toISOString().slice(0, 10);
+  const pastDue = ws.customerMemberships.filter((m) => (!locationId || !m.locationId || m.locationId === locationId) && membershipView(m, ws.membershipCharges, todayIso) === "PAST_DUE");
+  if (pastDue.length) {
+    out.push({
+      id: "memberships-past-due", severity: "danger", title: `${pastDue.length} ${pastDue.length === 1 ? "membresía con cuota vencida" : "membresías con cuota vencida"}`,
+      reason: "El cargo fue devuelto o la renovación pasó sin cobrarse. Contacta antes de que se acumulen.", to: "/membresias?estado=PAST_DUE", cta: "Ver membresías",
+    });
+  }
+  // Gastos vencidos sin pagar
+  const lateExpenses = ws.expenses.filter((e) => e.status === "pending" && e.dueDate && e.dueDate < todayIso && (!locationId || e.locationId === locationId));
+  if (lateExpenses.length) {
+    out.push({
+      id: "expenses-overdue", severity: "warning", title: `${lateExpenses.length} ${lateExpenses.length === 1 ? "gasto vencido" : "gastos vencidos"} sin pagar`,
+      reason: `${formatMoney(lateExpenses.reduce((t, e) => t + e.total, 0))} pendientes; el más antiguo venció el ${formatDate(lateExpenses.reduce((a, e) => (e.dueDate! < a ? e.dueDate! : a), "9999"))}.`, to: "/gastos?estado=overdue", cta: "Ver gastos",
+    });
+  }
+  const draftInvoices = ws.invoices.filter((i) => i.status === "draft" && (!locationId || !i.locationId || i.locationId === locationId));
+  if (draftInvoices.length) {
+    out.push({ id: "invoice-drafts", severity: "info", title: `${draftInvoices.length} ${draftInvoices.length === 1 ? "factura en borrador" : "facturas en borrador"}`, reason: "Revísalas y emítelas para que cuenten en ingresos e IVA.", to: "/facturas?estado=borrador", cta: "Ver borradores" });
   }
 
   const rank = { danger: 0, warning: 1, info: 2 };

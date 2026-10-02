@@ -34,7 +34,7 @@ export default function ExpensesPage() {
   const [editing, setEditing] = useState<{ mode: "new" } | { mode: "edit"; e: Expense } | { mode: "dup"; e: Expense } | null>(params.get("nuevo") ? { mode: "new" } : null);
   const [detail, setDetail] = useState<Expense | null>(null);
   const [voiding, setVoiding] = useState<Expense | null>(null);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(params.get("q") ?? "");
   const [status, setStatus] = useState<ExpenseView | "">((params.get("estado") as ExpenseView) || "");
   const [cat, setCat] = useState<string>(params.get("categoria") ?? "");
   const [sup, setSup] = useState<string>(params.get("proveedor") ?? "");

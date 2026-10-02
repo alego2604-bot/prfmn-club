@@ -22,6 +22,7 @@ const ImportsPage = lazy(() => import("@/features/imports/ImportsPage"));
 const ImportWizardPage = lazy(() => import("@/features/imports/ImportWizardPage"));
 const ImportDetailPage = lazy(() => import("@/features/imports/ImportDetailPage"));
 const ReportsPage = lazy(() => import("@/features/reports/ReportsPage"));
+const ReportsHubPage = lazy(() => import("@/features/reports/ReportsHubPage"));
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
 const FinancePage = lazy(() => import("@/features/finance/FinancePage"));
 const CashflowPage = lazy(() => import("@/features/finance/CashflowPage"));
@@ -33,6 +34,7 @@ const InvoiceEditorPage = lazy(() => import("@/features/invoices/InvoiceEditorPa
 const InvoiceDetailPage = lazy(() => import("@/features/invoices/InvoiceDetailPage"));
 const MembershipsPage = lazy(() => import("@/features/memberships/MembershipsPage"));
 const FollowUpPage = lazy(() => import("@/features/tasks/FollowUpPage"));
+const OnboardingWizard = lazy(() => import("@/features/onboarding/OnboardingWizard"));
 
 function PageFallback() {
   return (
@@ -103,6 +105,7 @@ const router = createBrowserRouter([
       { path: "clientes", element: <Guard perm="customers.view"><CustomersPage /></Guard> },
       { path: "clientes/:id", element: <Guard perm="customers.view"><CustomerDetailPage /></Guard> },
       { path: "membresias", element: <Guard perm="customers.view"><MembershipsPage /></Guard> },
+      { path: "bienvenida", element: <Guard perm="dashboard.view"><OnboardingWizard /></Guard> },
       { path: "seguimiento", element: <Guard perm="customers.view"><FollowUpPage /></Guard> },
       { path: "finanzas", element: <Guard perm="finance.view"><FinancePage /></Guard> },
       { path: "flujo-de-caja", element: <Guard perm="finance.view"><CashflowPage /></Guard> },
@@ -118,7 +121,9 @@ const router = createBrowserRouter([
       { path: "importaciones", element: <Guard perm="imports.run"><ImportsPage /></Guard> },
       { path: "importaciones/nueva", element: <Guard perm="imports.run"><ImportWizardPage /></Guard> },
       { path: "importaciones/:id", element: <Guard perm="imports.run"><ImportDetailPage /></Guard> },
-      { path: "informes", element: <Guard perm="analytics.view"><ReportsPage /></Guard> },
+      { path: "informes", element: <Guard perm="analytics.view"><ReportsHubPage /></Guard> },
+      { path: "informes/gestoria", element: <Guard perm="analytics.view"><ReportsPage /></Guard> },
+      { path: "informes/:key", element: <Guard perm="analytics.view"><ReportsHubPage /></Guard> },
       { path: "ajustes", element: <Guard perm="dashboard.view"><SettingsPage /></Guard> },
       ...planned.map((item) => ({ path: item.to.slice(1), element: <PlannedModulePage item={item} /> })),
       { path: "*", element: <Navigate to="/" replace /> },

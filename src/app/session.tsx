@@ -249,6 +249,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         const orgId = sb ? await cloud.createOrganization(sb, input) : await localAuth.createOrganization(store, u as UserAccount, input);
         const ms = await loadMemberships(u);
         await enterOrg(u, ms, orgId);
+        // Primera entrada en una empresa nueva: el resumen abre la puesta en marcha guiada
+        try { sessionStorage.setItem("bos.welcome", orgId); } catch { /* modo privado */ }
       },
       createDemo: async () => {
         const u = requireUser();

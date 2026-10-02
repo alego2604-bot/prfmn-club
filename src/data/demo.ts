@@ -111,7 +111,7 @@ export function fillDemoWorkspace(ws: Workspace, userId: string): Workspace {
   // Clientes: altas repartidas en ~14 meses; algunas bajas (con fecha) y algunos leads
   const SOURCES = ["walk_in", "instagram", "referral", "google", "web"];
   const customers: Customer[] = Array.from({ length: 64 }, (_, i) => {
-    const joined = addDays(now, -Math.round(15 + Math.pow(r(), 0.55) * 470));
+    const joined = addDays(now, -Math.round(i % 8 === 3 ? 6 + r() * 70 : 15 + Math.pow(r(), 0.7) * 470));
     const status = i % 11 === 0 ? "cancelled" : i % 13 === 0 ? "lead" : "active";
     const leftAt = status === "cancelled" ? toISODate(new Date(now.getFullYear(), now.getMonth() - 2 - (i % 3), 0)) : undefined;
     return {

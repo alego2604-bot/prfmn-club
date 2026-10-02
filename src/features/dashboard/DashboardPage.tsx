@@ -1,11 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AlertTriangle, ArrowRight, CheckCircle2, CircleDot, FileText, Package, Plus, Receipt, Store, Upload, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, CircleDot, Package, Plus, Receipt, Rocket, ScrollText, Store, Upload, Wallet } from "lucide-react";
+import { useOnboardingProgress } from "@/features/onboarding/OnboardingWizard";
 import { useLocationScope, useSession, useWorkspace } from "@/app/session";
 import {
-  Badge, Button, Card, CardHeader, DeltaChip, HeroMetric, InsightList, Page, RangeSelector, Segmented, StatStrip, type StatItem,
+  Badge, Button, Card, CardHeader, DeltaChip, HeroMetric, InsightList, Page, ProgressBar, RangeSelector, Segmented, StatStrip, type StatItem,
 } from "@/design-system/components";
-import { BarList, ColumnChart, Legend, StackedColumnChart, TrendChart, type TrendPoint } from "@/design-system/components/charts";
+import { BarList, ColumnChart, CountTrend, FlowChart, Legend, StackedColumnChart, TrendChart, type TrendPoint } from "@/design-system/components/charts";
+import { profitAndLoss, resultSeries } from "@/domain/finance";
+import { hasComparableHistory } from "@/domain/expenses";
+import { membershipEvolution, membershipSummary } from "@/domain/memberships";
 import {
   computeKpis, customerGrowth, customerStats, locationBreakdown, percentChange, recurringSeries, revenueSeries, todayComparison, type Dataset, type Granularity,
 } from "@/domain/analytics";
@@ -111,7 +115,15 @@ export default function DashboardPage() {
   const prevRange = `${formatDate(prev.start)} – ${formatDate(addDays(prev.end, -1))}`;
   const productPrev = new Map(kPrev.byProduct.map((p) => [p.key, p.amount]));
   const todayCmp = useMemo(() => todayComparison(ds, now, filterId), [ds, now, filterId]);
-  const monthK = useMemo(() => computeKpis(ds, makePeriod("month", now), filterId), [ds, now, filterId]);
+  const pl = useMemo(() => profitAndLoss(ds, ws.expenses, period, filterId), [ds, ws.expenses, period, filterId]);
+  const results12 = useMemo(() => resultSeries(ds, ws.expenses, now, 12, filterId), [ds, ws.expenses, now, filterId]);
+  const memSum = useMemo(() => membershipSummary(ws.customerMemberships, { plans: ws.membershipPlans, versions: ws.planVersions, charges: ws.membershipCharges }, { start: toISODate(startOfMonth(now)), end: toISODate(addMonths(startOfMonth(now), 1)) }, toISODate(now), 7, filterId), [ws, now, filterId]);
+  const memEvo = useMemo(() => membershipEvolution(ws.customerMemberships, now, 12, filterId), [ws.customerMemberships, now, filterId]);
+  const hasMemberships = ws.customerMemberships.length > 0;
+  const payable = useMemo(() => { const list = ws.expenses.filter((e) => e.status === "pending" && (!filterId || e.locationId === filterId)); return { count: list.length, amount: list.reduce((t, e) => t + e.total, 0) }; }, [ws.expenses, filterId]);
+  const scopeLocations = filterId ? 1 : ws.locations.filter((l) => l.status === "active").length;
+  const openSessions = ws.cashSessions.filter((x) => x.status === "open" && (!filterId || x.locationId === filterId)).length;
+  const expComparable = hasComparableHistory(ws.expenses, prev.start);
   const byLocation = useMemo(() => (!filterId && ws.locations.length > 1 ? locationBreakdown(ds, ws.locations, period) : []), [ds, ws.locations, period, filterId]);
   // Recurrente (cuotas, por emisión) frente a puntual (caja), 12 meses: IVA incluido, como la facturación
   const split12 = useMemo(() => {
@@ -131,14 +143,30 @@ export default function DashboardPage() {
     : trend;
   const trendHasData = trendData.some((t) => (t.current ?? 0) > 0 || (t.previous ?? 0) > 0);
 
+  const onboarding = useOnboardingProgress();
   const stats: StatItem[] = [
     { key: "tx", label: "Transacciones", value: k.operations.toLocaleString("es-ES", NUM), delta: percentChange(k.operations, kPrev.operations), spark: weekly(series, now, (p) => p.operations), tooltip: "Ventas individuales de caja. Los resúmenes mensuales importados no cuentan.", onClick: () => navigate("/ventas") },
     { key: "ticket", label: "Ticket medio", value: k.avgTicket !== null ? formatMoney(k.avgTicket) : "—", delta: k.avgTicket !== null && kPrev.avgTicket !== null ? percentChange(k.avgTicket, kPrev.avgTicket) : null, tooltip: "Media de las ventas individuales de caja del periodo." },
     { key: "customers", label: "Clientes activos", value: cust.active.toLocaleString("es-ES", NUM), delta: percentChange(cust.active, custPrev.active), hint: cust.active ? `${cust.firstTimeBuyers.toLocaleString("es-ES", NUM)} nuevos · ${cust.returningBuyers.toLocaleString("es-ES", NUM)} recurrentes` : undefined, tooltip: "Clientes distintos con una venta o factura en el periodo. Nuevos: su primera actividad es de este periodo.", onClick: () => navigate("/clientes") },
-    hasRecurring
-      ? { key: "mrr", label: "Ingresos recurrentes", value: formatMoney(recurringNow), delta: percentChange(recurringNow, recurringPrev), hint: "este mes · sin IVA", spark: recurring.map((r) => r.amount), tooltip: "Base imponible de las cuotas cuyo periodo de servicio cae en el mes en curso (MRR)." }
+    hasMemberships
+      ? { key: "members", label: "Membresías activas", value: (memSum.active + memSum.pastDue).toLocaleString("es-ES", NUM), hint: memSum.pastDue ? `${memSum.pastDue} con cuota vencida` : `+${memSum.newInPeriod} / −${memSum.cancelledInPeriod} este mes`, spark: memEvo.map((e) => e.active), onClick: () => navigate("/membresias") }
       : { key: "units", label: "Unidades vendidas", value: k.units.toLocaleString("es-ES", NUM), delta: percentChange(k.units, kPrev.units) },
+    hasMemberships
+      ? { key: "mrr", label: "MRR", value: formatMoney(memSum.mrr), hint: "mensual · sin IVA", tooltip: "Suma mensualizada (sin IVA) de las cuotas de las membresías vivas.", onClick: () => navigate("/membresias") }
+      : hasRecurring
+        ? { key: "mrr", label: "Ingresos recurrentes", value: formatMoney(recurringNow), delta: percentChange(recurringNow, recurringPrev), hint: "este mes · sin IVA", spark: recurring.map((r) => r.amount), tooltip: "Base imponible de las cuotas cuyo periodo de servicio cae en el mes en curso (MRR)." }
+        : { key: "margin", label: "Resultado", value: formatMoney(pl.result), hint: "sin IVA" },
   ];
+
+  // Empresa recién creada: se abre la puesta en marcha (una vez por pestaña)
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("bos.welcome") === ws.organization.id) {
+        sessionStorage.removeItem("bos.welcome");
+        if (can("settings.manage")) navigate("/bienvenida", { replace: true });
+      }
+    } catch { /* sin sessionStorage */ }
+  }, [ws.organization.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Page wide>
@@ -154,7 +182,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {empty && <Onboarding />}
+      {!ws.organization.isDemo && can("settings.manage") && !onboarding.finished && !onboarding.dismissed ? <SetupCard {...onboarding} /> : empty && <Onboarding />}
 
       <div className="stagger grid gap-4 md:grid-cols-12 [&>*]:min-w-0">
         {/* PRINCIPAL · Facturación + tendencia */}
@@ -167,10 +195,12 @@ export default function DashboardPage() {
               delta={<DeltaChip size="md" value={percentChange(k.revenue, kPrev.revenue)} label={<span title={prevRange}>vs {prev.label === "Periodo anterior" ? "periodo anterior" : prev.label.toLowerCase()}</span>} />}
               sub={<span className="text-sm text-fg-3">{period.label}</span>}
             />
-            <dl className="grid shrink-0 grid-cols-[auto_auto] gap-x-8 gap-y-1 text-sm lg:text-right">
+            <dl className="grid shrink-0 grid-cols-[auto_auto] gap-x-8 gap-y-1.5 text-sm lg:text-right">
               <dt className="text-fg-3">Caja / TPV</dt><dd className="text-right font-medium num">{formatMoney(k.salesRevenue)}</dd>
               <dt className="text-fg-3">Cuotas y facturas</dt><dd className="text-right font-medium num">{formatMoney(k.invoiceRevenue)}</dd>
-              <dt className="text-fg-3">IVA repercutido</dt><dd className="text-right font-medium num">{formatMoney(k.vatCollected)}</dd>
+              <dt className="text-fg-3">Gastos</dt><dd className="text-right font-medium num">{pl.hasExpenses ? `−${formatMoney(pl.expensesGross)}` : <Link to="/gastos" className="text-accent-fg hover:underline">Registrar</Link>}</dd>
+              <dt className="border-t border-line pt-1.5 font-medium text-fg-2">Resultado <span className="font-normal text-fg-3">sin IVA</span></dt>
+              <dd className={cn("border-t border-line pt-1.5 text-right font-semibold num", pl.result < 0 && "text-danger-fg")}>{formatMoney(pl.result)}{pl.margin !== null && pl.hasExpenses ? <span className="ml-1.5 text-xs font-normal text-fg-3">{Math.round(pl.margin * 100)} %</span> : null}</dd>
             </dl>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-3 sm:px-6">
@@ -186,7 +216,7 @@ export default function DashboardPage() {
           </div>
           <div className="px-3 pb-3 pt-2 sm:px-4">
             {trendHasData ? (
-              <TrendChart data={trendData} currentLabel={period.label} previousLabel={prev.label} height={300} />
+              <TrendChart data={trendData} currentLabel={period.label} previousLabel={prev.label} height={320} />
             ) : (
               <div className="flex h-[260px] flex-col items-center justify-center text-center">
                 <p className="text-sm font-medium">Sin facturación en este periodo</p>
@@ -223,7 +253,8 @@ export default function DashboardPage() {
             <dl className="mt-4 divide-y divide-line rounded-lg bg-surface-sunken/70 px-3.5 text-sm">
               <div className="flex items-center justify-between py-2.5"><dt className="flex items-center gap-2 text-fg-2"><Wallet className="h-4 w-4 text-fg-3" />Efectivo en caja</dt><dd className="font-semibold num">{cash ? formatMoney(cash.expectedCash) : "—"}</dd></div>
               <button type="button" onClick={() => navigate("/facturas?estado=pendiente")} className="flex w-full items-center justify-between py-2.5 text-left"><dt className="flex items-center gap-2 text-fg-2"><Receipt className="h-4 w-4 text-fg-3" />Pendiente de cobro</dt><dd className="font-semibold num">{formatMoney(k.pendingInvoices.amount)}{k.pendingInvoices.count ? <span className="ml-1.5 text-xs font-normal text-fg-3">{k.pendingInvoices.count} fact.</span> : null}</dd></button>
-              <div className="flex items-center justify-between py-2.5"><dt className="flex items-center gap-2 text-fg-2"><FileText className="h-4 w-4 text-fg-3" />Facturado este mes</dt><dd className="font-semibold num">{formatMoney(monthK.invoiceRevenue)}{todayCmp.invoicesToday ? <span className="ml-1.5 text-xs font-normal text-fg-3">hoy {formatMoney(todayCmp.invoicesToday)}</span> : null}</dd></div>
+              <button type="button" onClick={() => navigate("/gastos?estado=pending")} className="flex w-full items-center justify-between py-2.5 text-left"><dt className="flex items-center gap-2 text-fg-2"><ScrollText className="h-4 w-4 text-fg-3" />Pagos pendientes</dt><dd className="font-semibold num">{formatMoney(payable.amount)}{payable.count ? <span className="ml-1.5 text-xs font-normal text-fg-3">{payable.count} gastos</span> : null}</dd></button>
+              <button type="button" onClick={() => navigate("/cierres")} className="flex w-full items-center justify-between py-2.5 text-left"><dt className="flex items-center gap-2 text-fg-2"><Store className="h-4 w-4 text-fg-3" />Cajas abiertas</dt><dd className="font-semibold num">{openSessions}<span className="ml-1.5 text-xs font-normal text-fg-3">de {scopeLocations}</span></dd></button>
             </dl>
             {can("pos.sell") && (
               <Link to="/caja" className="mt-3 flex h-10 items-center justify-center gap-2 rounded-lg border border-line text-sm font-medium transition-colors hover:border-line-strong hover:bg-surface-2">
@@ -238,7 +269,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-3 rounded-lg bg-success-soft px-3.5 py-3 text-sm text-success-fg"><CheckCircle2 className="h-4 w-4 shrink-0" />Todo en orden. Nada pendiente ahora mismo.</div>
             ) : (
               <ul className="-mx-2">
-                {alerts.slice(0, 4).map((a) => (
+                {alerts.slice(0, 3).map((a) => (
                   <li key={a.id}>
                     <button onClick={() => navigate(a.to)} className="group flex w-full items-start gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-surface-2">
                       <span className={cn("mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md", a.severity === "danger" ? "bg-danger-soft text-danger-fg" : a.severity === "warning" ? "bg-warning-soft text-warning-fg" : "bg-surface-sunken text-fg-2")}>
@@ -254,25 +285,46 @@ export default function DashboardPage() {
                 ))}
               </ul>
             )}
+            {alerts.length > 3 && <Link to="/seguimiento" className="mt-1 block text-sm font-medium text-fg-3 hover:text-fg">Ver los {alerts.length} avisos →</Link>}
           </Card>
         </div>
 
         {/* SECUNDARIOS */}
         <StatStrip className="md:col-span-12" items={stats} />
 
-        {/* Recurrente frente a puntual + lectura */}
+        {/* Ingresos frente a gastos + lectura */}
         <Card className="md:col-span-12 xl:col-span-8">
           <CardHeader
-            title="Recurrente frente a puntual"
-            description={`Cuotas y facturas frente a ventas de caja · últimos 12 meses${recurringShare !== null ? ` · el ${recurringShare} % es recurrente` : ""}`}
-            action={<Legend items={[{ label: "Cuotas y facturas", color: "var(--chart-1)", shape: "bar" }, { label: "Caja", color: "var(--chart-1-mid)", shape: "bar" }]} />}
+            title="Ingresos frente a gastos"
+            description={pl.hasExpenses ? `Por mes · sin IVA · últimos 12 meses${expComparable ? "" : " · los gastos empiezan a registrarse en esta serie"}` : "Por mes · sin IVA · registra tus gastos para ver el resultado real"}
+            action={<Legend items={[{ label: "Ingresos", color: "var(--chart-1)", shape: "bar" }, { label: "Gastos", color: "var(--chart-out)", shape: "bar" }, { label: "Resultado", color: "var(--text)" }]} />}
           />
-          {split12Total ? <StackedColumnChart data={split12} aLabel="Cuotas y facturas" bLabel="Caja" height={230} partialLast /> : <p className="py-16 text-center text-sm text-fg-3">Sin facturación en los últimos 12 meses</p>}
+          <FlowChart partialLast height={240} inLabel="Ingresos" outLabel="Gastos" netLabel="Resultado" data={results12.map((r) => ({ key: toISODate(r.date), label: capitalize(monthShort(r.date.getMonth())), tooltipLabel: capitalize(`${monthName(r.date.getMonth())} ${r.date.getFullYear()}`), inflow: r.revenue, outflow: r.expenses, net: r.result }))} />
         </Card>
         <Card className="md:col-span-12 xl:col-span-4">
           <CardHeader title="Lo que dicen tus datos" description={`${period.label} frente a ${prev.label === "Periodo anterior" ? "el periodo anterior" : prev.label.toLowerCase()}`} />
           <InsightList items={insights} />
         </Card>
+
+        {/* Recurrente frente a puntual + membresías */}
+        <Card className={cn("md:col-span-12", hasMemberships && "xl:col-span-7")}>
+          <CardHeader
+            title="Recurrente frente a puntual"
+            description={`Cuotas y facturas frente a caja · IVA incluido · 12 meses${recurringShare !== null ? ` · ${recurringShare} % recurrente` : ""}`}
+            action={<Legend items={[{ label: "Cuotas y facturas", color: "var(--chart-1)", shape: "bar" }, { label: "Caja", color: "var(--chart-1-mid)", shape: "bar" }]} />}
+          />
+          {split12Total ? <StackedColumnChart data={split12} aLabel="Cuotas y facturas" bLabel="Caja" height={220} partialLast /> : <p className="py-16 text-center text-sm text-fg-3">Sin facturación en los últimos 12 meses</p>}
+        </Card>
+        {hasMemberships && (
+          <Card className="md:col-span-12 xl:col-span-5">
+            <CardHeader title="Membresías" description="Activas al cierre de cada mes · 12 meses" action={<Link to="/membresias" className="text-sm font-medium text-fg-3 hover:text-fg">Ver →</Link>} />
+            <div className="mb-3 flex items-baseline gap-4">
+              <p className="figure text-3xl leading-none">{(memSum.active + memSum.pastDue).toLocaleString("es-ES", NUM)}</p>
+              <p className="text-xs text-fg-3">MRR {formatMoney(memSum.mrr)} · {memSum.paused} en pausa</p>
+            </div>
+            <CountTrend label="activas" height={170} data={memEvo.map((e) => ({ key: toISODate(e.date), label: capitalize(monthShort(e.date.getMonth())), tooltipLabel: capitalize(`${monthName(e.date.getMonth())} ${e.date.getFullYear()}`), value: e.active, sub: `+${e.added} altas · −${e.cancelled} bajas` }))} />
+          </Card>
+        )}
 
         {/* Mix */}
         <Card className="md:col-span-6 xl:col-span-4">
@@ -373,6 +425,22 @@ export default function DashboardPage() {
         )}
       </div>
     </Page>
+  );
+}
+
+function SetupCard({ doneCount, total }: { doneCount: number; total: number }) {
+  return (
+    <Card className="mb-6 overflow-hidden p-0">
+      <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:p-6">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-fg"><Rocket className="h-5 w-5" /></span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[15px] font-semibold">Termina de preparar tu empresa</p>
+          <p className="mt-0.5 text-sm text-fg-3">{doneCount} de {total} pasos: datos fiscales, centros, equipo, cobros, productos, tarifas e importación.</p>
+          <ProgressBar className="mt-3 max-w-md" value={doneCount} max={total} label="Puesta en marcha" />
+        </div>
+        <Link to="/bienvenida"><Button variant="primary" iconRight={ArrowRight}>Continuar</Button></Link>
+      </div>
+    </Card>
   );
 }
 
