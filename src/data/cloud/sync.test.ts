@@ -7,7 +7,10 @@ import { createCategory, createProduct } from "../repos/catalog";
 import { openCashSession } from "../repos/cash";
 import { createSale, voidSale } from "../repos/sales";
 import { updateOrganization } from "../repos/settings";
-import { diffWorkspaces } from "./sync";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Workspace } from "../store";
+import { COLLECTIONS, entityToRow, toRow, type Row } from "./mapping";
+import { CloudSync, diffWorkspaces } from "./sync";
 
 async function setup() {
   const store = new Store(createMemoryKV());
@@ -69,5 +72,56 @@ describe("diffWorkspaces (lotes enviados a Supabase)", () => {
     const { store, batches } = await setup();
     store.update((ws) => ({ ...ws, products: [...ws.products] }));
     expect(batches).toHaveLength(0);
+  });
+});
+
+/**
+ * Supabase simulado: cada descarga lee la foto de `server` tomada al empezar (primera consulta, a `organizations`);
+ * `sync_push` responde al instante.
+ * Si `gate` existe, cada lectura espera a que se abra (descarga lenta, como en staging).
+ */
+function fakeSupabase(state: { server: Workspace; gate?: Promise<void> }): SupabaseClient {
+  const rowsOf = (table: string, ws: Workspace): Row[] | Row => {
+    if (table === "organizations") return toRow(ws.organization);
+    const c = COLLECTIONS.find(([, t]) => t === table);
+    return c ? (ws[c[0]] as object[]).map((e) => entityToRow(c[0], e)) : [];
+  };
+  let snapshot = state.server;
+  const query = (table: string) => {
+    if (table === "organizations") snapshot = state.server; // empieza una descarga: se fija la foto
+    let single = false;
+    const chain: Record<string, unknown> = {};
+    for (const m of ["select", "eq", "order", "range", "limit"]) chain[m] = () => chain;
+    chain.single = () => ((single = true), chain);
+    chain.maybeSingle = () => ({ then: (r: (v: unknown) => void) => r({ data: null, error: null }) });
+    chain.then = (resolve: (v: unknown) => void) =>
+      void (state.gate ?? Promise.resolve()).then(() => {
+        const data = rowsOf(table, snapshot);
+        resolve({ data: single ? data : Array.isArray(data) ? data : [data], error: null });
+      });
+    return chain;
+  };
+  return { from: query, rpc: async () => ({ data: [], error: null }) } as unknown as SupabaseClient;
+}
+
+describe("CloudSync.pull", () => {
+  it("una descarga lenta no pisa una escritura hecha (y enviada) mientras descargaba", async () => {
+    const { store, ctx, loc } = await setup();
+    const kv = createMemoryKV();
+    let open!: () => void;
+    const state: { server: Workspace; gate?: Promise<void> } = { server: store.requireWorkspace(), gate: new Promise<void>((r) => (open = r)) };
+    const sync = new CloudSync(fakeSupabase(state), kv, store);
+    (sync as unknown as { orgId: string }).orgId = store.requireWorkspace().organization.id;
+
+    const pulling = sync.pull(); // empieza la descarga: la foto del servidor aún no tiene la caja abierta
+    const session = openCashSession(ctx, loc, 0); // el usuario abre caja mientras tanto
+    await sync.flush(); // se envía y la cola queda vacía
+    state.server = store.requireWorkspace(); // el servidor ya la tiene
+    state.gate = undefined;
+    open();
+    await pulling;
+
+    expect(sync.pending).toBe(0);
+    expect(store.requireWorkspace().cashSessions.map((s) => s.id)).toContain(session.id);
   });
 });

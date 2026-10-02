@@ -194,6 +194,8 @@ export class CloudSync {
   private flushing: Promise<void> | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private retryDelay = 2000;
+  /** Escrituras locales encoladas: una descarga iniciada antes de la última es una foto vieja. */
+  private writes = 0;
   private statusListeners = new Set<(s: SyncStatus) => void>();
   private errorListeners = new Set<(message: string) => void>();
   status: SyncStatus = { state: "idle", pending: 0 };
@@ -234,14 +236,17 @@ export class CloudSync {
     if (this.retryTimer) clearTimeout(this.retryTimer);
   }
 
-  /** Descarga el estado real (no pisa cambios locales aún no enviados). */
+  /** Descarga el estado real (no pisa cambios locales aún no enviados ni hechos durante la descarga). */
   async pull(): Promise<void> {
     const orgId = this.orgId;
     if (!orgId) return;
     this.setStatus({ state: "syncing" });
+    const writes = this.writes;
     const ws = await pullWorkspace(this.sb, orgId);
     if (this.orgId !== orgId) return;
     if (this.outbox.length) return this.setStatus({ state: "idle" });
+    // Hubo una escritura mientras se descargaba (y ya se envió): la foto puede no incluirla. Se vuelve a pedir.
+    if (this.writes !== writes) return this.pull();
     this.store.setWorkspace(ws);
     this.setStatus({ state: "idle", lastSyncedAt: new Date().toISOString(), error: undefined });
   }
@@ -249,6 +254,7 @@ export class CloudSync {
   private enqueue(prev: Workspace, next: Workspace) {
     const d = diffWorkspaces(prev, next);
     if (!d) return;
+    this.writes++;
     this.outbox.push({ ...d, id: uid(), createdAt: new Date().toISOString() });
     this.setStatus({});
     void this.persist().then(() => this.flush());

@@ -2,6 +2,18 @@
 
 Formato: fecha, fase, resumen. Más reciente arriba.
 
+## 2026-10-02 — Validación contra business-os-staging + corrección de sincronización
+
+### HECHO
+- **Conexión real con business-os-staging** usando solo la clave pública: Auth (solo email, «Confirm email» desactivado), las 50 tablas accesibles por PostgREST y ocultas por RLS sin sesión, escritura anónima bloqueada, RPC (`create_organization`, `sync_push`, `add_member_by_email`, `update_member`) denegadas sin sesión.
+- **`npm run test:cloud` contra staging: 8/8** (CORE en dos dispositivos, aislamiento entre empresas, permisos, importación/reversión).
+- **`npm run e2e` contra staging: 22/22**, tres ejecuciones seguidas, sin errores de consola (registro → empresa → producto → cliente → venta → cierre → logout → reentrada → segundo navegador).
+- **Bug corregido en `CloudSync.pull`** (solo aparecía con la latencia real de staging): una descarga iniciada antes de una escritura sustituía el estado local por esa foto vieja si la escritura ya se había enviado. Ejemplo: al abrir caja justo al entrar en Caja, la caja volvía a verse cerrada aunque estaba guardada en el servidor. Ahora, si hubo escrituras durante la descarga, se descarta la foto y se vuelve a descargar. Test de regresión en `sync.test.ts` (falla sin la corrección).
+
+### PENDIENTE
+- Con `SUPABASE_ACCESS_TOKEN`: `scripts/staging/apply.mjs --status` (registro 0100–0810 + RLS) y `rls_isolation.sql` contra staging.
+- Limpieza de las cuentas y empresas sintéticas de prueba en staging (requiere credencial administrativa).
+
 ## 2026-10-01 — Staging: endurecimiento de seguridad versionado (0800 + 0810)
 
 ### HECHO
