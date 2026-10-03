@@ -180,7 +180,9 @@ export function fillDemoWorkspace(ws: Workspace, userId: string): Workspace {
         sellDay(d, loc, volume);
         continue;
       }
-      const openedAt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 6, 50);
+      const scheduledOpenAt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 6, 50);
+      // La caja abierta de hoy debe existir aunque la demo se genere antes de su hora habitual.
+      const openedAt = today && scheduledOpenAt > now ? now : scheduledOpenAt;
       if (openedAt > now) continue;
       const session: CashSession = { id: uid(), organizationId: orgId, locationId: loc.id, openedBy: user.id, openedAt: openedAt.toISOString(), openingFloat: OPENING, status: today && loc === north ? "open" : "closed" };
       cashSessions.push(session);

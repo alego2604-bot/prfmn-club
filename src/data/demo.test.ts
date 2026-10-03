@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildWorkspace } from "./workspace";
 import { DEMO_ORGANIZATION, fillDemoWorkspace } from "./demo";
 import { diffWorkspaces, splitBatch, batchRows, CHUNK_MAX_ROWS } from "./cloud/sync";
@@ -38,6 +38,21 @@ describe("Demo sintética", () => {
     expect(ws.importRecords.length).toBe(43);
     for (const i of ws.invoices) expect(ws.invoiceItems.some((it) => it.invoiceId === i.id)).toBe(true);
     expect(visibleWorkspace(ws).sales).toHaveLength(ws.sales.length); // la importación de la demo está completada
+  });
+
+  it("mantiene una caja abierta con ejecución temprana, sin alterar los cierres históricos", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 10, 3, 0));
+    try {
+      const early = fillDemoWorkspace(fresh(), "u1");
+      const openSessions = early.cashSessions.filter((s) => s.status === "open");
+      expect(openSessions).toHaveLength(1);
+      expect(openSessions[0]!.locationId).toBe(early.locations[0]!.id);
+      expect(new Date(openSessions[0]!.openedAt).getTime()).toBeLessThanOrEqual(Date.now());
+      expect(early.cashClosings.length).toBeGreaterThan(60);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("finanzas y membresías coherentes: gastos con proveedor, cuotas con cargo, estados variados", () => {
