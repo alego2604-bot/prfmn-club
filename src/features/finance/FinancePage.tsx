@@ -70,15 +70,15 @@ export default function FinancePage() {
       {/* Extracto: resultado protagonista + cuenta de resultados y tesorería como líneas */}
       <Card className="mb-8 overflow-hidden" padded={false}>
         <div className="grid xl:grid-cols-[1.1fr_1fr]">
-          <div className="relative p-6 sm:p-8">
+          <div className="relative flex flex-col p-6 sm:p-8">
             <div className="pointer-events-none absolute -left-24 -top-24 h-64 w-64 rounded-full bg-[radial-gradient(closest-side,var(--accent-soft),transparent)] opacity-70" aria-hidden />
             <p className="relative text-sm font-medium text-fg-2">Resultado del periodo</p>
             <p className={cn("relative mt-2 text-5xl leading-none sm:text-6xl", pl.result < 0 && "text-danger-fg")}><Amount cents={pl.result} size="hero" /></p>
             <div className="relative mt-3 flex flex-wrap items-center gap-2 text-xs text-fg-3">
-              {expComparable && revComparable ? <DeltaChip size="md" value={percentChange(pl.result, plPrev.result)} label={`vs ${prev.label.toLowerCase()}`} /> : <span>Sin histórico de gastos para comparar con {prev.label.toLowerCase()}</span>}
+              {expComparable && revComparable ? <DeltaChip size="md" value={percentChange(pl.result, plPrev.result)} label={`vs ${prev.label.toLowerCase()}`} /> : <span>Sin histórico suficiente para comparar con {prev.label.toLowerCase()}</span>}
               {pl.margin !== null && <span>Margen {Math.round(pl.margin * 100)} % · sin IVA</span>}
             </div>
-            <div className="relative mt-7 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line">
+            <div className="relative mt-7 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line xl:mt-auto">
               <div className="bg-surface p-4">
                 <p className="flex items-center gap-1.5 text-xs font-medium text-fg-3"><span className="h-2 w-2 rounded-full bg-[var(--chart-1)]" />Ingresos</p>
                 <p className="mt-1 text-xl font-semibold tracking-tight num">{formatMoney(pl.revenueBase)}</p>
@@ -115,14 +115,14 @@ export default function FinancePage() {
         action={<Segmented size="sm" value={flow} onChange={setFlow} items={[{ value: "result", label: "Resultado" }, { value: "split", label: "Recurrente / puntual" }]} />}
       >
         <div className="grid gap-4 md:grid-cols-12 [&>*]:min-w-0">
-          <Card className="md:col-span-12 xl:col-span-8">
+          <Card className="flex flex-col md:col-span-12 xl:col-span-8">
             {flow === "result" ? (
               <>
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm text-fg-3">{noExpenses ? "Sin gastos registrados todavía: la línea de resultado coincide con los ingresos." : "Barras: ingresos y gastos. Línea: resultado."}</p>
+                  <p className="text-sm text-fg-3">{noExpenses ? "Sin gastos registrados todavía: la línea de resultado coincide con los ingresos." : ""}</p>
                   <Legend items={[{ label: "Ingresos", color: "var(--chart-1)", shape: "bar" }, { label: "Gastos", color: "var(--chart-out)", shape: "bar" }, { label: "Resultado", color: "var(--text)" }]} />
                 </div>
-                <FlowChart partialLast height={260} inLabel="Ingresos" outLabel="Gastos" netLabel="Resultado" data={results.map((r) => ({ key: toISODate(r.date), label: capitalize(monthShort(r.date.getMonth())), tooltipLabel: capitalize(`${monthName(r.date.getMonth())} ${r.date.getFullYear()}`), inflow: r.revenue, outflow: r.expenses, net: r.result }))} />
+                <FlowChart fill partialLast height={260} inLabel="Ingresos" outLabel="Gastos" netLabel="Resultado" data={results.map((r) => ({ key: toISODate(r.date), label: capitalize(monthShort(r.date.getMonth())), tooltipLabel: capitalize(`${monthName(r.date.getMonth())} ${r.date.getFullYear()}`), inflow: r.revenue, outflow: r.expenses, net: r.result }))} />
               </>
             ) : (
               <>
@@ -130,7 +130,7 @@ export default function FinancePage() {
                   <p className="text-sm text-fg-3">Por mes de emisión · IVA incluido</p>
                   <Legend items={[{ label: "Cuotas y facturas", color: "var(--chart-1)", shape: "bar" }, { label: "Caja", color: "var(--chart-1-mid)", shape: "bar" }]} />
                 </div>
-                <StackedColumnChart data={split12} aLabel="Cuotas y facturas" bLabel="Caja" height={260} partialLast />
+                <div className="flex flex-1 flex-col justify-end"><StackedColumnChart data={split12} aLabel="Cuotas y facturas" bLabel="Caja" height={260} partialLast /></div>
               </>
             )}
           </Card>

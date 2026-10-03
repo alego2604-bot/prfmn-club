@@ -90,11 +90,13 @@ export interface TrendPoint {
 }
 
 /** Tendencia temporal: periodo actual (acento, área) frente al anterior (gris discontinuo). Un solo eje. */
-export function TrendChart({ data, currentLabel, previousLabel, height = 260, format = formatMoney, axisFormat = compactMoney, className }: {
+export function TrendChart({ data, currentLabel, previousLabel, height = 260, format = formatMoney, axisFormat = compactMoney, className, fill }: {
   data: TrendPoint[];
   currentLabel: string;
   previousLabel?: string;
   height?: number;
+  /** Ocupa el alto disponible del contenedor (flex), con `height` como mínimo */
+  fill?: boolean;
   format?: (v: number) => string;
   axisFormat?: (v: number) => string;
   className?: string;
@@ -106,7 +108,7 @@ export function TrendChart({ data, currentLabel, previousLabel, height = 260, fo
     return -1;
   }, [data]);
   return (
-    <div style={{ height }} className={cn("w-full", className)}>
+    <div style={fill ? { minHeight: height } : { height }} className={cn("w-full", fill && "h-full flex-1", className)}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
           <defs>
@@ -180,7 +182,7 @@ export interface ColumnPoint {
  * Columnas por periodo: actual (acento) y, opcional, comparación (gris). ≤ 24px, extremo redondeado, 2px de aire.
  * `partialLast`: el último periodo está en curso (incompleto) y se dibuja atenuado; el histórico, completo, en sólido.
  */
-export function ColumnChart({ data, currentLabel, previousLabel, height = 220, format = formatMoney, axisFormat = compactMoney, partialLast, tone = "accent" }: {
+export function ColumnChart({ data, currentLabel, previousLabel, height = 220, format = formatMoney, axisFormat = compactMoney, partialLast, tone = "accent", fill }: {
   /** "out" = dinero que sale (gastos) */
   tone?: "accent" | "out";
   data: ColumnPoint[];
@@ -191,10 +193,11 @@ export function ColumnChart({ data, currentLabel, previousLabel, height = 220, f
   axisFormat?: (v: number) => string;
   /** El último periodo está en curso: se atenúa (dato parcial) */
   partialLast?: boolean;
+  fill?: boolean;
 }) {
   const hasPrev = data.some((d) => d.previous !== undefined && d.previous !== null);
   return (
-    <div style={{ height }} className="w-full">
+    <div style={fill ? { minHeight: height } : { height }} className={cn("w-full", fill && "h-full flex-1")}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 10, right: 8, left: 0, bottom: 0 }} barGap={2} barCategoryGap={hasPrev ? "26%" : "34%"}>
           <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
@@ -361,7 +364,7 @@ export interface FlowPoint {
  * Entradas frente a salidas por periodo (ingresos vs gastos, cobros vs pagos) con el neto como línea.
  * Entradas = acento; salidas = coral apagado (dinero que sale, no un error); neto = tinta.
  */
-export function FlowChart({ data, inLabel, outLabel, netLabel = "Resultado", height = 260, format = formatMoney, axisFormat = compactMoney, partialLast }: {
+export function FlowChart({ data, inLabel, outLabel, netLabel = "Resultado", height = 260, format = formatMoney, axisFormat = compactMoney, partialLast, fill }: {
   data: FlowPoint[];
   inLabel: string;
   outLabel: string;
@@ -370,10 +373,11 @@ export function FlowChart({ data, inLabel, outLabel, netLabel = "Resultado", hei
   format?: (v: number) => string;
   axisFormat?: (v: number) => string;
   partialLast?: boolean;
+  fill?: boolean;
 }) {
   const lastKey = data[data.length - 1]?.key;
   return (
-    <div style={{ height }} className="w-full">
+    <div style={fill ? { minHeight: height } : { height }} className={cn("w-full", fill && "h-full flex-1")}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ top: 10, right: 8, left: 0, bottom: 0 }} barGap={2} barCategoryGap="28%">
           <CartesianGrid vertical={false} stroke="var(--chart-grid)" />

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import {
   AlertCircle, ArrowLeft, ArrowRight, BellOff, CalendarClock, CheckCircle2, Circle, Contact, CreditCard, FileText, FolderOpen, ListTodo, Mail, MessageCircle,
   MoreHorizontal, NotebookPen, Pencil, Pin, Plus, Receipt, Repeat, ScrollText, ShoppingBag, StickyNote, Store, UserPlus, UserX, Wallet,
+  type LucideIcon,
 } from "lucide-react";
 import { useCtx, useSession, useWorkspace, usePersonName } from "@/app/session";
 import { useServerReady } from "@/app/serverCaps";
@@ -146,68 +147,79 @@ export default function CustomerDetailPage() {
     renewal,
     { label: "Cliente desde", value: c.joinedAt ? formatDate(c.joinedAt) : formatDate(c.createdAt), sub: c.joinedAt ? `${Math.max(0, Math.round(daysBetween(new Date(`${c.joinedAt}T00:00`), new Date(c.leftAt ? `${c.leftAt}T00:00` : Date.now())) / 30))} meses` : undefined },
   ];
+  const MEMBERSHIP_TEXT: Record<string, string> = { success: "text-success-fg", info: "text-info-fg", neutral: "text-fg-3", warning: "text-warning-fg", danger: "text-danger-fg" };
   const ACTION_TONE = { danger: "bg-danger-soft text-danger-fg", warning: "bg-warning-soft text-warning-fg", info: "bg-accent-soft text-accent-fg", neutral: "bg-surface-sunken text-fg-2", success: "bg-success-soft text-success-fg" };
 
   return (
     <Page wide>
       <Link to="/clientes" className="mb-4 inline-flex items-center gap-1.5 text-sm text-fg-3 hover:text-fg"><ArrowLeft className="h-4 w-4" />Clientes</Link>
 
-      <div className="mb-5 flex flex-col gap-5 2xl:flex-row 2xl:items-start 2xl:justify-between">
-        <div className="flex min-w-0 items-center gap-4">
-          <Avatar name={name} size={64} className="text-lg shadow-sm ring-4 ring-surface" />
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-[28px] font-semibold tracking-[-0.03em]">{name}</h1>
-              <Badge tone={CUSTOMER_STATUS[c.status].tone} dot>{CUSTOMER_STATUS[c.status].label}</Badge>
-              {mv && <Badge tone={MEMBERSHIP_VIEW[mv].tone}>{plan?.name ?? "Membresía"} · {MEMBERSHIP_VIEW[mv].label}</Badge>}
-              {data.silenced && <Badge tone="info"><BellOff className="h-3 w-3" />Avisos silenciados hasta {formatDate(data.silenced.suppressAlertsUntil!)}</Badge>}
+      {/* Ficha: identidad, acciones, próxima acción y cifras clave en una sola tarjeta */}
+      <section className="surface-card relative mb-6 overflow-hidden rounded-2xl">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(120%_100%_at_0%_0%,var(--accent-soft),transparent_70%)] opacity-80" aria-hidden />
+        <div className="relative flex flex-col gap-5 p-5 sm:p-6 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
+            <Avatar name={name} size={64} className="shrink-0 text-lg shadow-sm ring-4 ring-surface" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="truncate text-2xl font-semibold tracking-[-0.03em] sm:text-[28px]">{name}</h1>
+                <Badge tone={CUSTOMER_STATUS[c.status].tone} dot>{CUSTOMER_STATUS[c.status].label}</Badge>
+              </div>
+              <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-3">
+                {mv && (
+                  <span className={cn("inline-flex items-center gap-1.5 font-medium", mv === "ACTIVE" ? "text-fg-2" : MEMBERSHIP_TEXT[MEMBERSHIP_VIEW[mv].tone])}>
+                    <Contact className="h-3.5 w-3.5" />{plan?.name ?? "Membresía"}{mv !== "ACTIVE" && ` · ${MEMBERSHIP_VIEW[mv].label}`}
+                  </span>
+                )}
+                {loc && <span className="inline-flex items-center gap-1"><Store className="h-3.5 w-3.5" />{loc.name}</span>}
+                {c.companyName && <span>{c.companyName}</span>}
+                {c.email && <a href={`mailto:${c.email}`} className="hover:text-fg">{c.email}</a>}
+                {c.phone && <span className="num">{c.phone}</span>}
+                {c.taxId && <span className="inline-flex items-center gap-1"><Mono className="text-fg-2">{c.taxIdNormalized ?? c.taxId}</Mono>{c.taxIdValid === false && <AlertCircle className="h-3.5 w-3.5 text-danger" aria-label="NIF no válido" />}</span>}
+                {data.silenced && <span className="inline-flex items-center gap-1 text-info-fg"><BellOff className="h-3.5 w-3.5" />Avisos silenciados hasta {formatDate(data.silenced.suppressAlertsUntil!)}</span>}
+              </p>
             </div>
-            <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-3">
-              {loc && <span className="flex items-center gap-1"><Store className="h-3.5 w-3.5" />{loc.name}</span>}
-              {c.companyName && <span>{c.companyName}</span>}
-              {c.email && <a href={`mailto:${c.email}`} className="hover:text-fg">{c.email}</a>}
-              {c.phone && <span className="num">{c.phone}</span>}
-              {c.taxId && <span className="flex items-center gap-1"><Mono className="text-fg-2">{c.taxIdNormalized ?? c.taxId}</Mono>{c.taxIdValid === false && <AlertCircle className="h-3.5 w-3.5 text-danger" />}</span>}
-            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {can("pos.sell") && <Button variant="primary" icon={ShoppingBag} onClick={() => navigate(`/caja?cliente=${c.id}`)}>Venta</Button>}
+            <div className="inline-flex items-center divide-x divide-line overflow-hidden rounded-md border border-line bg-surface shadow-xs" role="group" aria-label="Acciones del cliente">
+              {can("payments.manage") && ready && <QuickAction icon={CreditCard} label="Cobro" disabled={!oldestPending} title={oldestPending ? "Registrar el cobro pendiente más antiguo" : "Sin facturas pendientes"} onClick={() => oldestPending && setPaying(oldestPending.id)} />}
+              {can("invoices.manage") && ready && <QuickAction icon={Receipt} label="Factura" onClick={() => navigate(`/facturas/nueva?cliente=${c.id}`)} />}
+              {can("customers.manage") && <QuickAction icon={NotebookPen} label="Nota" onClick={() => setTab("notes")} />}
+              {can("customers.manage") && ready && <QuickAction icon={ListTodo} label="Tarea" onClick={() => setNewTask(true)} />}
+              <Menu width={240} trigger={(_, toggle) => <QuickAction icon={MoreHorizontal} label="Más" onClick={toggle} />}>
+                {(close) => (
+                  <>
+                    {can("memberships.manage") && ready && <MenuItem icon={Contact} onClick={() => { close(); if (m && !gone) setTab("membership"); else setAssign(true); }}>{m && !gone ? "Cambiar membresía" : "Nueva membresía"}</MenuItem>}
+                    {can("customers.manage") && <MenuItem icon={Pencil} onClick={() => { close(); setEditing(true); }}>Editar ficha</MenuItem>}
+                    {can("expenses.manage") && ready && <MenuItem icon={ScrollText} onClick={() => { close(); setRelatedExpense(true); }}>Gasto relacionado</MenuItem>}
+                    {waNumber && <MenuItem icon={MessageCircle} onClick={() => { close(); window.open(`https://wa.me/${waNumber}`, "_blank", "noopener"); }}>WhatsApp (manual)</MenuItem>}
+                    {c.email && <MenuItem icon={Mail} onClick={() => { close(); window.location.href = `mailto:${c.email}`; }}>Email</MenuItem>}
+                    <MenuItem icon={MessageCircle} disabled hint="Pronto">Mensaje desde la app</MenuItem>
+                  </>
+                )}
+              </Menu>
+            </div>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {can("pos.sell") && <Button icon={ShoppingBag} onClick={() => navigate(`/caja?cliente=${c.id}`)}>Venta</Button>}
-          {can("payments.manage") && ready && <Button icon={CreditCard} disabled={!oldestPending} title={oldestPending ? undefined : "Sin facturas pendientes"} onClick={() => oldestPending && setPaying(oldestPending.id)}>Cobro</Button>}
-          {can("invoices.manage") && ready && <Button icon={Receipt} onClick={() => navigate(`/facturas/nueva?cliente=${c.id}`)}>Factura</Button>}
-          {can("customers.manage") && <Button icon={NotebookPen} onClick={() => setTab("notes")}>Nota</Button>}
-          {can("customers.manage") && ready && <Button icon={ListTodo} onClick={() => setNewTask(true)}>Tarea</Button>}
-          <Menu width={240} trigger={(_, toggle) => <Button icon={MoreHorizontal} onClick={toggle}>Más</Button>}>
-            {(close) => (
-              <>
-                {can("memberships.manage") && ready && <MenuItem icon={Contact} onClick={() => { close(); if (m && !gone) setTab("membership"); else setAssign(true); }}>{m && !gone ? "Cambiar membresía" : "Nueva membresía"}</MenuItem>}
-                {can("customers.manage") && <MenuItem icon={Pencil} onClick={() => { close(); setEditing(true); }}>Editar ficha</MenuItem>}
-                {can("expenses.manage") && ready && <MenuItem icon={ScrollText} onClick={() => { close(); setRelatedExpense(true); }}>Gasto relacionado</MenuItem>}
-                {waNumber && <MenuItem icon={MessageCircle} onClick={() => { close(); window.open(`https://wa.me/${waNumber}`, "_blank", "noopener"); }}>WhatsApp (manual)</MenuItem>}
-                {c.email && <MenuItem icon={Mail} onClick={() => { close(); window.location.href = `mailto:${c.email}`; }}>Email</MenuItem>}
-                <MenuItem icon={MessageCircle} disabled hint="Pronto">Mensaje desde la app</MenuItem>
-              </>
-            )}
-          </Menu>
+
+        {/* Próxima acción: qué hacer ahora con este cliente y por qué */}
+        <div className={cn("relative flex flex-wrap items-center gap-x-3 gap-y-1 border-y border-line px-5 py-2.5 sm:px-6", ACTION_TONE[action.tone])}>
+          <CalendarClock className="h-4 w-4 shrink-0" />
+          <p className="min-w-0 flex-1 text-sm"><span className="font-semibold">{action.label}</span><span className="opacity-80"> · {action.reason}</span></p>
+          {action.kind !== "none" && <button type="button" onClick={runAction} className="inline-flex items-center gap-1 rounded-md text-sm font-semibold hover:underline">Hacerlo ahora<ArrowRight className="h-3.5 w-3.5" /></button>}
         </div>
-      </div>
 
-      {/* Próxima acción: qué hacer ahora con este cliente y por qué */}
-      <div className={cn("mb-5 flex flex-wrap items-center gap-3 rounded-xl px-4 py-3", ACTION_TONE[action.tone])}>
-        <CalendarClock className="h-4 w-4 shrink-0" />
-        <p className="min-w-0 flex-1 text-sm"><span className="font-semibold">Próxima acción: {action.label}</span><span className="opacity-80"> · {action.reason}</span></p>
-        {action.kind !== "none" && <button type="button" onClick={runAction} className="inline-flex items-center gap-1 text-sm font-semibold hover:underline">Hacerlo ahora<ArrowRight className="h-3.5 w-3.5" /></button>}
-      </div>
-
-      <div className="surface-card mb-6 grid grid-cols-2 overflow-hidden rounded-xl sm:grid-cols-3 xl:grid-cols-6">
-        {fields.map((f) => (
-          <div key={f.label} className="-ml-px -mt-px border-l border-t border-line px-4 py-3.5 sm:px-5 sm:py-4">
-            <p className="truncate text-xs font-medium text-fg-3">{f.label}</p>
-            <p className={cn("mt-1 truncate font-semibold tracking-[-0.02em]", f.small ? "text-[15px] leading-7" : "text-lg sm:text-xl", f.tone === "warning" && "text-warning-fg", f.tone === "danger" && "text-danger-fg")} title={String(f.value)}>{f.value}</p>
-            {f.sub && <p className="mt-0.5 truncate text-xs text-fg-3">{f.sub}</p>}
-          </div>
-        ))}
-      </div>
+        <div className="relative grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6">
+          {fields.map((f) => (
+            <div key={f.label} className="-ml-px -mt-px border-l border-t border-line px-5 py-4 first:border-l-0 sm:px-6">
+              <p className="truncate text-xs font-medium text-fg-3">{f.label}</p>
+              <p className={cn("mt-1 truncate font-semibold tracking-[-0.02em] num", f.small ? "text-[15px] leading-7" : "text-lg sm:text-xl", f.tone === "warning" && "text-warning-fg", f.tone === "danger" && "text-danger-fg")} title={String(f.value)}>{f.value}</p>
+              {f.sub && <p className="mt-0.5 truncate text-xs text-fg-3">{f.sub}</p>}
+            </div>
+          ))}
+        </div>
+      </section>
 
       {c.taxIdValid === false && <Callout tone="warning" className="mb-4" title="NIF no válido">«{c.taxId}» no supera la validación de DNI/NIE/CIF. Corrígelo antes de emitirle facturas nuevas.</Callout>}
 
@@ -229,7 +241,7 @@ export default function CustomerDetailPage() {
       />
 
       {tab === "overview" && (
-        <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr] [&>*]:min-w-0">
+        <div className="grid items-start gap-4 lg:grid-cols-[1.5fr_1fr] [&>*]:min-w-0">
           <Card>
             <CardHeader title="Relación con el cliente" description="Lo último: compras, cuotas, cobros, notas, tareas y cambios" action={data.timeline.length > 8 ? <button type="button" onClick={() => setTab("timeline")} className="text-sm font-medium text-fg-3 hover:text-fg">Ver todo →</button> : undefined} />
             <Timeline items={data.timeline.slice(0, 8)} />
@@ -542,5 +554,15 @@ function Timeline({ items }: { items: { at: string; icon: typeof Receipt; title:
         </section>
       ))}
     </div>
+  );
+}
+
+/** Acción rápida de la ficha: icono + texto (solo icono en móvil, con nombre accesible). */
+function QuickAction({ icon: Icon, label, onClick, disabled, title }: { icon: LucideIcon; label: string; onClick?: () => void; disabled?: boolean; title?: string }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} title={title ?? label} aria-label={label}
+      className="inline-flex h-9 items-center gap-2 px-3 text-sm font-medium text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg disabled:pointer-events-none disabled:opacity-45">
+      <Icon className="h-4 w-4" /><span className="hidden sm:inline">{label}</span>
+    </button>
   );
 }

@@ -186,7 +186,7 @@ export default function DashboardPage() {
 
       <div className="stagger grid gap-4 md:grid-cols-12 [&>*]:min-w-0">
         {/* PRINCIPAL · Facturación + tendencia */}
-        <Card className="md:col-span-12 xl:col-span-8" padded={false}>
+        <Card className="flex flex-col md:col-span-12 xl:col-span-8" padded={false}>
           <div className="flex flex-col gap-5 p-5 pb-2 sm:p-6 sm:pb-2 lg:flex-row lg:items-start lg:justify-between">
             <HeroMetric
               label="Facturación"
@@ -214,9 +214,9 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
-          <div className="px-3 pb-3 pt-2 sm:px-4">
+          <div className="flex flex-1 flex-col px-3 pb-3 pt-2 sm:px-4">
             {trendHasData ? (
-              <TrendChart data={trendData} currentLabel={period.label} previousLabel={prev.label} height={320} />
+              <TrendChart fill data={trendData} currentLabel={period.label} previousLabel={prev.label} height={300} />
             ) : (
               <div className="flex h-[260px] flex-col items-center justify-center text-center">
                 <p className="text-sm font-medium">Sin facturación en este periodo</p>
@@ -224,7 +224,7 @@ export default function DashboardPage() {
               </div>
             )}
             {trendMode === "caja" && (
-              <p className="px-2 pb-1 text-xs text-fg-3">Ventas de caja. Las cuotas se emiten en lote a principio de mes: míralas en «Todo» o en «Recurrente frente a puntual».</p>
+              <p className="px-2 pt-1 text-xs text-fg-3">Solo ventas de caja. Las cuotas se emiten a principio de mes: inclúyelas con «Todo».</p>
             )}
           </div>
         </Card>
@@ -408,19 +408,19 @@ export default function DashboardPage() {
           )}
         </Card>
         {byLocation.length > 1 ? (
-          <Card className="md:col-span-12 xl:col-span-4">
+          <Card className="flex flex-col md:col-span-12 xl:col-span-4">
             <CardHeader title="Comparativa de centros" description={`Facturación · ${period.label.toLowerCase()}`} />
             <BarList rows={byLocation.map((l) => ({ key: l.id, label: l.name, value: l.revenue, sub: `${l.operations} ventas` }))} />
-            <p className="mt-4 text-xs text-fg-3">Elige un centro arriba para ver solo sus cifras.</p>
+            <p className="mt-auto pt-4 text-xs text-fg-3">Elige un centro arriba para ver solo sus cifras.</p>
           </Card>
         ) : (
-          <Card className="md:col-span-12 xl:col-span-4">
+          <Card className="flex flex-col md:col-span-12 xl:col-span-4">
             <CardHeader
               title={`${now.getFullYear()} frente a ${now.getFullYear() - 1}`}
               description="Facturación mensual"
               action={<Legend items={[{ label: String(now.getFullYear()), color: "var(--chart-1)", shape: "bar" }, { label: String(now.getFullYear() - 1), color: "var(--chart-2-bar)", shape: "bar" }]} />}
             />
-            <ColumnChart data={yearMonths} currentLabel={String(now.getFullYear())} previousLabel={String(now.getFullYear() - 1)} height={200} />
+            <ColumnChart fill data={yearMonths} currentLabel={String(now.getFullYear())} previousLabel={String(now.getFullYear() - 1)} height={200} />
           </Card>
         )}
       </div>
