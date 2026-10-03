@@ -41,7 +41,7 @@ export default function PaymentsPage() {
 
   return (
     <Page wide>
-      <FinanceHeader title="Cobros" eyebrow="Cada movimiento de dinero, separado de la venta o factura que lo origina. Las devoluciones compensan, nunca borran." />
+      <FinanceHeader title="Cobros" eyebrow="Todo el dinero que entra y sale · las devoluciones quedan registradas" />
       <div className="mb-5 grid gap-3 lg:grid-cols-3">
         <div className="grid grid-cols-2 gap-3 lg:col-span-1 lg:grid-cols-1">
           <Kpi label="Cobrado neto" value={formatMoney(net)} hint={filter.period?.label ?? "Todo el histórico"} />

@@ -95,7 +95,7 @@ export default function InvoicesPage() {
     <Page wide>
       <FinanceHeader
         title="Facturas"
-        eyebrow="Por fecha de emisión (criterio del IVA) · el periodo de servicio se guarda aparte"
+        eyebrow="Emitidas, cobradas y pendientes · por fecha de emisión"
         actions={<>{can("imports.run") && <Link to="/importaciones/nueva"><Button icon={Upload}>Importar</Button></Link>}{createBtn}</>}
       />
       <ServerNotice what="La emisión de facturas" />

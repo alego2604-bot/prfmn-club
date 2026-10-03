@@ -38,13 +38,17 @@ const OnboardingWizard = lazy(() => import("@/features/onboarding/OnboardingWiza
 
 function PageFallback() {
   return (
-    <div className="mx-auto max-w-[1280px] px-4 pt-8 sm:px-6 lg:px-8">
-      <Skeleton className="h-7 w-56" />
-      <Skeleton className="mt-3 h-4 w-80" />
-      <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-28 rounded-lg" />)}
+    <div className="mx-auto max-w-[1440px] px-4 pt-8 sm:px-6 lg:px-8" aria-busy="true" aria-label="Cargando">
+      <Skeleton className="h-3.5 w-40" />
+      <div className="mt-3 flex items-end justify-between gap-4">
+        <Skeleton className="h-8 w-56" />
+        <Skeleton className="hidden h-9 w-64 rounded-lg sm:block" />
       </div>
-      <Skeleton className="mt-6 h-72 rounded-lg" />
+      <Skeleton className="mt-8 h-24 rounded-xl" />
+      <div className="mt-4 grid gap-4 lg:grid-cols-[2fr_1fr]">
+        <Skeleton className="h-80 rounded-xl" />
+        <Skeleton className="hidden h-80 rounded-xl lg:block" />
+      </div>
     </div>
   );
 }
@@ -68,8 +72,9 @@ function Root() {
   const s = useSession();
   if (s.status === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4" role="status">
         <LogoMark size={36} className="animate-pulse" />
+        <p className="text-sm text-fg-3">Abriendo Business OS…</p>
       </div>
     );
   }
@@ -89,7 +94,7 @@ function Root() {
   if (s.status === "anon") return <AuthPage />;
   if (s.status === "no-org") return <OnboardingPage />;
   // Transición (cambio de empresa / cierre de sesión): nunca renderizar la app sin empresa cargada
-  if (!s.store.getWorkspace()) return <div className="flex min-h-screen items-center justify-center"><LogoMark size={36} className="animate-pulse" /></div>;
+  if (!s.store.getWorkspace()) return <div className="flex min-h-screen flex-col items-center justify-center gap-4" role="status"><LogoMark size={36} className="animate-pulse" /><p className="text-sm text-fg-3">Cargando tu empresa…</p></div>;
   return <AppShell />;
 }
 

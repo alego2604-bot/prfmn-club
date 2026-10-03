@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Ban, Clock, Plus, ShoppingBag, Upload } from "lucide-react";
 import { useCtx, useLocationScope, useSession, useWorkspace } from "@/app/session";
-import { Badge, Button, DataTable, DescriptionList, Drawer, Kpi, KpiStrip, Mono, Page, PageHeader, ReasonDialog, Select, useToast, type Column } from "@/design-system/components";
+import { Badge, Button, DataTable, DescriptionList, Drawer, FilterSelect, Kpi, KpiStrip, Mono, Page, PageHeader, ReasonDialog, useToast, type Column } from "@/design-system/components";
 import { voidSale } from "@/data/repos/sales";
 import { customerName } from "@/data/repos/customers";
 import type { Payment, Sale, SaleItem } from "@/domain/types";
@@ -16,7 +16,7 @@ export default function SalesPage() {
   const ws = useWorkspace();
   const { filterId } = useLocationScope();
   const [params, setParams] = useSearchParams();
-  const { filter, control } = usePeriodFilter("all");
+  const { filter, pill } = usePeriodFilter("all");
   const [status, setStatus] = useState<"all" | Sale["status"]>("all");
   const [source, setSource] = useState<"all" | Sale["source"]>("all");
 
@@ -84,7 +84,7 @@ export default function SalesPage() {
     <Page wide>
       <PageHeader
         title="Ventas"
-        description="Cada operación con su fecha, líneas y pagos. Nada se borra: las anulaciones quedan registradas con motivo."
+        description="Cada operación con sus líneas y pagos. Las anulaciones quedan en el histórico con su motivo."
         actions={<Link to="/caja"><Button variant="primary" icon={Plus}>Nueva venta</Button></Link>}
       />
       <KpiStrip className="mb-5">
@@ -112,18 +112,11 @@ export default function SalesPage() {
         }}
         toolbar={
           <>
-            {control}
-            <Select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className="w-[170px]">
-              <option value="all">Todos los estados</option>
-              <option value="completed">Cobradas</option>
-              <option value="pending_payment">Pendientes</option>
-              <option value="voided">Anuladas</option>
-            </Select>
-            <Select value={source} onChange={(e) => setSource(e.target.value as typeof source)} className="w-[150px]">
-              <option value="all">Todo origen</option>
-              <option value="pos">Caja</option>
-              <option value="import">Importadas</option>
-            </Select>
+            {pill}
+            <FilterSelect label="Estado" value={status === "all" ? "" : status} onChange={(v) => setStatus((v || "all") as typeof status)}
+              options={[{ value: "completed", label: "Cobradas" }, { value: "pending_payment", label: "Pendientes" }, { value: "voided", label: "Anuladas" }]} />
+            <FilterSelect label="Origen" value={source === "all" ? "" : source} onChange={(v) => setSource((v || "all") as typeof source)}
+              options={[{ value: "pos", label: "Caja" }, { value: "import", label: "Importadas" }]} />
           </>
         }
         empty={{ icon: ShoppingBag, title: "Aún no hay ventas", description: "Registra una venta en Caja o importa tu histórico.", action: <div className="flex gap-2"><Link to="/caja"><Button variant="primary">Ir a Caja</Button></Link><Link to="/importaciones/nueva"><Button icon={Upload}>Importar</Button></Link></div> }}

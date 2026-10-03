@@ -70,17 +70,22 @@ export default function OnboardingWizard() {
 
   return (
     <Page wide>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="flex items-center gap-2 text-sm text-fg-3"><Sparkles className="h-4 w-4 text-accent" />Puesta en marcha</p>
-          <h1 className="mt-1 text-[28px] font-semibold tracking-[-0.03em]">Prepara {ws.organization.name}</h1>
-          <p className="mt-1 text-sm text-fg-3">{progress.doneCount} de {progress.total} pasos · puedes salir y volver cuando quieras, se guarda solo.</p>
+      <section className="surface-card relative mb-6 overflow-hidden rounded-2xl p-5 sm:p-6">
+        <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-[radial-gradient(closest-side,var(--accent-soft),transparent)]" aria-hidden />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-sm font-medium text-accent-fg"><Sparkles className="h-4 w-4" />Puesta en marcha</p>
+            <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.03em] sm:text-[28px]">Prepara {ws.organization.name}</h1>
+            <p className="mt-1 max-w-xl text-sm text-fg-3">Unos minutos y tu empresa queda lista para vender, cobrar y facturar. Se guarda solo: puedes salir y volver cuando quieras.</p>
+          </div>
+          <div className="shrink-0 sm:text-right">
+            <p className="figure text-4xl leading-none num">{Math.round((progress.doneCount / progress.total) * 100)}<span className="text-xl text-fg-3"> %</span></p>
+            <p className="mt-1.5 text-sm text-fg-3">{progress.doneCount} de {progress.total} pasos</p>
+            <Button variant="ghost" size="sm" className="-mr-2.5 mt-1" onClick={() => { try { updateOnboarding(ctx, { dismiss: true }); } catch { /* */ } navigate("/"); }}>Terminar más tarde</Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" onClick={() => { try { updateOnboarding(ctx, { dismiss: true }); } catch { /* */ } navigate("/"); }}>Terminar más tarde</Button>
-        </div>
-      </div>
-      <ProgressBar value={progress.doneCount} max={progress.total} className="mb-6 h-1" label="Progreso de la puesta en marcha" />
+        <ProgressBar value={progress.doneCount} max={progress.total} tone={progress.doneCount >= progress.total ? "success" : "accent"} className="relative mt-4 h-2" label="Progreso de la puesta en marcha" />
+      </section>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
         <nav aria-label="Pasos" className="min-w-0 lg:sticky lg:top-20 lg:self-start">
@@ -124,7 +129,7 @@ export default function OnboardingWizard() {
 function Footer({ onDone, onSkip, optional, primary = "Guardar y continuar", disabled, extra }: { onDone: () => void; onSkip?: () => void; optional?: boolean; primary?: string; disabled?: boolean; extra?: ReactNode }) {
   return (
     <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
-      <div>{extra}</div>
+      <div className="text-xs text-fg-3">{extra ?? (disabled ? "Completa los campos obligatorios (*) para continuar." : null)}</div>
       <div className="flex gap-2">
         {optional && onSkip && <Button variant="ghost" icon={SkipForward} onClick={onSkip}>Omitir por ahora</Button>}
         <Button variant="primary" iconRight={ArrowRight} disabled={disabled} onClick={onDone}>{primary}</Button>

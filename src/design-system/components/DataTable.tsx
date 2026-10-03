@@ -275,7 +275,7 @@ export function DataTable<T>({
         {/* Tablet / escritorio: tabla con cabecera fija (scroll interno cuando hay muchas filas) */}
         {wide && <div className={cn("scrollbar-thin overflow-x-auto", pageRows.length > 14 && "max-h-[calc(100dvh-210px)] overflow-y-auto")}>
           <table className="w-full border-collapse text-sm">
-            <thead className="sticky top-0 z-10 bg-surface shadow-[0_1px_0_var(--border)]">
+            <thead className="sticky top-0 z-10 bg-surface-2 shadow-[0_1px_0_var(--border)]">
               <tr>
                 {selectable && (
                   <th className="w-10 px-3">
@@ -293,6 +293,7 @@ export function DataTable<T>({
                     <th
                       key={c.id}
                       style={{ width: c.width }}
+                      aria-sort={active ? (sort!.dir === "asc" ? "ascending" : "descending") : undefined}
                       className={cn(
                         "h-10 whitespace-nowrap px-3 text-xs font-medium text-fg-3 first:pl-4 last:pr-4",
                         PRIORITY_CLASS[c.priority ?? "high"],
@@ -322,9 +323,11 @@ export function DataTable<T>({
                   <tr
                     key={id}
                     onClick={onRowClick ? () => onRowClick(r) : undefined}
+                    tabIndex={onRowClick ? 0 : undefined}
+                    onKeyDown={onRowClick ? (e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onRowClick(r); } } : undefined}
                     className={cn(
                       "group border-t border-line transition-colors duration-100",
-                      onRowClick && "cursor-pointer hover:bg-surface-2 active:bg-surface-sunken",
+                      onRowClick && "cursor-pointer outline-none hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:shadow-[inset_3px_0_0_var(--accent)] active:bg-surface-sunken",
                       selected.has(id) && "bg-accent-soft/60",
                       rowClassName?.(r),
                     )}
