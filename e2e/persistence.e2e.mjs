@@ -13,6 +13,7 @@ import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, devices } from "playwright";
+import { launchOptions } from "./launch.mjs";
 import { createConsoleWatch } from "./consoleWatch.mjs";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://127.0.0.1:5173";
@@ -67,7 +68,7 @@ const verifyAll = async (page, who) => {
 
 // ── Navegador A ───────────────────────────────────────────────────────────────────────────────────────────────
 const profileA = mkdtempSync(join(tmpdir(), "bos-e2e-a-"));
-let ctxA = await chromium.launchPersistentContext(profileA, { viewport: { width: 1440, height: 900 }, locale: "es-ES", timezoneId: "Europe/Madrid" });
+let ctxA = await chromium.launchPersistentContext(profileA, { ...launchOptions, viewport: { width: 1440, height: 900 }, locale: "es-ES", timezoneId: "Europe/Madrid" });
 let page = ctxA.pages()[0] ?? (await ctxA.newPage());
 watch(page, "A");
 console.log("Navegador A");
@@ -146,7 +147,7 @@ await ctxA.close();
 
 // ── Navegador A reabierto (mismo perfil) ──────────────────────────────────────────────────────────────────────
 console.log("Navegador A (reabierto)");
-ctxA = await chromium.launchPersistentContext(profileA, { viewport: { width: 1440, height: 900 }, locale: "es-ES", timezoneId: "Europe/Madrid" });
+ctxA = await chromium.launchPersistentContext(profileA, { ...launchOptions, viewport: { width: 1440, height: 900 }, locale: "es-ES", timezoneId: "Europe/Madrid" });
 page = ctxA.pages()[0] ?? (await ctxA.newPage());
 watch(page, "A2");
 await step(page, "volver a entrar", () => login(page));
@@ -156,7 +157,7 @@ await ctxA.close();
 
 // ── Navegador B: otro dispositivo (iPad, perfil limpio) ───────────────────────────────────────────────────────
 console.log("Navegador B (otro dispositivo)");
-const browserB = await chromium.launch();
+const browserB = await chromium.launch(launchOptions);
 const ctxB = await browserB.newContext({ ...devices["iPad Pro 11 landscape"], locale: "es-ES", timezoneId: "Europe/Madrid" });
 const pageB = await ctxB.newPage();
 watch(pageB, "B");
@@ -176,7 +177,7 @@ await pageB.screenshot({ path: join(OUT, "B-ipad.png") });
 await browserB.close();
 
 console.log("Navegador A (comprobación final)");
-ctxA = await chromium.launchPersistentContext(profileA, { viewport: { width: 1440, height: 900 }, locale: "es-ES", timezoneId: "Europe/Madrid" });
+ctxA = await chromium.launchPersistentContext(profileA, { ...launchOptions, viewport: { width: 1440, height: 900 }, locale: "es-ES", timezoneId: "Europe/Madrid" });
 page = ctxA.pages()[0] ?? (await ctxA.newPage());
 watch(page, "A3");
 await step(page, "A ve la venta hecha en B (sesión conservada)", async () => {

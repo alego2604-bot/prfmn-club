@@ -11,6 +11,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, devices } from "playwright";
+import { launchOptions } from "./launch.mjs";
 import { createConsoleWatch } from "./consoleWatch.mjs";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://127.0.0.1:5175";
@@ -47,7 +48,7 @@ const download = async (page, trigger) => {
   return name;
 };
 
-const browser = await chromium.launch();
+const browser = await chromium.launch(launchOptions);
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "es-ES", timezoneId: "Europe/Madrid", acceptDownloads: true });
 const page = await ctx.newPage();
 watch(page, "A");

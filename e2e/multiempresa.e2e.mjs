@@ -12,6 +12,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "playwright";
+import { launchOptions } from "./launch.mjs";
 import { createConsoleWatch } from "./consoleWatch.mjs";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://127.0.0.1:5173";
@@ -51,7 +52,7 @@ const revenue = async (page) => {
   return (await page.getByText(/^[\d.]+,\d{2}\s€$/).first().innerText()).trim();
 };
 
-const browser = await chromium.launch();
+const browser = await chromium.launch(launchOptions);
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "es-ES", timezoneId: "Europe/Madrid" });
 const A = await ctx.newPage();
 cw.watch(A, "A");

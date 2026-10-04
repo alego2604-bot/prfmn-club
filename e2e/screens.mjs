@@ -7,6 +7,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "playwright";
+import { launchOptions } from "./launch.mjs";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://127.0.0.1:5173";
 const OUT = join(process.cwd(), "e2e", "results", "screens");
@@ -53,7 +54,7 @@ const SCREENS = [
   ["onboarding", "/bienvenida"],
 ].filter(([n]) => !ONLY || ONLY.includes(n));
 
-const browser = await chromium.launch();
+const browser = await chromium.launch(launchOptions);
 const errors = [];
 const setup = await browser.newContext({ ...VIEWPORTS.desktop, locale: "es-ES", timezoneId: "Europe/Madrid" });
 const p0 = await setup.newPage();
