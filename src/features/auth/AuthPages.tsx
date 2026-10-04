@@ -6,6 +6,43 @@ import { Button, Callout, Field, Input, useToast } from "@/design-system/compone
 import type { Vertical } from "@/domain/types";
 import { cn } from "@/lib/cn";
 
+/**
+ * Vista previa del producto en la pantalla de acceso: lo primero que ve alguien es cómo se siente trabajar con él
+ * (cifras del día, tendencia y un cobro entrando). Cifras de ejemplo, decorativas: no son datos de nadie.
+ */
+function ProductPreview() {
+  const pts = [18, 22, 19, 27, 24, 31, 29, 36, 33, 41, 38, 46];
+  const path = pts.map((v, i) => `${i === 0 ? "M" : "L"}${(i / (pts.length - 1)) * 280},${64 - v}`).join(" ");
+  return (
+    <div className="pointer-events-none relative mt-14 hidden select-none xl:block" aria-hidden>
+      <div className="w-[360px] rotate-[-2deg] rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.6)] backdrop-blur-sm">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium text-white/50">Facturación · últimos 30 días</p>
+          <span className="rounded-md bg-emerald-400/15 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-300">↗ +18 %</span>
+        </div>
+        <p className="mt-2 text-[34px] font-semibold leading-none tracking-[-0.035em]">12.480 €</p>
+        <svg viewBox="0 0 280 64" className="mt-4 h-16 w-full" fill="none">
+          <defs><linearGradient id="pp-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#5b6bff" stopOpacity="0.35" /><stop offset="1" stopColor="#5b6bff" stopOpacity="0" /></linearGradient></defs>
+          <path d={`${path} L280,64 L0,64 Z`} fill="url(#pp-fill)" />
+          <path d={path} stroke="#7b88ff" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        </svg>
+        <div className="mt-4 grid grid-cols-3 gap-px overflow-hidden rounded-lg bg-white/10 text-[11px]">
+          {[["Gastos", "7.920 €"], ["Resultado", "4.560 €"], ["MRR", "3.210 €"]].map(([k, v]) => (
+            <div key={k} className="bg-[#141413] px-3 py-2"><p className="text-white/45">{k}</p><p className="mt-0.5 text-[13px] font-semibold text-white/90">{v}</p></div>
+          ))}
+        </div>
+      </div>
+      <div className="absolute -right-2 top-[118px] flex w-[250px] rotate-[1.5deg] items-center gap-3 rounded-xl border border-white/10 bg-[#1a1a19]/95 px-3.5 py-3 shadow-2xl">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-300"><Check className="h-4 w-4" /></span>
+        <div className="min-w-0">
+          <p className="text-[12.5px] font-medium text-white/90">Factura cobrada · 89,00 €</p>
+          <p className="text-[11px] text-white/45">Cuota mensual · hace un momento</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AuthLayout({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
   const { mode } = useSession();
   return (
@@ -22,6 +59,7 @@ function AuthLayout({ children, aside }: { children: ReactNode; aside?: ReactNod
           </svg>
           <span className="text-[15px] font-semibold tracking-[-0.02em]">Business<span className="font-medium text-white/50"> OS</span></span>
         </div>
+        {!aside && <ProductPreview />}
         <div className="relative mt-auto max-w-lg">
           {aside ?? (
             <>
