@@ -183,7 +183,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // la interfaz lo refleja en la siguiente sincronización); el servidor impone lo mismo en cada escritura.
     const ws0 = store.getWorkspace();
     const liveRow = member ? (sb ? ws0?.team?.find((t) => t.id === member.id) : store.getMeta().members.find((x) => x.id === member.id)) : undefined;
-    const live: Member | null = member ? { ...member, ...(liveRow ? { role: liveRow.role, locationIds: liveRow.locationIds, status: liveRow.status, permissionOverrides: liveRow.permissionOverrides } : {}) } : null;
+    const live: Member | null = member ? { ...member, ...(liveRow ? { role: liveRow.role, locationIds: liveRow.locationIds, status: liveRow.status, permissionOverrides: liveRow.permissionOverrides ?? member.permissionOverrides } : {}) } : null;
     const active = !!live && live.status === "active";
     const ctx: Ctx | null = user && live && active ? { store, user, role: live.role, locationIds: live.locationIds, overrides: live.permissionOverrides } : null;
     const requireUser = () => {
