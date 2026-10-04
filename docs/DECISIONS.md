@@ -255,6 +255,12 @@ La paleta de 8 colores de categoría no supera la validación de daltonismo (ski
 
 **Motivo**: los botones de `Segmented` y `Switch` dentro de formularios actuaban como *submit* y guardaban formularios a medias (un gasto se registraba al pulsar «Pendiente de pago»).
 
+## 2026-10-04 — Nombres de rol en español
+
+**Decisión**: las etiquetas visibles de los roles pasan a español (Propietario, Administrador, Encargado, Empleado, Contable, Solo lectura). Las claves internas (`owner`, `admin`…) y los permisos no cambian.
+
+**Motivo**: la interfaz es en español y los nombres en inglés aparecían en el selector de empresa, Equipo y la puesta en marcha. Es solo texto: no afecta a datos ni a la base de datos.
+
 ## Pendiente de validación legal/fiscal
 
 **Nota**: el modelo de facturación (`BILLING_SYSTEM.md`) está preparado conceptualmente para normativa española (series, IVA, NIF/CIF) pero no ha sido validado por un asesor fiscal. No se debe emitir facturas reales en producción sin esa validación.

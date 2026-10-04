@@ -30,7 +30,7 @@ export function usePeriodFilter(initial: ListPreset = "all") {
   };
   const control = (
     <div className="flex flex-wrap items-center gap-1.5">
-      <Select value={preset} onChange={(e) => setPreset(e.target.value as ListPreset)} className="w-[170px]">
+      <Select aria-label="Periodo" value={preset} onChange={(e) => setPreset(e.target.value as ListPreset)} className="w-[170px]">
         <option value="all">Todo el histórico</option>
         <option value="today">Hoy</option>
         <option value="7d">Últimos 7 días</option>
@@ -43,8 +43,8 @@ export function usePeriodFilter(initial: ListPreset = "all") {
       </Select>
       {preset === "custom" && (
         <>
-          <Input type="date" value={custom.start} onChange={(e) => setCustom({ ...custom, start: e.target.value })} className="w-[150px]" />
-          <Input type="date" value={custom.end} min={custom.start} onChange={(e) => setCustom({ ...custom, end: e.target.value })} className="w-[150px]" />
+          <Input type="date" aria-label="Desde" value={custom.start} onChange={(e) => setCustom({ ...custom, start: e.target.value })} className="w-[150px]" />
+          <Input type="date" aria-label="Hasta" value={custom.end} min={custom.start} onChange={(e) => setCustom({ ...custom, end: e.target.value })} className="w-[150px]" />
         </>
       )}
     </div>

@@ -172,9 +172,9 @@ function TeamTab() {
               <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{u?.fullName}{m.userId === me?.userId && <span className="ml-2 text-xs text-fg-3">(tú)</span>}</p><p className="truncate text-xs text-fg-3">{u?.email}</p></div>
               <span className="text-xs text-fg-3">{m.locationIds ? m.locationIds.map((id) => ws.locations.find((l) => l.id === id)?.name).join(", ") : "Todos los centros"}</span>
               {m.role === "owner" ? (
-                <Badge tone="accent">Owner</Badge>
+                <Badge tone="accent">{ROLE_LABELS.owner.name}</Badge>
               ) : (
-                <Select value={m.role} className="w-40" onChange={async (e) => { try { await updateMember(m.id, { role: e.target.value as RoleKey }); toast.success("Rol actualizado"); } catch (err) { toast.fromError(err); } }}>
+                <Select aria-label={`Rol de ${u?.fullName ?? "este miembro"}`} value={m.role} className="w-40" onChange={async (e) => { try { await updateMember(m.id, { role: e.target.value as RoleKey }); toast.success("Rol actualizado"); } catch (err) { toast.fromError(err); } }}>
                   {(Object.keys(ROLE_LABELS) as RoleKey[]).filter((r) => r !== "owner").map((r) => <option key={r} value={r}>{ROLE_LABELS[r].name}</option>)}
                 </Select>
               )}
@@ -231,6 +231,11 @@ function TeamTab() {
   );
 }
 
+const PAYMENT_KIND_LABEL: Record<PaymentKind, string> = {
+  cash: "Efectivo", card: "Tarjeta", bizum: "Bizum", online: "Pago online", transfer: "Transferencia",
+  direct_debit: "Domiciliación", voucher: "Vale o bono", other: "Otro", unknown: "Sin especificar",
+};
+
 function PaymentsTab() {
   const ws = useWorkspace();
   const ctx = useCtx();
@@ -244,7 +249,7 @@ function PaymentsTab() {
         {[...ws.paymentMethods].sort((a, b) => a.sortOrder - b.sortOrder).map((m) => (
           <div key={m.id} className="flex flex-wrap items-center gap-4 border-b border-line px-5 py-3 last:border-0">
             <Input defaultValue={m.name} className="w-56" onBlur={(e) => e.target.value !== m.name && safe(() => updatePaymentMethod(ctx, m.id, { name: e.target.value }))} />
-            <span className="font-mono text-xs text-fg-3">{m.kind}</span>
+            <span className="text-xs text-fg-3">{PAYMENT_KIND_LABEL[m.kind]}</span>
             <div className="ml-auto flex items-center gap-6">
               <Switch checked={m.affectsCashDrawer} onChange={(v) => safe(() => updatePaymentMethod(ctx, m.id, { affectsCashDrawer: v }))} label="Cuenta en el cajón" />
               <Switch checked={m.status === "active"} onChange={(v) => safe(() => updatePaymentMethod(ctx, m.id, { status: v ? "active" : "inactive" }))} label="Activo" />
@@ -258,7 +263,7 @@ function PaymentsTab() {
           <Field label="Nombre"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Vale regalo" /></Field>
           <Field label="Tipo">
             <Select value={kind} onChange={(e) => setKind(e.target.value as PaymentKind)} className="w-40">
-              {(["cash", "card", "bizum", "online", "transfer", "direct_debit", "voucher", "other"] as PaymentKind[]).map((k) => <option key={k} value={k}>{k}</option>)}
+              {(Object.keys(PAYMENT_KIND_LABEL) as Exclude<PaymentKind, "unknown">[]).map((k) => <option key={k} value={k}>{PAYMENT_KIND_LABEL[k]}</option>)}
             </Select>
           </Field>
           <Button variant="primary" icon={Plus} disabled={!name.trim()} onClick={() => safe(() => { addPaymentMethod(ctx, name, kind); setName(""); toast.success("Método añadido"); })}>Añadir</Button>

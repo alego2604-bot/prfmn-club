@@ -180,6 +180,7 @@ export function DataTable<T>({
             leading={<Search className="h-4 w-4" />}
             className="w-full sm:w-72"
             placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder?.replace(/…$/, "") || "Buscar en la lista"}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />

@@ -168,7 +168,7 @@ export default function CustomerDetailPage() {
               <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-3">
                 {mv && (
                   <span className={cn("inline-flex items-center gap-1.5 font-medium", mv === "ACTIVE" ? "text-fg-2" : MEMBERSHIP_TEXT[MEMBERSHIP_VIEW[mv].tone])}>
-                    <Contact className="h-3.5 w-3.5" />{plan?.name ?? "Membresía"}{mv !== "ACTIVE" && ` · ${MEMBERSHIP_VIEW[mv].label}`}
+                    <Contact className="h-3.5 w-3.5" />{plan?.name ?? "Membresía"}{mv !== "ACTIVE" && MEMBERSHIP_VIEW[mv].label !== CUSTOMER_STATUS[c.status].label && ` · ${MEMBERSHIP_VIEW[mv].label}`}
                   </span>
                 )}
                 {loc && <span className="inline-flex items-center gap-1"><Store className="h-3.5 w-3.5" />{loc.name}</span>}

@@ -324,11 +324,12 @@ export default function PosPage() {
     <div className="flex h-full min-w-0 flex-col lg:flex-row">
       {/* Productos */}
       <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <h1 className="sr-only">Caja</h1>
         <div className="flex flex-col gap-3 px-4 pb-3 pt-4 sm:px-5">
           <div className="flex items-center gap-2">
-            <Input ref={searchRef} leading={<Search className="h-4 w-4" />} placeholder="Buscar producto o SKU" value={query} onChange={(e) => setQuery(e.target.value)} className="h-11 flex-1 text-[15px]" />
-            {locations.length > 1 && (
-              <select value={locationId ?? ""} onChange={(e) => setLocationId(e.target.value || undefined)} className="h-11 rounded-lg border border-line bg-surface px-3 text-sm">
+            <Input ref={searchRef} leading={<Search className="h-4 w-4" />} placeholder="Buscar producto o SKU" aria-label="Buscar producto o SKU" value={query} onChange={(e) => setQuery(e.target.value)} className="h-11 flex-1 text-[15px]" />
+            {locations.length > 1 && !current && (
+              <select aria-label="Centro de la venta" value={locationId ?? ""} onChange={(e) => setLocationId(e.target.value || undefined)} className="h-11 rounded-lg border border-line bg-surface px-3 text-sm">
                 <option value="">Centro…</option>
                 {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>

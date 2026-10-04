@@ -140,7 +140,7 @@ export default function FollowUpPage() {
                             disabled={!manage}
                             aria-label={t.status === "done" ? "Marcar como pendiente" : "Marcar como hecha"}
                             onClick={() => { setTaskStatus(ctx, t.id, t.status === "done" ? "pending" : "done"); toast.success(t.status === "done" ? "Tarea reabierta" : "Tarea completada"); }}
-                            className="mt-0.5 shrink-0 text-fg-3 transition-colors hover:text-success disabled:opacity-50"
+                            className="-mx-1.5 -mb-1.5 -mt-1 shrink-0 rounded-full p-1.5 text-fg-3 transition-colors hover:text-success disabled:opacity-50"
                           >
                             {t.status === "done" ? <CheckCircle2 className="h-5 w-5 text-success" /> : <Circle className="h-5 w-5" />}
                           </button>

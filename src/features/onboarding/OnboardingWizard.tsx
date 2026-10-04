@@ -81,7 +81,7 @@ export default function OnboardingWizard() {
           <div className="shrink-0 sm:text-right">
             <p className="figure text-4xl leading-none num">{Math.round((progress.doneCount / progress.total) * 100)}<span className="text-xl text-fg-3"> %</span></p>
             <p className="mt-1.5 text-sm text-fg-3">{progress.doneCount} de {progress.total} pasos</p>
-            <Button variant="ghost" size="sm" className="-mr-2.5 mt-1" onClick={() => { try { updateOnboarding(ctx, { dismiss: true }); } catch { /* */ } navigate("/"); }}>Terminar más tarde</Button>
+            <Button variant="ghost" size="sm" className="-ml-2.5 mt-1 sm:-mr-2.5 sm:ml-0" onClick={() => { try { updateOnboarding(ctx, { dismiss: true }); } catch { /* */ } navigate("/"); }}>Terminar más tarde</Button>
           </div>
         </div>
         <ProgressBar value={progress.doneCount} max={progress.total} tone={progress.doneCount >= progress.total ? "success" : "accent"} className="relative mt-4 h-2" label="Progreso de la puesta en marcha" />

@@ -147,13 +147,13 @@ export default function CatalogPage() {
           )}
           toolbar={
             <>
-              <Select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className="w-[140px]">
+              <Select aria-label="Estado" value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className="w-[140px]">
                 <option value="active">Activos</option>
                 <option value="inactive">Inactivos</option>
                 <option value="archived">Archivados</option>
                 <option value="all">Todos</option>
               </Select>
-              <Select value={category} onChange={(e) => setCategory(e.target.value)} className="w-[180px]">
+              <Select aria-label="Categoría" value={category} onChange={(e) => setCategory(e.target.value)} className="w-[180px]">
                 <option value="all">Todas las categorías</option>
                 {ws.categories.filter((c) => c.status !== "archived").map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </Select>

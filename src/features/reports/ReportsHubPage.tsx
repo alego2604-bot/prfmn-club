@@ -49,7 +49,7 @@ function ReportsIndex() {
         {groups.map((g) => (
           <section key={g}>
             <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-3">{g}</h2>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {REPORTS.filter((r) => r.group === g).map((r) => {
                 const Icon = ICON[r.key];
                 return (

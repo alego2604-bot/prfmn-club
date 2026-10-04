@@ -2,6 +2,33 @@
 
 Formato: fecha, fase, resumen. Más reciente arriba.
 
+## 2026-10-04 — QA ligera sobre el staging público
+
+Recorrido como usuario real en https://alego2604-bot.github.io/prfmn-club/ (21 rutas, 1440 / 1180 / 820 / 390, claro y oscuro) con comprobaciones automáticas de desbordamiento, errores, nombres accesibles y texto técnico. Sin cambios de base de datos, migraciones ni arquitectura.
+
+### CORREGIDO
+- Ajustes → Métodos de pago mostraba claves internas (`cash`, `direct_debit`…) en el selector «Tipo» y en la lista: ahora «Efectivo», «Domiciliación»…
+- Roles en inglés (Owner, Admin, Manager…) en una interfaz en español: ahora Propietario, Administrador, Encargado, Empleado, Contable, Solo lectura (solo etiquetas; las claves no cambian).
+- Caja mostraba dos selectores de centro (el global y el propio) aunque ya hubiera un centro elegido arriba; el propio solo aparece con «Todos los centros».
+- Caja sin `h1` (lectores de pantalla): título oculto «Caja».
+- Campos sin nombre accesible: búsqueda de las tablas, búsqueda y centro de Caja, periodo y fechas personalizadas, filtros de Catálogo y rol de cada miembro en Equipo.
+- Seguimiento: «Marcar como hecha» con área táctil de 20 px → 32 px.
+- Cobros: filtros en píldora como en Ventas y búsqueda con texto útil.
+- Cierres: la etiqueta «Efectivo esperado» partía en dos líneas y desalineaba la fila de cifras.
+- Informes: rejilla de 3 columnas (antes quedaba una columna vacía en cada grupo).
+- Nueva factura: subtítulo «Nueva factura · serie F2026-» duplicaba el título y mostraba el guion final de la serie.
+- Ficha 360: no repite «Baja» en la membresía cuando el cliente ya está de baja.
+- Cabeceras de página: en iPad vertical las acciones que bajan de línea se alinean a la derecha.
+- Puesta en marcha (móvil): «Terminar más tarde» alineado con el texto.
+
+### PENDIENTE PARA EL SIGUIENTE SPRINT (no implementado: no es un cambio pequeño)
+1. **Siembra de la demo lenta en staging (~60 s, 57 lotes secuenciales)**: el indicador «Preparando la empresa demo · N/57» se ve casi un minuto y los datos aparecen a medias. Valorar lotes más grandes o en paralelo (afecta a `sync`).
+2. **Reintentos con 409 en consola**: si una pestaña reabre con lotes ya confirmados en la cola, cada uno devuelve `23505` antes de darse por bueno. Funciona, pero hace una petición fallida por lote; se podría comprobar la existencia antes de reenviar.
+3. **Campos de fecha nativos** siguen el idioma del navegador (mm/dd/aaaa en navegadores en inglés). Un selector propio en formato español sería un cambio de componente compartido.
+4. **MRR por tarifa (iPad vertical)**: los nombres largos de tarifa recortan el contador («12 sesiones / mes ·»).
+5. **Gastos → Por categoría**: con pocas categorías la tarjeta queda con hueco inferior frente al gráfico de evolución.
+6. **Métodos de pago**: el nombre editable y el tipo coinciden casi siempre; rediseñar la fila (tipo como etiqueta junto al nombre) mejoraría la densidad.
+
 ## 2026-10-02 — Validación completa contra business-os-staging (schema 900)
 
 ### HECHO

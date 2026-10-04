@@ -134,8 +134,8 @@ function LocationCash({ location }: { location: Location }) {
           ["Fondo inicial", formatMoney(sum.openingFloat)],
           ["Efectivo esperado", formatMoney(sum.expectedCash)],
         ].map(([l, v]) => (
-          <div key={l} className="bg-surface px-5 py-3">
-            <p className="text-xs text-fg-3">{l}</p>
+          <div key={l} className="min-w-0 bg-surface px-4 py-3">
+            <p className="truncate text-xs text-fg-3" title={l}>{l}</p>
             <p className="mt-0.5 text-lg font-semibold num">{v}</p>
           </div>
         ))}

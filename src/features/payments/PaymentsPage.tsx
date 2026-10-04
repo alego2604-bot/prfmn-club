@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { CreditCard } from "lucide-react";
 import { useLocationScope, useWorkspace } from "@/app/session";
-import { Badge, DataTable, Kpi, Page, Select, type Column } from "@/design-system/components";
+import { Badge, DataTable, FilterSelect, Kpi, Page, type Column } from "@/design-system/components";
 import { FinanceHeader } from "../finance/shared";
 import { BarList } from "@/design-system/components/charts";
 import type { Payment } from "@/domain/types";
@@ -15,7 +15,7 @@ const SOURCE: Record<Payment["source"], string> = { pos: "Caja", manual: "Manual
 export default function PaymentsPage() {
   const ws = useWorkspace();
   const { filterId } = useLocationScope();
-  const { filter, control } = usePeriodFilter("all");
+  const { filter, pill } = usePeriodFilter("all");
   const [kind, setKind] = useState<"all" | Payment["kind"]>("all");
   const methodName = new Map(ws.paymentMethods.map((m) => [m.key, m.name]));
   const sale = new Map(ws.sales.map((s) => [s.id, s]));
@@ -57,17 +57,15 @@ export default function PaymentsPage() {
         columns={columns}
         getRowId={(p) => p.id}
         searchText={(p) => `${ref(p)} ${methodName.get(p.methodKey) ?? ""} ${p.reference ?? ""}`}
+        searchPlaceholder="Buscar referencia, venta o factura…"
         exportName="Pagos"
         exportCompany={ws.organization.name}
         storageKey="payments"
         toolbar={
           <>
-            {control}
-            <Select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)} className="w-[150px]">
-              <option value="all">Cobros y devoluciones</option>
-              <option value="charge">Solo cobros</option>
-              <option value="refund">Solo devoluciones</option>
-            </Select>
+            {pill}
+            <FilterSelect label="Tipo" allLabel="Cobros y devoluciones" value={kind === "all" ? "" : kind} onChange={(v) => setKind((v || "all") as typeof kind)}
+              options={[{ value: "charge", label: "Solo cobros" }, { value: "refund", label: "Solo devoluciones" }]} />
           </>
         }
         empty={{ icon: CreditCard, title: "Sin movimientos", description: "Los cobros de Caja y de facturas aparecerán aquí." }}

@@ -148,7 +148,7 @@ export default function InvoiceEditorPage() {
       <Link to={existing ? `/facturas/${existing.id}` : "/facturas"} className="mb-4 inline-flex items-center gap-1.5 text-sm text-fg-3 hover:text-fg"><ArrowLeft className="h-4 w-4" />{existing ? "Volver a la factura" : "Facturas"}</Link>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm text-fg-3">{existing ? "Borrador" : "Nueva factura"} · {series ? `serie ${series.prefix}` : "sin serie para este año"}</p>
+          <p className="text-sm text-fg-3">{existing ? "Borrador · " : ""}{series ? `Serie ${series.prefix.replace(/[\s·/-]+$/, "")}` : "Sin serie para este año"}</p>
           <h1 className="mt-1 text-[28px] font-semibold tracking-[-0.03em]">{existing ? "Editar borrador" : "Nueva factura"}</h1>
         </div>
         <Button icon={Eye} className="xl:hidden" onClick={() => setPreview(true)}>Vista previa</Button>

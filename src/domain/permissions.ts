@@ -32,12 +32,12 @@ const ROLE_PERMISSIONS: Record<RoleKey, Permission[] | "*"> = {
 };
 
 export const ROLE_LABELS: Record<RoleKey, { name: string; description: string }> = {
-  owner: { name: "Owner", description: "Control total" },
-  admin: { name: "Admin", description: "Gestión completa del negocio" },
-  manager: { name: "Manager", description: "Operativa diaria, clientes y caja" },
-  employee: { name: "Employee", description: "Caja, ventas y clientes básicos" },
-  accountant: { name: "Accountant", description: "Finanzas y exportaciones" },
-  read_only: { name: "Read only", description: "Solo consulta" },
+  owner: { name: "Propietario", description: "Control total" },
+  admin: { name: "Administrador", description: "Gestión completa del negocio" },
+  manager: { name: "Encargado", description: "Operativa diaria, clientes y caja" },
+  employee: { name: "Empleado", description: "Caja, ventas y clientes básicos" },
+  accountant: { name: "Contable", description: "Finanzas y exportaciones" },
+  read_only: { name: "Solo lectura", description: "Solo consulta" },
 };
 
 export function roleCan(role: RoleKey, perm: Permission): boolean {
