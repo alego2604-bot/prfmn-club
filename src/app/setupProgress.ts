@@ -14,9 +14,12 @@ const PHASE_OF: Record<string, number> = {
   invoices: 3, invoice_items: 3, payments: 3, membership_charges: 3, expenses: 3,
 };
 
-/** Fase según la tabla con más peso del próximo trozo (la última, que es la que lo ocupa casi entero). */
+/**
+ * Fase según la primera tabla del próximo trozo (lo que se está guardando ahora). Con la última, el primer trozo
+ * —centros, catálogo y clientes, que termina en las cajas— se anunciaba ya como «Generando ventas y caja · 0 %».
+ */
 export function setupPhase(p: Pick<SyncProgress, "tables">): number {
-  const t = p.tables[p.tables.length - 1];
+  const t = p.tables[0];
   return t !== undefined && t in PHASE_OF ? PHASE_OF[t]! : 4;
 }
 

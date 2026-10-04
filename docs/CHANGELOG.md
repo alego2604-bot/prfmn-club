@@ -2,6 +2,13 @@
 
 Formato: fecha, fase, resumen. Más reciente arriba.
 
+## 2026-10-04 — Experiencia mientras se crea la demo (comprobada en la URL pública)
+
+Sonda de navegador (escritorio 1440 y móvil 390) en https://alego2604-bot.github.io/prfmn-club/ mientras se sube la demo: navegación continua entre Clientes, Ventas, Membresías, Caja y Resumen (escritorio 193 navegaciones, mediana 96 ms, máx 868 ms; móvil 113 abriendo el menú, mediana 371 ms), sin fallos ni errores JS. Hilo principal: tareas largas de máximo 265-468 ms (al generar la demo) y hueco máximo entre frames de 351-471 ms. Progreso monotónico en todas las muestras; fases registradas uploading → checking → done con «Demo lista». Sin datos engañosos: lo que se ve es la demo completa (ya está en el dispositivo, con sus números de ticket); lo que falta es guardarla en el servidor.
+
+- Corregido: la banda empezaba en «Generando ventas y caja · 0 %» porque la fase se tomaba de la última tabla del trozo (el primero termina en las cajas); ahora se toma de la primera y arranca en «Configurando centros y catálogo».
+- Pendiente (no es de UI): la fase «Comprobando los datos» se queda en 97 % durante la descarga final (8-12 s en staging).
+
 ## 2026-10-04 — Sprint de fiabilidad: demo, reenvíos, fechas y consola
 
 ### Errores de consola de las E2E (clasificados)

@@ -12,6 +12,9 @@ describe("progreso de la demo", () => {
 
   it("traduce tablas a fases comprensibles", () => {
     expect(SETUP_PHASES[setupPhase({ tables: ["locations", "products"] })]).toBe("Configurando centros y catálogo");
+    // El primer trozo de la demo termina en las cajas, pero empieza (y es) configuración
+    expect(SETUP_PHASES[setupPhase({ tables: ["locations", "product_categories", "products", "customers", "cash_sessions"] })]).toBe("Configurando centros y catálogo");
+    expect(SETUP_PHASES[setupPhase({ tables: ["customers", "customer_notes"] })]).toBe("Añadiendo clientes");
     expect(SETUP_PHASES[setupPhase({ tables: ["sales", "sale_items"] })]).toBe("Generando ventas y caja");
     expect(SETUP_PHASES[setupPhase({ tables: ["payments"] })]).toBe("Preparando finanzas");
     expect(SETUP_PHASES[setupPhase({ tables: ["cash_closings", "import_records"] })]).toBe("Terminando");
