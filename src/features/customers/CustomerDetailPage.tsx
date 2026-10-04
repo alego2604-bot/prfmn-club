@@ -159,8 +159,10 @@ export default function CustomerDetailPage() {
       <section className="surface-card relative mb-6 overflow-hidden rounded-2xl">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(120%_100%_at_0%_0%,var(--accent-soft),transparent_70%)] opacity-80" aria-hidden />
         <div className="relative flex flex-col gap-5 p-5 sm:p-6 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex min-w-0 items-center gap-4">
-            <Avatar name={name} size={64} className="shrink-0 text-lg shadow-sm ring-4 ring-surface" />
+          <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
+            {/* En móvil el avatar es pequeño: el nombre y la membresía ocupan el ancho */}
+            <Avatar name={name} size={44} className="shrink-0 shadow-sm ring-4 ring-surface sm:hidden" />
+            <Avatar name={name} size={64} className="hidden shrink-0 text-lg shadow-sm ring-4 ring-surface sm:inline-flex" />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="truncate text-2xl font-semibold tracking-[-0.03em] sm:text-[28px]">{name}</h1>

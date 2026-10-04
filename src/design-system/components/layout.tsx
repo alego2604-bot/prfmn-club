@@ -200,7 +200,8 @@ const STRIP_LAYOUT: Record<number, string> = {
   2: "grid-cols-2",
   3: "grid-cols-2 [&>*:first-child]:col-span-2 md:grid-cols-3 md:[&>*:first-child]:col-span-1",
   4: "grid-cols-2 md:grid-cols-4",
-  5: "grid-cols-2 [&>*:first-child]:col-span-2 md:grid-cols-6 md:[&>*]:col-span-2 md:[&>*:nth-child(-n+2)]:col-span-3 xl:grid-cols-5 xl:[&>*]:col-span-1 xl:[&>*:nth-child(-n+2)]:col-span-1",
+  // md: 2 arriba (mitad) + 3 abajo (tercio). Selectores sin solaparse: con [&>*] el orden del CSS decidía y quedaba un hueco
+  5: "grid-cols-2 [&>*:first-child]:col-span-2 md:grid-cols-6 md:[&>*:nth-child(-n+2)]:col-span-3 md:[&>*:nth-child(n+3)]:col-span-2 xl:grid-cols-5 xl:[&>*:nth-child(-n+2)]:col-span-1 xl:[&>*:nth-child(n+3)]:col-span-1",
   6: "grid-cols-2 md:grid-cols-3 xl:grid-cols-6",
 };
 

@@ -6,7 +6,7 @@
  * (+ pago si se cobra en el momento). Así las cuotas cuentan en ingresos recurrentes, IVA y cobros como el resto.
  */
 import type { AuditLog, CustomerMembership, Invoice, InvoiceItem, MembershipCharge, MembershipPlan, MembershipPlanVersion, Payment } from "@/domain/types";
-import { BILLING_PERIOD, currentVersion, periodEnd } from "@/domain/memberships";
+import { BILLING_PERIOD, currentVersion, periodEnd, effectiveChargeStatus } from "@/domain/memberships";
 import { formatSeriesNumber, invoiceSeriesFor, addDaysISO } from "@/domain/invoicing";
 import { computeLine } from "@/domain/pricing";
 import { nowISO, uid } from "@/lib/ids";
@@ -272,7 +272,8 @@ export function chargeMembership(ctx: Ctx, id: string, opts: { methodKey?: strin
     const c = ws.customers.find((x) => x.id === m.customerId);
     if (!plan || !version || !c) throw new ValidationError("Faltan datos de la tarifa o del cliente");
     const start = m.nextRenewalDate ?? m.startDate;
-    if (ws.membershipCharges.some((x) => x.customerMembershipId === id && x.periodStart === start && x.status !== "failed")) throw new ValidationError(`La cuota del ${formatDate(start)} ya está generada`);
+    const paid = new Set(ws.invoices.filter((i) => i.status === "paid").map((i) => i.id));
+    if (ws.membershipCharges.some((x) => x.customerMembershipId === id && x.periodStart === start && effectiveChargeStatus(x, paid) !== "failed")) throw new ValidationError(`La cuota del ${formatDate(start)} ya está generada`);
     const endExcl = periodEnd(start, plan.billingPeriod, version.durationDays);
     const end = addDaysISO(endExcl, -1);
     const issueDate = opts.issueDate ?? toISODate(new Date());

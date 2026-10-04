@@ -5,6 +5,7 @@
  */
 import type { ImportJob } from "@/domain/types";
 import type { Workspace } from "./store";
+import { effectiveChargeStatus } from "@/domain/memberships";
 
 /** ¿Los datos de este job cuentan? Solo si llegó a completarse (aunque después se revirtiera: quedan anulados). */
 export function importCounts(job: ImportJob): boolean {
@@ -15,14 +16,26 @@ export function importCounts(job: ImportJob): boolean {
 
 const cache = new WeakMap<Workspace, Workspace>();
 
-export function visibleWorkspace(ws: Workspace): Workspace {
-  const cached = cache.get(ws);
+export function visibleWorkspace(input: Workspace): Workspace {
+  const cached = cache.get(input);
+  let ws = input;
   if (cached) return cached;
   const hidden = new Set(ws.imports.filter((j) => !importCounts(j)).map((j) => j.id));
+  // Cuotas cuyo cobro ya consta en su factura: se ven como pagadas (ver effectiveChargeStatus)
+  const paidInvoices = new Set(ws.invoices.filter((i) => i.status === "paid").map((i) => i.id));
+  let chargesChanged = false;
+  const membershipCharges = ws.membershipCharges.map((c) => {
+    const st = effectiveChargeStatus(c, paidInvoices);
+    if (st === c.status) return c;
+    chargesChanged = true;
+    return { ...c, status: st };
+  });
+  const base = chargesChanged ? { ...ws, membershipCharges } : ws;
   if (!hidden.size) {
-    cache.set(ws, ws);
-    return ws;
+    cache.set(input, base);
+    return base;
   }
+  ws = base;
   const isHidden = (e: { importId?: string }) => !!e.importId && hidden.has(e.importId);
   const sales = ws.sales.filter((s) => !isHidden(s));
   const saleIds = new Set(sales.map((s) => s.id));
@@ -41,6 +54,6 @@ export function visibleWorkspace(ws: Workspace): Workspace {
     suppliers: ws.suppliers.filter((x) => !isHidden(x)),
     customerMemberships: ws.customerMemberships.filter((m) => !isHidden(m)),
   };
-  cache.set(ws, out);
+  cache.set(input, out);
   return out;
 }

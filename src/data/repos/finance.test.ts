@@ -8,6 +8,7 @@ import { createCustomer } from "./customers";
 import { createExpense, createSupplier, markExpensePaid, updateExpense, voidExpense, expenseToInput } from "./expenses";
 import { duplicateInvoice, issueInvoice, registerInvoicePayment, saveInvoiceDraft, voidInvoice } from "./invoices";
 import { assignMembership, cancelMembership, changeMembershipPlan, createPlan, pauseMembership, reactivateMembership, resumeMembership, updatePlan } from "./memberships";
+import { visibleWorkspace } from "../visibility";
 import { createTask, setTaskStatus, taskBucket } from "./tasks";
 import { createInvoiceSeries, updateOnboarding } from "./settings";
 import { expenseKpis, expenseAmounts, expenseView } from "@/domain/expenses";
@@ -152,6 +153,25 @@ describe("Membresías", () => {
     expect(membershipView({ id: "m", status: "active", startDate: "2020-01-01", nextRenewalDate: "2020-02-01", autoRenew: true }, [], "2020-03-01")).toBe("PAST_DUE");
     expect(membershipView({ id: "m", status: "active", startDate: "2020-01-01", nextRenewalDate: "2020-02-01", autoRenew: true }, [{ customerMembershipId: "m", status: "paid", periodStart: "2020-02-01" }], "2020-03-01")).toBe("ACTIVE");
     expect(membershipView({ id: "m", status: "active", startDate: "2020-01-01", nextRenewalDate: "2020-02-01", autoRenew: true }, [], "2020-02-03")).toBe("ACTIVE");
+  });
+});
+
+describe("Cuota devuelta y cobrada después", () => {
+  it("cobrar la factura de una cuota devuelta saca la membresía del impago", () => {
+    const c = createCustomer(owner, { firstName: "Iris", status: "active" });
+    const plan = createPlan(owner, { name: "Mensual", kind: "recurring", billingPeriod: "month", price: 5000, taxRateBp: 2100, openToNew: true });
+    const m = assignMembership(owner, { customerId: c.id, planId: plan.id, startDate: today, locationId: loc, firstCharge: "pending" });
+    // El banco devuelve el cargo: la cuota queda «failed» y la membresía en impago
+    owner.store.update((w) => ({ ...w, membershipCharges: w.membershipCharges.map((x) => (x.customerMembershipId === m.id ? { ...x, status: "failed" as const } : x)) }));
+    const view = () => membershipView(visibleWorkspace(ws()).customerMemberships.find((x) => x.id === m.id)!, visibleWorkspace(ws()).membershipCharges);
+    expect(view()).toBe("PAST_DUE");
+    // Quien gestiona cobros (contable, sin permiso sobre membresías) cobra la factura
+    const inv = ws().invoices.find((i) => i.customerMembershipId === m.id)!;
+    registerInvoicePayment(as("accountant"), inv.id, { methodKey: "transfer" });
+    expect(view()).toBe("ACTIVE");
+    expect(visibleWorkspace(ws()).membershipCharges.find((x) => x.customerMembershipId === m.id)!.status).toBe("paid");
+    // El almacén no se reescribe (el contable no puede editar membresías): el estado se deriva de la factura
+    expect(ws().membershipCharges.find((x) => x.customerMembershipId === m.id)!.status).toBe("failed");
   });
 });
 

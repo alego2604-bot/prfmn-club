@@ -60,6 +60,15 @@ export function periodEnd(startIso: string, period: MembershipPlan["billingPerio
   return toISODate(d);
 }
 
+/**
+ * Estado real de una cuota: si su factura ya está cobrada, está pagada aunque la fila diga «devuelta» o «facturada»
+ * (el cobro de la factura lo registra quien gestiona cobros, que no siempre puede editar membresías). Sin esto, una
+ * cuota devuelta y después cobrada dejaba la membresía en impago para siempre.
+ */
+export function effectiveChargeStatus(c: Pick<MembershipCharge, "status" | "invoiceId">, paidInvoices: Set<string>): MembershipCharge["status"] {
+  return c.invoiceId && paidInvoices.has(c.invoiceId) && (c.status === "failed" || c.status === "invoiced" || c.status === "scheduled") ? "paid" : c.status;
+}
+
 export function membershipView(
   m: Pick<CustomerMembership, "id" | "status" | "startDate" | "endDate" | "nextRenewalDate" | "autoRenew">,
   charges: Pick<MembershipCharge, "customerMembershipId" | "status" | "periodStart">[],
