@@ -4,14 +4,15 @@ import { createMemoryKV, type KV } from "../persistence";
 import { buildWorkspace } from "../workspace";
 import type { Customer } from "@/domain/types";
 import { uid } from "@/lib/ids";
-import { CloudSync, PARALLEL_PUSHES, type Batch, type SyncStatus } from "./sync";
+import { CloudSync, type Batch, type SyncStatus } from "./sync";
 import { fakeServer } from "./fakeServer.testutil";
 
 /**
  * Reenvíos, recarga y envíos en paralelo:
  * - un lote ya confirmado no se vuelve a enviar (sin 409) tras recargar, perder la respuesta o cerrar la pestaña;
  * - la idempotencia del servidor sigue siendo la última barrera (cola vieja restaurada → sin duplicados);
- * - los trozos independientes van en paralelo, los que no lo son van en orden, y el progreso nunca retrocede.
+ * - los trozos van de uno en uno y en orden (medido en staging: en paralelo el servidor no escala y supera el
+ *   statement_timeout); un interbloqueo se reintenta y el progreso nunca retrocede.
  */
 type Server = ReturnType<typeof fakeServer>;
 
@@ -157,7 +158,7 @@ describe("reenvíos sin 409", () => {
   });
 });
 
-describe("envíos en paralelo y progreso", () => {
+describe("orden, reintentos y progreso", () => {
   async function queued(server: Server, make: (orgId: string, g: (i: number, total: number) => Batch["group"]) => Batch[]) {
     const kv = createMemoryKV();
     const a = await boot(server, kv);
@@ -168,31 +169,21 @@ describe("envíos en paralelo y progreso", () => {
     return { kv, a, list };
   }
 
-  it("cobros y líneas de venta en paralelo; ventas (numeración) siempre en orden", async () => {
+  it("ventas, líneas y cobros se envían de uno en uno y en orden", async () => {
     const server = fakeServer();
     const { kv, a } = await queued(server, (orgId, g) => [
-      ...Array.from({ length: 3 }, (_, i) => batch(orgId, "sales", rowsOf(orgId, 10), g(i, 13))),
-      ...Array.from({ length: 5 }, (_, i) => batch(orgId, "sale_items", rowsOf(orgId, 10), g(3 + i, 13))),
-      ...Array.from({ length: 5 }, (_, i) => batch(orgId, "payments", rowsOf(orgId, 10), g(8 + i, 13))),
+      ...Array.from({ length: 3 }, (_, i) => batch(orgId, "sales", rowsOf(orgId, 10), g(i, 9))),
+      ...Array.from({ length: 3 }, (_, i) => batch(orgId, "sale_items", rowsOf(orgId, 10), g(3 + i, 9))),
+      ...Array.from({ length: 3 }, (_, i) => batch(orgId, "payments", rowsOf(orgId, 10), g(6 + i, 9))),
     ]);
     const b = await boot(server, kv, "t1", a.ws);
     await b.sync.flush();
-    expect(server.maxInFlight.get("sales")).toBe(1);
-    expect(server.maxInFlight.get("sale_items")).toBe(PARALLEL_PUSHES);
-    expect(server.maxInFlight.get("payments")).toBe(PARALLEL_PUSHES);
-    expect(server.count("sales") + server.count("sale_items") + server.count("payments")).toBe(130);
+    expect([...server.maxInFlight.values()].every((n) => n === 1)).toBe(true);
+    expect(server.count("sales") + server.count("sale_items") + server.count("payments")).toBe(90);
     expect(b.sync.pending).toBe(0);
   });
 
-  it("las devoluciones (referencian otro cobro) no se adelantan", async () => {
-    const server = fakeServer();
-    const { kv, a } = await queued(server, (orgId, g) => Array.from({ length: 4 }, (_, i) => batch(orgId, "payments", rowsOf(orgId, 5, { refund_of_payment_id: uid() }), g(i, 4))));
-    const b = await boot(server, kv, "t1", a.ws);
-    await b.sync.flush();
-    expect(server.maxInFlight.get("payments")).toBe(1);
-  });
-
-  it("un interbloqueo en una tanda paralela se reintenta: todo entra una vez y sin error para el usuario", async () => {
+  it("un interbloqueo (40P01) se reintenta: todo entra una vez, sin error para el usuario ni descartar el grupo", async () => {
     const server = fakeServer();
     const { kv, a } = await queued(server, (orgId, g) => Array.from({ length: 6 }, (_, i) => batch(orgId, "sale_items", rowsOf(orgId, 10), g(i, 6))));
     const before = server.calls.length;
@@ -205,13 +196,13 @@ describe("envíos en paralelo y progreso", () => {
     expect(server.errors).toContain("40P01");
   }, 20_000);
 
-  it("progreso monotónico aunque los trozos se confirmen fuera de orden y uno se divida", async () => {
+  it("progreso monotónico aunque un trozo se divida", async () => {
     const server = fakeServer();
     const { kv, a } = await queued(server, (orgId, g) => [
       ...Array.from({ length: 2 }, (_, i) => batch(orgId, "sales", rowsOf(orgId, 30), g(i, 8))),
       ...Array.from({ length: 6 }, (_, i) => batch(orgId, "payments", rowsOf(orgId, i === 3 ? 60 : 30), g(2 + i, 8))),
     ]);
-    server.plan.push({ kind: "timeoutOver", n: 50 }); // el trozo de 60 filas se divide
+    server.plan.push({ kind: "timeoutOver", n: 50 }); // el trozo de 60 filas se divide en dos
     const b = await boot(server, kv, "t1", a.ws);
     await b.sync.flush();
     const done = b.statuses.map((s) => s.progress?.done).filter((d): d is number => d !== undefined);

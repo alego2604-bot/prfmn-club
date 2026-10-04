@@ -56,27 +56,6 @@ export const CHUNK_MAX_BYTES = 300_000;
 export const batchRows = (b: Pick<Batch, "ops">) => b.ops.reduce((n, o) => n + o.rows.length, 0);
 
 /**
- * Envíos en paralelo. `sync_push` es una transacción por trozo y el orden importa por las claves foráneas, así que
- * solo se adelantan trozos CONSECUTIVOS de un mismo grupo que sean únicamente inserciones en una misma tabla cuyas
- * inserciones no bloquean filas compartidas:
- * - fuera `sales` (contador de numeración por empresa: se serializaría y desordenaría los tickets), `invoices`
- *   (serie de numeración), catálogo y tarifas (versiones «solo una vigente»);
- * - `sale_items` sí: su trigger de stock puede bloquear un producto, pero un interbloqueo (40P01) aborta la
- *   transacción entera y se reintenta (ver isTransient), así que nunca se aplica a medias ni dos veces;
- * - `payments` solo si ninguna fila es una devolución (referencia a otro pago que podría ir en un trozo paralelo).
- * Medido en staging con la demo: los cobros y las líneas de venta eran el 60 % del tiempo de envío.
- */
-export const PARALLEL_PUSHES = 4;
-const PARALLEL_SAFE = new Set(["sale_items", "payments", "invoice_items", "membership_charges", "expenses", "cash_movements", "customer_notes", "tasks", "import_records"]);
-
-function parallelKey(b: Batch): string | null {
-  const op = b.ops.length === 1 ? b.ops[0]! : null;
-  if (!b.group || !op || op.op !== "insert" || !PARALLEL_SAFE.has(op.table)) return null;
-  if (op.table === "payments" && op.rows.some((r) => r.refund_of_payment_id != null)) return null;
-  return `${b.group.id}:${op.table}`;
-}
-
-/**
  * Divide un lote en trozos que respetan el orden de las operaciones (y por tanto las dependencias FK: cada trozo
  * se confirma antes de enviar el siguiente). La auditoría de cada entidad viaja con el trozo que contiene su fila.
  */
@@ -295,7 +274,8 @@ export class CloudError extends Error {
 function isTransient(error: { code?: string; message?: string; status?: number } | null | undefined): boolean {
   if (!error) return false;
   const code = error.code ?? "";
-  // 40P01 interbloqueo y 40001 serialización: PostgreSQL aborta la transacción entera; reenviarla es seguro
+  // 40P01 interbloqueo y 40001 serialización: PostgreSQL aborta la transacción entera; reenviarla es seguro (antes se
+  // trataban como rechazo definitivo y se descartaba el resto del grupo)
   if (/^[0-9A-Z]{5}$/.test(code) || code.startsWith("PGRST")) return ["57P01", "53300", "08006", "40P01", "40001"].includes(code);
   return true;
 }
@@ -653,11 +633,6 @@ export class CloudSync {
             await this.persist();
           }
         }
-        const run = this.parallelRun();
-        if (run.length > 1) {
-          await this.pushParallel(run);
-          continue;
-        }
         await this.markInflight([batch.id]);
         const { data, error } = await this.sb.rpc("sync_push", { p_org: batch.orgId, p_batch: { ops: batch.ops, audit: batch.audit } });
         if (error) {
@@ -717,44 +692,6 @@ export class CloudSync {
     return p;
   }
 
-  /** Primeros trozos de la cola que pueden enviarse a la vez (ver PARALLEL_SAFE). */
-  private parallelRun(): Batch[] {
-    const key = this.outbox[0] ? parallelKey(this.outbox[0]) : null;
-    if (!key) return [];
-    const run: Batch[] = [];
-    for (const b of this.outbox) {
-      if (run.length >= PARALLEL_PUSHES || parallelKey(b) !== key || this.maybeApplied.has(b.id)) break;
-      run.push(b);
-    }
-    return run;
-  }
-
-  /**
-   * Envía una tanda en paralelo. Lo confirmado sale de la cola; el primer trozo que falle queda en cabeza y el
-   * bucle lo reenvía por el camino normal (que sabe dividir, esperar a la red, comprobar duplicados o descartar).
-   */
-  private async pushParallel(run: Batch[]) {
-    await this.markInflight(run.map((b) => b.id));
-    const results = await Promise.all(run.map((b) => this.sb.rpc("sync_push", { p_org: b.orgId, p_batch: { ops: b.ops, audit: b.audit } })));
-    const ok: Batch[] = [];
-    results.forEach((r, i) => {
-      if (r.error) {
-        if (isTransient(r.error)) this.maybeApplied.add(run[i]!.id);
-        return;
-      }
-      ok.push(run[i]!);
-      this.outbox = this.outbox.filter((b) => b.id !== run[i]!.id);
-      this.acks++;
-      this.applyServerValues(r.data as { table: string; rows: Row[] }[]);
-    });
-    if (!ok.length) return;
-    await this.persist();
-    await this.clearInflight(ok.map((b) => b.id));
-    this.retryDelay = 2000;
-    this.setStatus({ state: "idle", lastSyncedAt: new Date().toISOString(), error: undefined });
-    for (const g of new Set(ok.map((b) => b.group?.id).filter(Boolean) as string[])) if (!this.hasGroup(g)) this.settleGroup(g, { groupId: g, state: "done" });
-  }
-
   private async markInflight(ids: string[]) {
     for (const id of ids) this.inflight.add(id);
     await this.saveInflight();
@@ -780,7 +717,7 @@ export class CloudSync {
 
   /**
    * Tras dividir un trozo en `extra + 1`, el grupo tiene `extra` trozos más: hechos = total − pendientes sigue siendo
-   * exacto y nunca retrocede (aunque haya trozos confirmados fuera de orden por los envíos en paralelo).
+   * exacto y nunca retrocede.
    */
   private regroup(groupId: string | undefined, extra: number) {
     if (!groupId) return;
