@@ -12,7 +12,7 @@ import { EXPENSE_VIEW, expenseKpis, expenseSeries, expenseView, hasComparableHis
 import { percentChange } from "@/domain/analytics";
 import type { Expense } from "@/domain/types";
 import { markExpensePaid, voidExpense } from "@/data/repos/expenses";
-import { capitalize, formatDate, monthName, monthShort, toISODate } from "@/lib/dates";
+import { capitalize, formatDate, monthName, monthShort, toISODate, daysBetween } from "@/lib/dates";
 import { formatMoney, formatRate } from "@/lib/money";
 import { euros } from "@/lib/export";
 import { normalizeKey } from "@/lib/text";
@@ -262,6 +262,17 @@ export default function ExpensesPage() {
   );
 }
 
+/** «14/10/2026 · en 10 días» / «· vencido hace 3 días» (en rojo) mientras está pendiente. */
+function DueText({ date, done }: { date: string; done: boolean }) {
+  const d = daysBetween(new Date(), new Date(`${date}T00:00`));
+  return (
+    <span>
+      {formatDate(date)}
+      {!done && <span className={d < 0 ? "ml-1 font-medium text-danger-fg" : d <= 3 ? "ml-1 font-medium text-warning-fg" : "ml-1 text-fg-3"}>· {d < 0 ? `vencido hace ${-d} ${d === -1 ? "día" : "días"}` : d === 0 ? "vence hoy" : `en ${d} ${d === 1 ? "día" : "días"}`}</span>}
+    </span>
+  );
+}
+
 function ExpenseDetail({ expense: e, onClose, onEdit, onDuplicate, onPaid, onVoid, manage }: {
   expense: Expense | null;
   onClose: () => void;
@@ -306,7 +317,7 @@ function ExpenseDetail({ expense: e, onClose, onEdit, onDuplicate, onPaid, onVoi
           { label: "Nº de factura", value: e.supplierInvoiceNumber ?? "—" },
           { label: "Categoría", value: ws.expenseCategories.find((c) => c.id === e.categoryId)?.name ?? "—" },
           { label: "Centro", value: ws.locations.find((l) => l.id === e.locationId)?.name ?? "Gastos generales" },
-          { label: "Vencimiento", value: e.dueDate ? formatDate(e.dueDate) : "—" },
+          { label: "Vencimiento", value: e.dueDate ? <DueText date={e.dueDate} done={e.status !== "pending"} /> : "—" },
           { label: "Pago", value: e.status === "paid" ? `${e.paidAt ? formatDate(e.paidAt) : "Pagado"}${e.paymentMethodId ? ` · ${ws.paymentMethods.find((m) => m.id === e.paymentMethodId)?.name ?? ""}` : ""}` : "Pendiente" },
           ...(e.status === "void" ? [{ label: "Anulación", value: e.voidReason ?? "—" }] : []),
         ]} />

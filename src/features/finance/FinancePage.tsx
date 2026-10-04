@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowUpRight, CircleDollarSign, Clock3, FileText, Plus, Receipt, ScrollText } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, CircleDollarSign, Clock3, FileText, Plus, Receipt, ScrollText, Undo2 } from "lucide-react";
 import { useLocationScope, useSession, useWorkspace } from "@/app/session";
 import { useServerReady } from "@/app/serverCaps";
 import { Amount, Button, Card, CardHeader, DeltaChip, Ledger, Page, Section, Segmented } from "@/design-system/components";
@@ -9,7 +9,7 @@ import { computeKpis, percentChange, revenueSeries } from "@/domain/analytics";
 import { cashflowSummary, hasRevenueHistory, profitAndLoss, resultSeries, vatSummary } from "@/domain/finance";
 import { expenseKpis, expenseView, hasComparableHistory } from "@/domain/expenses";
 import { invoiceView } from "@/domain/invoicing";
-import { addMonths, capitalize, formatDate, makePeriod, monthName, monthShort, startOfMonth, toISODate } from "@/lib/dates";
+import { addMonths, capitalize, formatDate, formatDateTime, makePeriod, monthName, monthShort, startOfMonth, toISODate } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import { ExpenseDrawer } from "@/features/expenses/ExpenseDrawer";
@@ -47,6 +47,23 @@ export default function FinancePage() {
     .sort((a, b) => (a.dueDate ?? a.issueDate ?? "").localeCompare(b.dueDate ?? b.issueDate ?? ""));
   const payable = ws.expenses.filter((e) => e.status === "pending" && (!filterId || e.locationId === filterId)).sort((a, b) => (a.dueDate ?? a.issueDate).localeCompare(b.dueDate ?? b.issueDate));
   const noExpenses = !pl.hasExpenses;
+  // Movimientos recientes: dinero que entra (cobros) y sale (gastos pagados, devoluciones), del más reciente al más antiguo
+  const movements = useMemo(() => {
+    const methods = new Map(ws.paymentMethods.map((m) => [m.key, m.name]));
+    const custName = new Map(ws.customers.map((c) => [c.id, [c.firstName, c.lastName].filter(Boolean).join(" ")]));
+    const inv = new Map(ws.invoices.map((i) => [i.id, i]));
+    const ins = ws.payments
+      .filter((p) => p.status === "succeeded" && (!filterId || !p.locationId || p.locationId === filterId))
+      .map((p) => {
+        const i = p.invoiceId ? inv.get(p.invoiceId) : undefined;
+        const who = (p.customerId && custName.get(p.customerId)) || i?.customerName || (p.saleId ? "Venta en caja" : "Cobro");
+        return { id: p.id, at: p.paidAt, kind: p.kind === "refund" ? "refund" as const : "in" as const, title: p.kind === "refund" ? `Devolución · ${who}` : who, sub: [methods.get(p.methodKey), i ? i.number ?? i.externalNumber : p.saleId ? "Caja" : undefined].filter(Boolean).join(" · "), amount: p.amount, to: i ? `/facturas/${i.id}` : p.saleId ? `/ventas?venta=${p.saleId}` : "/pagos" };
+      });
+    const outs = ws.expenses
+      .filter((e) => e.status === "paid" && (!filterId || e.locationId === filterId))
+      .map((e) => ({ id: e.id, at: e.paidAt ?? `${e.issueDate}T12:00:00`, kind: "out" as const, title: e.description, sub: ws.suppliers.find((x) => x.id === e.supplierId)?.name ?? "Gasto", amount: e.total, to: "/gastos" }));
+    return [...ins, ...outs].filter((m) => m.at <= new Date().toISOString()).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 8);
+  }, [ws, filterId]);
   // El resultado y los gastos solo se comparan si hay gastos registrados durante todo el periodo anterior
   const expComparable = hasComparableHistory(ws.expenses, prev.start);
   const revComparable = hasRevenueHistory(ws, prev.start);
@@ -164,6 +181,31 @@ export default function FinancePage() {
             items={payable.map((e) => ({ id: e.id, title: e.description, sub: `${ws.suppliers.find((s) => s.id === e.supplierId)?.name ?? "Sin proveedor"} · ${e.dueDate ? `vence ${formatDate(e.dueDate)}` : formatDate(e.issueDate)}`, amount: e.total, late: expenseView(e, today) === "overdue", to: "/gastos?estado=pending" }))}
           />
         </div>
+      </Section>
+
+      <Section title="Movimientos recientes" description="Lo último que ha entrado y salido" action={<Link to="/pagos" className="text-sm font-medium text-fg-3 hover:text-fg">Todos los cobros →</Link>}>
+        <Card padded={false}>
+          {movements.length ? (
+            <ul>
+              {movements.map((m) => (
+                <li key={`${m.kind}-${m.id}`} className="border-b border-line last:border-0">
+                  <Link to={m.to} className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-surface-2">
+                    <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full", m.kind === "in" ? "bg-success-soft text-success-fg" : m.kind === "refund" ? "bg-warning-soft text-warning-fg" : "bg-surface-sunken text-fg-2")}>
+                      {m.kind === "in" ? <ArrowDownLeft className="h-4 w-4" /> : m.kind === "refund" ? <Undo2 className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{m.title}</span>
+                      <span className="block truncate text-xs text-fg-3">{formatDateTime(m.at)}{m.sub ? ` · ${m.sub}` : ""}</span>
+                    </span>
+                    <span className={cn("shrink-0 text-sm font-semibold num", m.kind === "in" ? "text-success-fg" : "text-fg")}>{m.kind === "in" ? "+" : "−"}{formatMoney(m.amount)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-5 py-8 text-center text-sm text-fg-3">Aún no hay movimientos. Los cobros de caja y facturas y los gastos pagados aparecerán aquí.</p>
+          )}
+        </Card>
       </Section>
 
       <Section title="Impuestos" description="IVA del periodo · estimación orientativa, no sustituye a tu asesoría" action={<Link to="/impuestos" className="text-sm font-medium text-fg-3 hover:text-fg">Detalle por tipo →</Link>}>

@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Ban, CheckCircle2, Copy, Download, FileCheck2, Link2, MoreHorizontal, Pencil, Printer, Receipt } from "lucide-react";
+import { AlarmClock, ArrowLeft, Ban, CheckCircle2, CircleDollarSign, Copy, Download, FilePen, FileCheck2, History, Link2, MoreHorizontal, Pencil, Printer, Receipt, Undo2, type LucideIcon } from "lucide-react";
 import { useCtx, useSession, useWorkspace } from "@/app/session";
 import { useServerReady } from "@/app/serverCaps";
 import { Badge, Button, Callout, Card, CardHeader, EmptyState, Field, Input, Ledger, Menu, MenuItem, Modal, MoneyInput, Page, ProgressBar, ReasonDialog, Select, useToast, DateInput } from "@/design-system/components";
 import { duplicateInvoice, invoiceLabel, issueInvoice, registerInvoicePayment, voidInvoice } from "@/data/repos/invoices";
 import { INVOICE_VIEW, invoiceView } from "@/domain/invoicing";
-import { formatDate, formatDateTime, toISODate } from "@/lib/dates";
+import { daysBetween, formatDate, formatDateTime, toISODate } from "@/lib/dates";
+import { cn } from "@/lib/cn";
+import { AUDIT_ACTION } from "@/features/shared/auditLabels";
+import type { Invoice, Payment } from "@/domain/types";
 import { formatMoney } from "@/lib/money";
-import { AuditTrail } from "@/features/shared/AuditTrail";
 import { InvoicePaper } from "./InvoicePaper";
 import { downloadInvoicePdf, printInvoicePdf } from "./invoicePdf";
 import { saleNo } from "@/lib/text";
@@ -94,6 +96,7 @@ export default function InvoiceDetailPage() {
               <>
                 <ProgressBar className="mt-4" value={inv.amountPaid} max={inv.total} tone={inv.status === "paid" ? "success" : "accent"} label="Cobrado" />
                 <p className="mt-2 text-xs text-fg-3 num">Cobrado {formatMoney(inv.amountPaid)} de {formatMoney(inv.total)}</p>
+                <DueLine invoice={inv} lastPaidAt={payments.filter((p) => p.kind === "charge").at(-1)?.paidAt} />
               </>
             )}
           </Card>
@@ -125,7 +128,7 @@ export default function InvoiceDetailPage() {
               ]} />
             </Card>
           )}
-          <Card><AuditTrail entityIds={[inv.id]} /></Card>
+          <Card><InvoiceActivity invoice={inv} payments={payments} methodName={methodName} /></Card>
         </div>
       </div>
 
@@ -153,6 +156,71 @@ export default function InvoiceDetailPage() {
   );
 }
 
+/** Estado del vencimiento en palabras: «Vence en 12 días», «Vencida hace 6 días», «Cobrada el 03/10/2026». */
+function DueLine({ invoice: inv, lastPaidAt }: { invoice: Invoice; lastPaidAt?: string }) {
+  if (inv.status === "paid") return <p className="mt-3 flex items-center gap-1.5 text-sm font-medium text-success-fg"><CheckCircle2 className="h-4 w-4" />Cobrada{lastPaidAt ? ` el ${formatDate(lastPaidAt)}` : ""}</p>;
+  if (!inv.dueDate) return null;
+  const d = daysBetween(new Date(), new Date(`${inv.dueDate}T00:00`));
+  const overdue = d < 0;
+  return (
+    <p className={cn("mt-3 flex items-center gap-1.5 text-sm font-medium", overdue ? "text-danger-fg" : d <= 3 ? "text-warning-fg" : "text-fg-2")}>
+      <AlarmClock className="h-4 w-4" />
+      {overdue ? `Vencida hace ${-d} ${d === -1 ? "día" : "días"}` : d === 0 ? "Vence hoy" : `Vence en ${d} ${d === 1 ? "día" : "días"}`}
+      <span className="font-normal text-fg-3">· {formatDate(inv.dueDate)}</span>
+    </p>
+  );
+}
+
+/**
+ * Actividad de la factura: su ciclo de vida (creada, emitida, cobros, vencimiento, anulación) junto a los cambios de
+ * la auditoría, en una sola línea de tiempo. Reconstruida de los propios datos: también para facturas importadas.
+ */
+function InvoiceActivity({ invoice: inv, payments, methodName }: { invoice: Invoice; payments: Payment[]; methodName: Map<string, string> }) {
+  const ws = useWorkspace();
+  // rank: orden natural del ciclo de vida cuando dos hitos caen el mismo día (creada → emitida → cobro → vencida → anulada)
+  type Ev = { at: string; rank: number; icon: LucideIcon; title: string; sub?: string; tone?: "success" | "danger" | "warning" };
+  const ev: Ev[] = [];
+  const day = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00` : iso);
+  if (inv.createdAt) ev.push({ at: inv.createdAt, rank: 0, icon: FilePen, title: inv.source === "import" ? "Importada" : inv.source === "membership" ? "Generada por la cuota" : "Borrador creado" });
+  if (inv.issueDate && inv.status !== "draft" && (inv.number || inv.externalNumber)) ev.push({ at: inv.issueDate, rank: 1, icon: FileCheck2, title: `Emitida · ${invoiceLabel(inv)}` });
+  for (const p of payments) {
+    ev.push(p.kind === "refund"
+      ? { at: p.paidAt, rank: 3, icon: Undo2, title: `Devolución · ${formatMoney(p.amount)}`, sub: methodName.get(p.methodKey), tone: "warning" }
+      : { at: p.paidAt, rank: 2, icon: CircleDollarSign, title: `Cobro · ${formatMoney(p.amount)}`, sub: [methodName.get(p.methodKey), p.reference].filter(Boolean).join(" · "), tone: "success" });
+  }
+  const open = inv.status === "issued" || inv.status === "partially_paid";
+  if (open && inv.dueDate && inv.dueDate < toISODate(new Date())) ev.push({ at: inv.dueDate, rank: 4, icon: AlarmClock, title: "Venció sin cobrarse del todo", tone: "danger" });
+  if (inv.status === "void" && inv.voidedAt) ev.push({ at: inv.voidedAt, rank: 5, icon: Ban, title: inv.number ? "Anulada" : "Borrador descartado", sub: inv.voidReason, tone: "danger" });
+  // Cambios registrados que no son ya uno de los hitos anteriores (ediciones del borrador, duplicados…)
+  const covered = new Set(["insert", "issue", "payment", "void"]);
+  for (const l of ws.auditLogs) {
+    if (l.entityId !== inv.id || covered.has(l.action)) continue;
+    ev.push({ at: l.createdAt, rank: 1, icon: History, title: AUDIT_ACTION[l.action] ?? l.action, sub: l.actorName });
+  }
+  // De lo más antiguo a lo más reciente (se lee como una historia); mismo día → orden del ciclo de vida
+  ev.sort((a, b) => toISODate(day(a.at)).localeCompare(toISODate(day(b.at))) || a.rank - b.rank || day(a.at).getTime() - day(b.at).getTime());
+  return (
+    <div>
+      <p className="mb-3 flex items-center gap-2 text-sm font-semibold"><History className="h-4 w-4 text-fg-3" />Actividad</p>
+      <ol className="relative">
+        {ev.map((e, i) => (
+          <li key={`${e.at}-${i}`} className="relative flex gap-3 pb-4 last:pb-0">
+            {i < ev.length - 1 && <span className="absolute left-[13px] top-7 h-[calc(100%-1.25rem)] w-px bg-line" />}
+            <span className={cn("relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-4 ring-surface",
+              e.tone === "success" ? "bg-success-soft text-success-fg" : e.tone === "danger" ? "bg-danger-soft text-danger-fg" : e.tone === "warning" ? "bg-warning-soft text-warning-fg" : "bg-surface-sunken text-fg-2")}>
+              <e.icon className="h-3.5 w-3.5" />
+            </span>
+            <div className="min-w-0 pt-0.5">
+              <p className="text-sm font-medium leading-snug">{e.title}</p>
+              <p className="text-xs text-fg-3">{formatDate(day(e.at))}{e.sub ? ` · ${e.sub}` : ""}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 export function PaymentModal({ invoiceId, due, onClose }: { invoiceId: string; due: number; onClose: () => void }) {
   const ws = useWorkspace();
   const ctx = useCtx();
@@ -172,9 +240,9 @@ export function PaymentModal({ invoiceId, due, onClose }: { invoiceId: string; d
     }
   };
   return (
-    <Modal open onClose={onClose} size="sm" title="Registrar cobro" description={`Pendiente: ${formatMoney(due)}`} footer={<><Button onClick={onClose}>Cancelar</Button><Button variant="primary" disabled={!amount || amount <= 0} onClick={submit}>{amount && amount < due ? "Registrar cobro parcial" : "Registrar cobro"}</Button></>}>
+    <Modal open onClose={onClose} size="sm" title="Registrar cobro" description={`Pendiente: ${formatMoney(due)}`} footer={<><Button onClick={onClose}>Cancelar</Button><Button variant="primary" disabled={!amount || amount <= 0 || amount > due} onClick={submit}>{amount && amount < due ? "Registrar cobro parcial" : "Registrar cobro"}</Button></>}>
       <div className="grid gap-4">
-        <Field label="Importe" hint={amount && amount < due ? `Quedarán ${formatMoney(due - amount)} pendientes` : "Cobro completo"}><MoneyInput value={amount} onChange={setAmount} autoFocus /></Field>
+        <Field label="Importe" error={amount && amount > due ? `Supera lo pendiente (${formatMoney(due)})` : null} hint={amount && amount < due ? `Quedarán ${formatMoney(due - amount)} pendientes` : "Cobro completo"}><MoneyInput value={amount} onChange={setAmount} invalid={!!amount && amount > due} autoFocus /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Método"><Select value={methodKey} onChange={(e) => setMethodKey(e.target.value)}>{methods.map((m) => <option key={m.id} value={m.key}>{m.name}</option>)}</Select></Field>
           <Field label="Fecha"><DateInput value={date} onChange={(e) => setDate(e.target.value)} /></Field>

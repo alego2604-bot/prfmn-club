@@ -64,6 +64,9 @@ export default function FollowUpPage() {
   const ready = useServerReady();
   const person = usePersonName();
   const [view, setView] = useState<"open" | "done">("open");
+  const { user } = useSession();
+  const [mine, setMine] = useState<"all" | "mine">("all");
+  const hasTeam = new Set(ws.tasks.map((t) => t.assigneeId).filter(Boolean)).size > 1 || (ws.team?.length ?? 0) > 1;
   const [creating, setCreating] = useState<Partial<TaskInput> | null>(null);
   const today = toISODate(new Date());
   const names = useMemo(() => new Map(ws.customers.map((c) => [c.id, customerName(c)])), [ws.customers]);
@@ -73,13 +76,14 @@ export default function FollowUpPage() {
   const groups = useMemo(() => {
     const g = new Map<TaskBucket, Task[]>();
     for (const t of ws.tasks) {
+      if (mine === "mine" && t.assigneeId && t.assigneeId !== user?.id) continue;
       const b = taskBucket(t, today);
       if ((view === "done") !== (b === "done")) continue;
       g.set(b, [...(g.get(b) ?? []), t]);
     }
     for (const list of g.values()) list.sort((a, b) => (a.dueDate ?? "9").localeCompare(b.dueDate ?? "9") || b.createdAt.localeCompare(a.createdAt));
     return (["overdue", "today", "upcoming", "someday", "done"] as TaskBucket[]).filter((b) => g.get(b)?.length).map((b) => ({ b, items: g.get(b)! }));
-  }, [ws.tasks, view, today]);
+  }, [ws.tasks, view, today, mine, user?.id]);
 
   // Avisos: siempre con el motivo y sin duplicar lo que ya tiene una tarea abierta
   const signals = useMemo(() => {
@@ -124,7 +128,10 @@ export default function FollowUpPage() {
         <section>
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="flex items-center gap-2 text-[15px] font-semibold"><ListTodo className="h-4 w-4 text-fg-3" />Tareas</h2>
-            <Segmented size="sm" value={view} onChange={setView} items={[{ value: "open", label: "Pendientes" }, { value: "done", label: "Hechas" }]} />
+            <div className="flex items-center gap-2">
+              {hasTeam && <Segmented size="sm" value={mine} onChange={setMine} items={[{ value: "all", label: "Todas" }, { value: "mine", label: "Mías" }]} />}
+              <Segmented size="sm" value={view} onChange={setView} items={[{ value: "open", label: "Pendientes" }, { value: "done", label: "Hechas" }]} />
+            </div>
           </div>
           {groups.length ? (
             <div className="flex flex-col gap-5">

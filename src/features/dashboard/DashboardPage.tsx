@@ -118,6 +118,7 @@ export default function DashboardPage() {
   const pl = useMemo(() => profitAndLoss(ds, ws.expenses, period, filterId), [ds, ws.expenses, period, filterId]);
   const plPrev = useMemo(() => profitAndLoss(ds, ws.expenses, prev, filterId), [ds, ws.expenses, prev, filterId]);
   const [mix, setMix] = useState<"category" | "method">("category");
+  const [allAlerts, setAllAlerts] = useState(false);
   const results12 = useMemo(() => resultSeries(ds, ws.expenses, now, 12, filterId), [ds, ws.expenses, now, filterId]);
   const memSum = useMemo(() => membershipSummary(ws.customerMemberships, { plans: ws.membershipPlans, versions: ws.planVersions, charges: ws.membershipCharges }, { start: toISODate(startOfMonth(now)), end: toISODate(addMonths(startOfMonth(now), 1)) }, toISODate(now), 7, filterId), [ws, now, filterId]);
   const memEvo = useMemo(() => membershipEvolution(ws.customerMemberships, now, 12, filterId), [ws.customerMemberships, now, filterId]);
@@ -287,7 +288,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-3 rounded-lg bg-success-soft px-3.5 py-3 text-sm text-success-fg"><CheckCircle2 className="h-4 w-4 shrink-0" />Todo en orden. Nada pendiente ahora mismo.</div>
             ) : (
               <ul className="-mx-2">
-                {alerts.slice(0, 3).map((a) => (
+                {alerts.slice(0, allAlerts ? alerts.length : 3).map((a) => (
                   <li key={a.id}>
                     <button type="button" onClick={() => navigate(a.to)} className="group flex w-full items-start gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-surface-2">
                       <span className={cn("mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md", a.severity === "danger" ? "bg-danger-soft text-danger-fg" : a.severity === "warning" ? "bg-warning-soft text-warning-fg" : "bg-surface-sunken text-fg-2")}>
@@ -303,7 +304,11 @@ export default function DashboardPage() {
                 ))}
               </ul>
             )}
-            {alerts.length > 3 && <Link to="/seguimiento" className="mt-1 block text-sm font-medium text-fg-3 hover:text-fg">Ver los {alerts.length} avisos →</Link>}
+            {alerts.length > 3 && (
+              <button type="button" onClick={() => setAllAlerts((v) => !v)} aria-expanded={allAlerts} className="mt-1 text-sm font-medium text-fg-3 hover:text-fg">
+                {allAlerts ? "Ver menos" : `Ver los ${alerts.length} avisos`}
+              </button>
+            )}
           </Card>
         </div>
 
