@@ -6,6 +6,7 @@ import type { Customer } from "@/domain/types";
 import { uid } from "@/lib/ids";
 import { CloudSync, type Batch, type SyncStatus } from "./sync";
 import { fakeServer } from "./fakeServer.testutil";
+import { entityToRow } from "./mapping";
 
 /**
  * Reenvíos, recarga y envíos en paralelo:
@@ -226,15 +227,20 @@ describe("orden, reintentos y progreso", () => {
     expect(sync.pending).toBe(0);
   });
 
-  it("dos descargas pedidas a la vez se sirven con una sola", async () => {
+  it("descargas pedidas mientras otra está en curso: una sola más, compartida, que ve lo escrito después", async () => {
     const server = fakeServer();
-    const { sync } = await boot(server, createMemoryKV());
+    const { sync, store, orgId } = await boot(server, createMemoryKV());
     const before = server.reads();
-    await Promise.all([sync.pull(), sync.pull()]);
-    const one = server.reads() - before;
-    const again = server.reads();
     await sync.pull();
-    expect(server.reads() - again).toBe(one);
+    const one = server.reads() - before;
+    const start = server.reads();
+    const first = sync.pull();
+    // Algo cambia en el servidor por otra vía (p. ej. RPC de equipo) después de empezar la primera descarga
+    const c = customers(orgId, 1)[0]!;
+    server.tables.get("customers")!.set(c.id, entityToRow("customers", { ...c, firstName: "Recién llegada" }));
+    await Promise.all([first, sync.pull(), sync.pull(), sync.pull()]);
+    expect(server.reads() - start).toBe(2 * one);
+    expect(store.getWorkspace()!.customers.some((x) => x.firstName === "Recién llegada")).toBe(true);
   });
 });
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AlertTriangle, ArrowRight, CheckCircle2, CircleDot, Package, Plus, Receipt, Rocket, ScrollText, Store, Upload, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, CircleDot, Plus, Receipt, Rocket, ScrollText, Store, Upload, Wallet } from "lucide-react";
 import { useOnboardingProgress } from "@/features/onboarding/OnboardingWizard";
 import { useLocationScope, useSession, useWorkspace } from "@/app/session";
 import {
@@ -22,6 +22,8 @@ import {
 } from "@/lib/dates";
 import { formatMoney, NUM } from "@/lib/money";
 import { cn } from "@/lib/cn";
+import { getPref, setPref } from "@/lib/localPrefs";
+import type { Permission } from "@/domain/permissions";
 
 type Range = "7d" | "30d" | "90d" | "ytd" | "1y" | "custom";
 const RANGES: { value: Exclude<Range, "custom">; label: string; long: string }[] = [
@@ -111,7 +113,6 @@ export default function DashboardPage() {
 
   const session = current ? openSessionFor(ws, current.id) : ws.cashSessions.find((s) => s.status === "open" && (!filterId || s.locationId === filterId));
   const cash = session ? sessionSummary(ws, session) : null;
-  const empty = ws.sales.length === 0 && ws.invoices.length === 0;
   const prevRange = `${formatDate(prev.start)} – ${formatDate(addDays(prev.end, -1))}`;
   const productPrev = new Map(kPrev.byProduct.map((p) => [p.key, p.amount]));
   const todayCmp = useMemo(() => todayComparison(ds, now, filterId), [ds, now, filterId]);
@@ -192,7 +193,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {!ws.organization.isDemo && can("settings.manage") && !onboarding.finished && !onboarding.dismissed ? <SetupCard {...onboarding} /> : empty && <Onboarding />}
+      {!ws.organization.isDemo && can("settings.manage") && !onboarding.finished && !onboarding.dismissed && <SetupCard {...onboarding} />}
+      {!ws.organization.isDemo && <FirstSteps />}
 
       <div className="stagger grid gap-4 md:grid-cols-12 [&>*]:min-w-0">
         {/* PRINCIPAL · Facturación + tendencia */}
@@ -525,7 +527,7 @@ function CenterPerformance({ rows, label, hasExpenses }: { rows: { id: string; n
 
 function SetupCard({ doneCount, total }: { doneCount: number; total: number }) {
   return (
-    <Card className="mb-6 overflow-hidden p-0">
+    <Card className="mb-6 overflow-hidden" padded={false}>
       <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:p-6">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-fg"><Rocket className="h-5 w-5" /></span>
         <div className="min-w-0 flex-1">
@@ -548,33 +550,55 @@ function weekly(series: { date: Date; operations: number; total: number }[], now
   return out;
 }
 
-function Onboarding() {
+/**
+ * Primeros pasos con datos reales de la empresa: cada paso se marca solo al hacerlo y la tarjeta desaparece cuando
+ * están todos (o si se oculta). Solo muestra lo que el rol puede hacer.
+ */
+function FirstSteps() {
+  const ws = useWorkspace();
+  const { can } = useSession();
+  const [hidden, setHidden] = useState(() => getPref(`firstSteps.${ws.organization.id}`) === "hidden");
+  const all: { t: string; d: string; to: string; done: boolean; perm: Permission }[] = [
+    { t: "Crea tu primer cliente", d: "Nombre y contacto; el resto, cuando lo necesites.", to: "/clientes?nuevo=1", done: ws.customers.length > 0, perm: "customers.manage" },
+    { t: "Añade un producto o servicio", d: "Lo que vendes en caja, con su precio e IVA.", to: "/catalogo?nuevo=1", done: ws.products.length > 0, perm: "catalog.manage" },
+    { t: "Abre la caja", d: "Con el efectivo inicial del cajón.", to: "/caja", done: ws.cashSessions.length > 0, perm: "cash.operate" },
+    { t: "Haz tu primera venta", d: "Toca productos, elige cómo paga y cobra.", to: "/caja", done: ws.sales.length > 0, perm: "pos.sell" },
+    { t: "Registra un gasto", d: "Alquiler, luz, proveedores… para ver tu resultado real.", to: "/gastos?nuevo=1", done: ws.expenses.length > 0, perm: "expenses.manage" },
+    { t: "Emite una factura", d: "A un cliente, con su número de serie y PDF.", to: "/facturas/nueva", done: ws.invoices.length > 0, perm: "invoices.manage" },
+  ];
+  const steps = all.filter((x) => can(x.perm));
+  const done = steps.filter((x) => x.done).length;
+  if (hidden || !steps.length || done === steps.length) return null;
+  const next = steps.find((x) => !x.done)!;
   return (
-    <Card className="mb-6 overflow-hidden p-0">
-      <div className="grid md:grid-cols-[1.3fr_1fr]">
-        <div className="p-6 sm:p-8">
+    <Card className="mb-6 overflow-hidden" padded={false}>
+      <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5 sm:px-6">
+        <div>
           <Badge tone="accent">Primeros pasos</Badge>
-          <h2 className="mt-3 text-xl font-semibold tracking-tight">Trae tu negocio a Business OS</h2>
-          <p className="mt-1.5 max-w-lg text-sm text-fg-3">Importa tus Excel actuales o empieza desde cero. El sistema detecta hojas, columnas, duplicados y errores, y te enseña todo antes de guardar.</p>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Link to="/importaciones/nueva"><Button variant="primary" icon={Upload}>Importar Excel o CSV</Button></Link>
-            <Link to="/catalogo?nuevo=1"><Button icon={Package}>Crear producto</Button></Link>
-          </div>
+          <h2 className="mt-2 text-lg font-semibold tracking-tight">Empieza a trabajar con {ws.organization.name}</h2>
+          <p className="mt-0.5 text-sm text-fg-3">{done} de {steps.length} hechos. Cada paso se marca solo al hacerlo. Luego, mira el resultado en <Link to="/finanzas" className="font-medium text-accent-fg hover:underline">Finanzas</Link> e <Link to="/informes" className="font-medium text-accent-fg hover:underline">Informes</Link>.</p>
         </div>
-        <ol className="hidden border-l border-line bg-surface-2 p-6 md:block">
-          {[
-            ["Catálogo y precios", Package],
-            ["Primera venta en Caja", Store],
-            ["Facturas, clientes e IVA", Receipt],
-            ["Informe para la gestoría", Upload],
-          ].map(([t], i) => (
-            <li key={String(t)} className="flex items-center gap-3 py-2 text-sm">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full border border-line bg-surface text-xs font-semibold num">{i + 1}</span>
-              {String(t)}
-            </li>
-          ))}
-        </ol>
+        <div className="flex items-center gap-2">
+          <Link to="/importaciones/nueva"><Button size="sm" icon={Upload}>Importar Excel</Button></Link>
+          <Button size="sm" variant="ghost" onClick={() => { setPref(`firstSteps.${ws.organization.id}`, "hidden"); setHidden(true); }}>Ocultar</Button>
+        </div>
       </div>
+      <ol className="mt-4 grid border-t border-line sm:grid-cols-2 xl:grid-cols-3">
+        {steps.map((x, i) => (
+          <li key={x.t} className="border-b border-line sm:[&:nth-child(odd)]:border-r xl:border-r xl:[&:nth-child(3n)]:border-r-0">
+            <Link to={x.to} className={cn("flex h-full items-start gap-3 px-5 py-4 transition-colors hover:bg-surface-2 sm:px-6", x === next && "bg-accent-soft/40")}>
+              {x.done
+                ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success" aria-label="Hecho" />
+                : <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-line-strong text-[11px] font-semibold text-fg-3 num">{i + 1}</span>}
+              <span className="min-w-0">
+                <span className={cn("block text-sm font-medium", x.done && "text-fg-3 line-through decoration-fg-3/40")}>{x.t}</span>
+                <span className="block text-xs text-fg-3">{x.d}</span>
+              </span>
+              {x === next && <ArrowRight className="ml-auto mt-0.5 h-4 w-4 shrink-0 text-accent-fg" />}
+            </Link>
+          </li>
+        ))}
+      </ol>
     </Card>
   );
 }

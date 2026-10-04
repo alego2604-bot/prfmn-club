@@ -131,6 +131,11 @@ describe.skipIf(!URL || !KEY)("API real: cada rol solo hace lo suyo", () => {
       const voided = await M.sb.from("invoices").update({ status: "void", voided_at: new Date().toISOString(), void_reason: "x" }).eq("id", f.id).select();
       expect(voided.error || (voided.data ?? []).length === 0, "manager anuló una factura").toBeTruthy();
     }
+    // ── FINANCE (contable) también cobra
+    {
+      const pay = await F.sb.from("payments").insert({ organization_id: orgId, kind: "charge", invoice_id: f.id, payment_method_id: pm.id, method_kind: pm.kind, amount: 1000, source: "manual" });
+      expect(pay.error?.message ?? null, "finance no pudo cobrar").toBeNull();
+    }
     // ── Escalada de equipo por PostgREST directo: ADMIN contra OWNER
     {
       const roles = ((await A.sb.from("roles").select("id,key").is("organization_id", null)).data ?? []) as { id: string; key: string }[];

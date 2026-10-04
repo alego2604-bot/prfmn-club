@@ -180,7 +180,7 @@ export function OnboardingPage() {
     setBusy(true);
     try {
       await s.createOrganization({ ...form, locationName: form.locationName || form.city || "Principal" });
-      toast.success(`${form.name} está lista`, "Siguiente paso: importa tus Excel o crea tu catálogo.");
+      toast.success(`${form.name} está lista`, "Te guiamos paso a paso: datos fiscales, centros, cobros y catálogo.");
     } catch (err) {
       toast.fromError(err);
     } finally {

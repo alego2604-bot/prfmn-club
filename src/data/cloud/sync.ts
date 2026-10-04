@@ -392,7 +392,7 @@ export class CloudSync {
   private maybeApplied = new Set<string>();
   private inflight = new Set<string>();
   /** Descarga en curso (una sola a la vez por empresa: la de la demo y la del temporizador coincidían). */
-  private pulling: { orgId: string; p: Promise<void> } | null = null;
+  private pulling: { orgId: string; p: Promise<void>; next?: Promise<void> } | null = null;
   /** Hubo una escritura mientras el bucle de envío terminaba: se relanza al acabar (si no, esperaría al próximo aviso). */
   private kick = false;
   private statusListeners = new Set<(s: SyncStatus) => void>();
@@ -552,12 +552,16 @@ export class CloudSync {
   pull(): Promise<void> {
     const orgId = this.orgId;
     if (!orgId) return Promise.resolve();
-    if (this.pulling?.orgId === orgId) return this.pulling.p;
-    const p = this.pullOnce().finally(() => {
-      if (this.pulling?.p === p) this.pulling = null;
+    const cur = this.pulling?.orgId === orgId ? this.pulling : null;
+    // Una descarga en curso pudo empezar ANTES de lo que motiva esta (p. ej. añadir a alguien al equipo por RPC):
+    // no se reutiliza su foto; se encadena una más, compartida por todas las peticiones que lleguen mientras tanto.
+    if (cur) return (cur.next ??= cur.p.catch(() => undefined).then(() => this.pull()));
+    const entry: { orgId: string; p: Promise<void>; next?: Promise<void> } = { orgId, p: Promise.resolve() };
+    entry.p = this.pullOnce().finally(() => {
+      if (this.pulling === entry) this.pulling = null;
     });
-    this.pulling = { orgId, p };
-    return p;
+    this.pulling = entry;
+    return entry.p;
   }
 
   private async pullOnce(): Promise<void> {
