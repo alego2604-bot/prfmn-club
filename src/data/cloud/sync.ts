@@ -181,14 +181,43 @@ export function diffWorkspaces(prev: Workspace, next: Workspace): Omit<Batch, "i
 // ---------------------------------------------------------------------------------------------------------------------
 const PAGE = 1000;
 
+/**
+ * Todas las filas de una tabla de la empresa. La primera página trae también el total: el resto de páginas se piden a
+ * la vez (solo lectura, orden estable por id) en vez de una tras otra. En una empresa con miles de ventas la descarga
+ * completa pasaba de ~6 viajes encadenados por tabla a 2.
+ */
 async function fetchAll(sb: SupabaseClient, table: string, orgId: string): Promise<Row[]> {
-  const out: Row[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await sb.from(table).select("*").eq("organization_id", orgId).order("id").range(from, from + PAGE - 1);
+  const page = (from: number, count = false) =>
+    sb.from(table).select("*", count ? { count: "exact" } : undefined).eq("organization_id", orgId).order("id").range(from, from + PAGE - 1);
+  const first = await page(0, true);
+  if (first.error) throw new CloudError(first.error.message, first.error.code);
+  const out = [...((first.data ?? []) as Row[])];
+  if (out.length < PAGE) return out;
+  const total = first.count ?? null;
+  if (total === null) {
+    // Sin total (no debería pasar): página a página, como antes
+    for (let from = PAGE; ; from += PAGE) {
+      const { data, error } = await page(from);
+      if (error) throw new CloudError(error.message, error.code);
+      out.push(...(data as Row[]));
+      if (!data || data.length < PAGE) return out;
+    }
+  }
+  const rest = await Promise.all(Array.from({ length: Math.ceil(total / PAGE) - 1 }, (_, i) => page((i + 1) * PAGE)));
+  for (const r of rest) {
+    if (r.error) throw new CloudError(r.error.message, r.error.code);
+    out.push(...((r.data ?? []) as Row[]));
+  }
+  // Si entraron filas mientras se leía, la última página puede venir llena: se completa
+  for (let from = Math.ceil(total / PAGE) * PAGE; out.length >= from; from += PAGE) {
+    const { data, error } = await page(from);
     if (error) throw new CloudError(error.message, error.code);
     out.push(...(data as Row[]));
-    if (!data || data.length < PAGE) return out;
+    if (!data || data.length < PAGE) break;
   }
+  // Una fila insertada a mitad de lectura desplaza las páginas: nunca se devuelve dos veces
+  const seen = new Set<string>();
+  return out.filter((r) => r.id == null || (!seen.has(String(r.id)) && !!seen.add(String(r.id))));
 }
 
 /** Versión del esquema del servidor: 900+ con `server_capabilities()`; 810 si la función aún no existe. */

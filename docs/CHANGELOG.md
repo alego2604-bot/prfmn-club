@@ -2,6 +2,39 @@
 
 Formato: fecha, fase, resumen. Más reciente arriba.
 
+## 2026-10-04 — Sprint de fiabilidad: demo, reenvíos, fechas y consola
+
+### Errores de consola de las E2E (clasificados)
+- Nuevo `e2e/consoleWatch.mjs`: cada E2E captura respuestas ≥ 400, fallos de red, excepciones JS y errores de consola con su origen y los clasifica (`pages-404`, `sync-409`, `supabase`, `network`, `js`, `other`). Solo los 404 de Pages se consideran esperados; cualquier otro hace fallar la E2E.
+- Resultado contra https://alego2604-bot.github.io/prfmn-club/: negocio 13 y persistencia 14 errores, **todos `pages-404`** (un `page.goto` directo a una ruta interna: Pages sirve `404.html` con la app y estado 404). Ningún error de sync, Supabase, red ni JS.
+
+### Creación de la demo (medido, no a ciegas)
+- Benchmark de navegador (`e2e/.demobench`, no versionado) contra `business-os-staging`: 57 lotes, 16.895 filas, 8,1 MB.
+- **Causa de la lentitud**: el servidor. ~3,5 ms por fila dentro de `sync_push` (RLS, auditoría por fila, triggers de numeración y stock, `RETURNING *`): ~70-80 s de los ~90-100 s. El cliente suma ~4,5 s. Además, al terminar se descargaba la empresa entera **dos veces** (el temporizador de 60 s y la propia demo, en paralelo): 188 peticiones.
+- **Probado y descartado**: envíos en paralelo de trozos independientes. Medición intercalada: paralelo 1 = 95-99 s, 2 = 105-106 s, 4 = 111-165 s (el servidor no escala; trozos de hasta 19,5 s superan el `statement_timeout` y se dividen). Se mantiene el envío en orden.
+- **Aplicado**: descarga única (las peticiones simultáneas comparten la misma) → 141 peticiones (−25 %); y lectura de páginas en paralelo (la primera trae el total, el resto se piden a la vez; también acelera abrir cualquier empresa grande). Cola final tras el último lote: de 15,6-19,7 s a ~10 s. Total medido (staging, muy variable): antes 89-134 s (mediana ~100 s), después 95-109 s; el envío al servidor sigue siendo ~80-95 s. La mejora grande exige tocar el servidor (ver pendientes).
+- **UX**: banda de la demo con fases comprensibles (centros y catálogo → clientes → ventas y caja → finanzas → terminando → comprobando), porcentaje que nunca retrocede, «puedes explorarla mientras tanto», estado sin conexión con «Reintentar», error con «Recargar» y «Demo lista» al terminar. Visible también en móvil. Los tickets aún sin número del servidor muestran «sin nº» en vez de «#0».
+
+### Reenvíos y 409
+- **Causa**: un lote aplicado por el servidor cuya confirmación no llegó a guardarse (respuesta perdida, recarga o pestaña cerrada durante el envío) seguía en la cola y se reenviaba: el servidor respondía 23505 (409) y el cliente lo resolvía comprobando qué existía. En QA se multiplicó porque el arnés restauraba una copia vieja de IndexedDB.
+- **Solución**: antes de enviar, el lote se marca «en vuelo» en IndexedDB (`inflight:<empresa>:<pestaña>`, pequeño); al confirmarse se desmarca. Al reabrir (o tras una respuesta perdida) los lotes marcados se comprueban ANTES de reenviarse: si ya entraron se confirman sin enviar nada. La pestaña que adopta la cola de otra cerrada hereda sus marcas. La idempotencia del servidor sigue como última barrera (cola vieja sin marcas → sin duplicados).
+- Interbloqueo y fallo de serialización (40P01/40001) pasan a ser transitorios (antes descartaban el resto del grupo).
+- Progreso de grupo monotónico aunque un trozo se divida; relanzamiento del envío si se escribe justo cuando el bucle termina.
+- Tests nuevos (`src/data/cloud/replay.test.ts`, 15): respuesta perdida, recarga durante el envío, pestaña cerrada tras/antes de confirmar, adopción de cola con lote en vuelo, cola vieja restaurada, segundo dispositivo, orden de envío, interbloqueo, progreso monotónico, descarga única, demo temprana/completa, demo con corte a mitad. Con el código anterior fallan 8.
+
+### Fechas
+- `DateInput` (sustituye a los 26 `<input type="date">`): siempre dd/mm/aaaa sea cual sea el idioma del navegador; valor ISO sin cambios; barras automáticas y teclado numérico («4071990» → 04/07/1990); acepta ISO pegado; valida fechas imposibles (31/02) y rangos; botón de calendario que abre el selector nativo (rueda en móvil/iPad).
+
+### Pulido
+- Membresías → MRR por tarifa: el nº de membresías ya no se recorta (en tarjetas estrechas el nombre pasa a dos líneas).
+- Gastos → Por categoría: pie con total y nº de categorías; el gráfico de evolución rellena la altura de la tarjeta.
+- Ajustes → Métodos de pago: fila compacta; el tipo solo aparece si el nombre no lo dice ya.
+
+### PENDIENTE (requiere servidor / decisión)
+1. Demo rápida de verdad: sembrarla en el servidor (función SQL que genere los datos sintéticos de la empresa demo) o que `sync_push` devuelva solo ids y números en vez de `RETURNING *` completo. Ambas son migraciones: decisión del propietario.
+2. Alternativa sin migración: demo con menos histórico (hoy 13 meses de caja diaria en 2 centros); es decisión de producto.
+3. Los 404 de Pages en enlaces directos son inherentes a GitHub Pages; un hosting con reescritura SPA los elimina.
+
 ## 2026-10-04 — QA ligera sobre el staging público
 
 Recorrido como usuario real en https://alego2604-bot.github.io/prfmn-club/ (21 rutas, 1440 / 1180 / 820 / 390, claro y oscuro) con comprobaciones automáticas de desbordamiento, errores, nombres accesibles y texto técnico. Sin cambios de base de datos, migraciones ni arquitectura.

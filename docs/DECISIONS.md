@@ -261,6 +261,18 @@ La paleta de 8 colores de categoría no supera la validación de daltonismo (ski
 
 **Motivo**: la interfaz es en español y los nombres en inglés aparecían en el selector de empresa, Equipo y la puesta en marcha. Es solo texto: no afecta a datos ni a la base de datos.
 
+## 2026-10-04 — Sincronización: envío en orden (sin paralelo) y marcas «en vuelo»
+
+**Decisión**: los trozos de `sync_push` se siguen enviando de uno en uno. Los lotes enviados se marcan «en vuelo» en IndexedDB y, si al reabrir siguen en la cola, se comprueban antes de reenviarse. Interbloqueo y serialización (40P01/40001) se tratan como transitorios.
+
+**Motivo**: se implementó y midió el envío en paralelo de trozos independientes; en `business-os-staging` el servidor no escala (paralelo 4: hasta 165 s y trozos de 19,5 s que superan el `statement_timeout`), así que se retiró. Las marcas evitan el reenvío ciego (409) sin quitar la idempotencia del servidor, que sigue como última barrera.
+
+## 2026-10-04 — Campo de fecha propio en formato español
+
+**Decisión**: `DateInput` (texto dd/mm/aaaa + selector nativo) en lugar de `<input type="date">`. El valor sigue siendo ISO.
+
+**Motivo**: el input nativo muestra el formato del idioma del navegador (mm/dd/aaaa en inglés). No es un date picker propio: el calendario sigue siendo el nativo, accesible y con la rueda del sistema en móvil.
+
 ## Pendiente de validación legal/fiscal
 
 **Nota**: el modelo de facturación (`BILLING_SYSTEM.md`) está preparado conceptualmente para normativa española (series, IVA, NIF/CIF) pero no ha sido validado por un asesor fiscal. No se debe emitir facturas reales en producción sin esa validación.
