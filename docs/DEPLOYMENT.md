@@ -39,6 +39,20 @@ NODE_USE_ENV_PROXY=1 npm run test:cloud                           # el test de f
 ```
 Hasta entonces la app funciona contra staging sin Gastos, Membresías, Seguimiento ni series (aviso «Pendiente de activar en el servidor»).
 
+### Aplicar 0920 en staging (pendiente) — permisos aplicados en servidor
+
+Orden: **1)** desplegar el cliente de esta rama (funciona con 0910 y con 0920; GitHub Pages lo publica al hacer push), **2)** aplicar la migración, **3)** validar.
+
+```bash
+SUPABASE_ACCESS_TOKEN=… node scripts/staging/apply.mjs --status   # comprobar registro hasta 0910
+SUPABASE_ACCESS_TOKEN=… node scripts/staging/apply.mjs            # aplica solo 20261006000920
+BOS_CLOUD_URL=… BOS_CLOUD_ANON_KEY=… npx vitest run src/data/cloud/security.integration.test.ts src/data/cloud/staging910.integration.test.ts
+npm run test:cloud && E2E_BASE_URL=… node e2e/permisos.e2e.mjs      # además persistencia, negocio y multiempresa
+```
+- Reversión: `supabase/rollbacks/20261006000920_down.sql` (no toca datos; devuelve el SELECT de `customers` y los cobros/escalada a su estado anterior).
+- Efecto visible para el usuario: el **encargado** cobra cuotas y facturas; los clientes dejan de entregar NIF/dirección a quien no tiene `customers.sensitive`.
+- Un cliente anterior a esta rama (pestañas abiertas con la versión vieja) leería `customers` con `select *` y fallaría tras 0920: recargar. Por eso el orden 1 → 2.
+
 ## Staging público en GitHub Pages (sin terminal)
 
 URL: **https://alego2604-bot.github.io/prfmn-club/** (HTTPS, sin coste: el repositorio es público).

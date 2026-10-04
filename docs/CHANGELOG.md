@@ -2,6 +2,43 @@
 
 Formato: fecha, fase, resumen. Más reciente arriba.
 
+## 2026-10-04 — Sprint de seguridad: permisos, roles, datos sensibles y auditoría
+
+Sin módulos nuevos. Cliente + migración **0920** (no aplicada en staging: no hay token de gestión; la aplica el propietario). Modelo completo en [PERMISSIONS.md](PERMISSIONS.md).
+
+### Validación real de 0910 en `business-os-staging`
+- Nuevo `staging910.integration.test.ts` (cuentas sintéticas, API real). Resultado: **invite**, **role_change** y **update** (centros, estado) dejan **un** registro cada uno con actor, acción, entidad, etiqueta, cambios y contexto; empresa y configuración quedan auditadas; editar un borrador deja una inserción/borrado por línea sin duplicados; un cambio sin efecto no escribe nada.
+- Defecto de 0910 encontrado y corregido en 0920: al pasar un miembro a «todos los centros» (`null`) `jsonb_strip_nulls` eliminaba el valor «to», y la auditoría solo guardaba el «from».
+
+### Brechas reproducidas en staging antes de corregirlas (2026-10-04)
+- Un empleado registraba un cobro de factura por `sync_push` y por PostgREST directo.
+- Un administrador degradaba al owner y se asignaba el rol owner por PostgREST directo.
+- Un empleado leía NIF y dirección de todos los clientes por la API.
+
+### Permisos individuales (`permission_overrides`)
+- Permiso efectivo = (rol ∪ permitir) \ denegar, igual en servidor (`app.has_permission`) y cliente (`can()`); denegar gana siempre. Aplicado en repositorios (`Ctx.overrides`), `session.can`, rutas, menú, ⌘K y acciones. La sesión toma rol/excepciones vigentes del equipo descargado.
+- Ajustes → Equipo → **Permisos** (tres estados por permiso: según rol / permitir / denegar). Nadie edita los suyos; solo se concede lo que se tiene; el owner no admite excepciones.
+- Servidor (0920): validación, RPC `set_member_overrides`, auditoría `permission_change` (de/a), y trigger que cierra la escalada por PostgREST (owner intocable, un solo owner, nadie cambia lo suyo, no se concede un rol o permiso mayor que el propio, roles propios acotados).
+
+### customers.sensitive
+- Sensibles: NIF (y normalizado/validez), dirección, código postal, ciudad, razón social y fecha de nacimiento. Email y teléfono son contacto operativo y no se ocultan (ver DECISIONS).
+- Servidor: columnas fuera de la API (`customers_safe` + RPC `customers_sensitive`), escritura con permiso, auditoría de esos cambios solo con permiso, copia fiscal de la factura completada por el servidor.
+- Cliente: no descarga lo sensible sin permiso; `workspaceFor()` filtra pantallas, ⌘K, informes y exportaciones; los repositorios no guardan ni borran datos fiscales sin permiso; copia JSON sin datos sensibles; formulario, ficha 360, listas, filtros y buscador sin campos fiscales.
+- Importar facturas exige `invoices.manage`, `customers.sensitive` y `payments.manage` antes de empezar.
+
+### Cobros
+- **Encargado**: cobra cuotas y facturas (`payments.manage`); no emite facturas libres. La cuota es una operación de membresías (`memberships.manage`) y ya no exige `invoices.manage` (política de inserción de facturas `source = 'membership'`).
+- Servidor: cobros de factura/cuota/devolución, estado de cobro de la factura y cargo de cuota cobrado exigen `payments.manage` (trigger), por `sync_push` y por PostgREST. El cobro de caja sigue siendo de `pos.sell`; devolver al anular una venta, de `sales.void`.
+
+### Navegación, ⌘K y exportaciones
+- `ROUTE_PERMISSIONS`: una sola tabla para los guards de ruta; `/bienvenida` pasa a `settings.manage`; los módulos planificados también se protegen. Test de paridad con el menú.
+- ⌘K extraído a funciones puras (`commandSearch.ts`): sin NIF sin permiso, sin resultados de áreas sin acceso ni de otros centros.
+- Exportar = `reports.export` en todas las tablas (`ExportAllowedContext`), informes e hub; el paquete de la gestoría y las hojas no llevan datos sensibles sin permiso.
+
+### Pruebas
+- `permissions.test.ts` (92: matriz literal por rol, área y acción; cálculo de excepciones idéntico al servidor), `security.test.ts`, `navigation.security.test.ts`, `exports.security.test.ts`, `audit.security.test.ts`, `sensitive.test.ts` (lectura 0920 con servidor simulado, paginada y compatible con 0910), SQL 0920 en `rls_isolation.sql` (+ reversión y reaplicación de la migración en `db-test.sh`), `security.integration.test.ts` (API real, rol por rol) y `e2e/permisos.e2e.mjs` (UI real con cuatro roles).
+- `e2e/launch.mjs`: `E2E_CHROME` permite usar un Chrome ya instalado.
+
 ## 2026-10-04 — Sprint de producto real: dashboard, finanzas, permisos, auditoría y primera impresión
 
 Auditoría del producto con cinco perspectivas (propietario, encargado, empleado, contable y cliente potencial) y correcciones por bloques. No se ha tocado la sincronización ni el rendimiento de la demo.

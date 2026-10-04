@@ -295,3 +295,18 @@ La paleta de 8 colores de categoría no supera la validación de daltonismo (ski
 **Decisión**: se versiona la migración aditiva y reversible 0910. Solo crea o sustituye funciones y triggers de auditoría, sin tocar datos. No se aplica a `business-os-staging` desde esta sesión, que no tiene credenciales de gestión.
 
 **Motivo**: sin ella, el servidor no audita los cambios de rol ni los de configuración de empresa. La app funciona igual con o sin la migración.
+
+## 2026-10-04 — Modelo de permisos: rol + excepciones; cobro por permiso; datos sensibles
+
+**Decisiones** (detalle en [PERMISSIONS.md](PERMISSIONS.md)):
+1. Se respeta el modelo del servidor: permiso efectivo = (rol ∪ `grant`) \ `revoke`, denegar gana. Mismo cálculo en cliente y servidor, con test de equivalencia exhaustivo.
+2. **El encargado cobra cuotas y facturas**: recibe `payments.manage` (0920). Se decide por permiso, sin excepciones por nombre de rol. Emitir/anular facturas libres, gastos y equipo siguen fuera de su rol (se pueden conceder por excepción individual).
+3. Cobrar una cuota = `memberships.manage` (+ `payments.manage` si se cobra en el acto). No exige `invoices.manage`.
+4. **Sensibles** = NIF, dirección, CP, ciudad, razón social y fecha de nacimiento. Email y teléfono no: son datos de contacto que caja, avisos y seguimiento necesitan. Notas y documentos conservan su gobierno actual. *Revisable por el propietario.*
+5. **Exportar es un permiso** (`reports.export`): el encargado deja de exportar listados (antes podía); se le puede conceder por excepción.
+6. Lectura de clientes: vista `customers_safe` + RPC `customers_sensitive` (columnas sensibles fuera del SELECT de la tabla). La app sigue leyendo la tabla completa si el servidor no tiene 0920.
+7. El owner no se modifica desde la API y es único; nadie cambia su propio rol, estado, centros ni permisos; solo se concede lo que se tiene.
+
+**Motivo**: auditoría del 2026-10-04: tres brechas reproducidas en staging (cobro de factura por un empleado, escalada admin → owner por PostgREST, lectura de NIF por la API) y dos permisos definidos pero ignorados (`permission_overrides`, `customers.sensitive`).
+
+**Consecuencia asumida**: el cierre de la lectura de columnas obliga a que el cliente y el servidor se actualicen en orden (desplegar el cliente, después aplicar 0920); un cliente antiguo con 0920 aplicado no podría leer `customers`.

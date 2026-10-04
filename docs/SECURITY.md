@@ -86,13 +86,17 @@ Este registro **no** reproduce los datos eliminados.
 
 
 
-## 5. Permisos por rol (auditoría 2026-10-04)
+## 5. Permisos por rol (auditoría 2026-10-04, sprint de seguridad 2026-10-04)
 
-`src/data/repos/permissions.test.ts` verifica que los permisos del cliente (`ROLE_PERMISSIONS`) coinciden con la semilla SQL y que cada rol solo escribe lo suyo. Ver CHANGELOG 2026-10-04 para lo corregido.
+Modelo, matriz y datos sensibles: [PERMISSIONS.md](PERMISSIONS.md). Tests: `permissions.test.ts` (matriz literal por rol/área/acción y paridad con la semilla SQL), `security.test.ts`, `navigation.security.test.ts`, `exports.security.test.ts`, `audit.security.test.ts`, `sensitive.test.ts`, `rls_isolation.sql` (0920) y, contra el servidor real, `security.integration.test.ts` y `staging910.integration.test.ts`.
 
-Pendiente (documentado, no corregido):
-1. `permission_overrides` existe en la base de datos, pero el cliente lo ignora: la interfaz solo usa el rol.
-2. El permiso `customers.sensitive` no se aplica: todos los que ven clientes ven todos sus campos.
-3. El encargado tiene `memberships.manage`, pero no `invoices.manage`, así que no puede cobrar cuotas. Es una decisión de negocio pendiente.
-4. RLS permite a un empleado (`pos.sell`) insertar cobros de factura. La interfaz no lo ofrece. Recomendado: restringir a `payments.manage` en una migración.
-5. Migración 0910 (auditoría de equipo y configuración en el servidor) pendiente de aplicar en staging.
+Cerrado en el sprint de seguridad (cliente desplegable ya; servidor con la migración **0920**, pendiente de aplicar en staging):
+1. `permission_overrides` se aplica de verdad (rol + permitir/denegar) en servidor, repositorios, interfaz, rutas, menú y ⌘K, con pantalla en Ajustes → Equipo → Permisos y auditoría `permission_change`.
+2. `customers.sensitive` aplicado: columnas fiscales fuera de la API sin permiso (vista + RPC), escritura con permiso, interfaz, ⌘K, exportaciones y copia JSON.
+3. Cobro de cuotas: el encargado cobra cuotas (`payments.manage`); STAFF y VIEWER no.
+4. Cobros de factura/cuota/devolución exigen `payments.manage` también por `sync_push` y PostgREST directo (antes un empleado podía registrar cobros de factura).
+5. Escalada de equipo cerrada: un ADMIN podía degradar al owner o hacerse owner por PostgREST directo (reproducido en staging el 2026-10-04); ahora el owner es intocable, nadie cambia lo suyo y solo se concede lo que se tiene.
+6. Exportar es el permiso `reports.export` en todas las tablas e informes.
+7. Migración 0910 aplicada y validada en staging (auditoría de equipo/empresa/configuración/líneas de borrador, sin duplicados); su único defecto («todos los centros» perdía el valor) lo corrige 0920.
+
+Riesgos pendientes: ver el informe del sprint y PERMISSIONS.md §5 (copia fiscal en facturas).
