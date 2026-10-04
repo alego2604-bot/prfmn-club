@@ -105,7 +105,8 @@ export function addCustomerNote(ctx: Ctx, customerId: string, body: string, opts
     return {
       ...ws,
       customerNotes: [...ws.customerNotes, note],
-      auditLogs: [...ws.auditLogs, auditEntry(ws, ctx, { action: "note", entityType: "customers", entityId: customerId, entityLabel: customerName(c) })],
+      auditLogs: [...ws.auditLogs, // La auditoría va con la fila que se escribe (la nota): en la nube el servidor la enlaza por id
+      auditEntry(ws, ctx, { action: "note", entityType: "customer_notes", entityId: note.id, entityLabel: customerName(c), context: { customerId } })],
     };
   });
   return note;

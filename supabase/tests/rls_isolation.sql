@@ -463,6 +463,34 @@ do $$ begin
   raise notice 'PASS employee no ve ni registra gastos';
 end $$;
 
+-- ---------------------------------------------------------------------
+\echo '0910. Auditoría de equipo, empresa y configuración'
+select pg_temp.login('00000000-0000-0000-0000-00000000000a');
+do $$
+declare v_member uuid;
+begin
+  if not exists (select 1 from public.audit_logs where organization_id = current_setting('test.org_a')::uuid
+                 and entity_type = 'organization_members' and action = 'invite' and context->>'role' = 'employee') then
+    raise exception 'FAIL: alta en el equipo sin «invite» con el rol';
+  end if;
+  select id into v_member from public.organization_members where organization_id = current_setting('test.org_a')::uuid and user_id = '00000000-0000-0000-0000-0000000000cc';
+  perform public.update_member(v_member, 'manager');
+  if not exists (select 1 from public.audit_logs where entity_id = v_member and action = 'role_change' and context->>'from' = 'accountant' and context->>'to' = 'manager') then
+    raise exception 'FAIL: cambio de rol sin «role_change» from/to';
+  end if;
+  perform public.update_member(v_member, 'accountant');
+  update public.organizations set name = 'Empresa A (renombrada)' where id = current_setting('test.org_a')::uuid;
+  if not exists (select 1 from public.audit_logs where organization_id = current_setting('test.org_a')::uuid and entity_type = 'organizations'
+                 and changes ? 'name') then
+    raise exception 'FAIL: cambiar el nombre de la empresa no queda en la auditoría';
+  end if;
+  update public.organization_settings set pos_settings = pos_settings || '{"allow_negative_stock": false}'::jsonb where organization_id = current_setting('test.org_a')::uuid;
+  if not exists (select 1 from public.audit_logs where organization_id = current_setting('test.org_a')::uuid and entity_type = 'organization_settings') then
+    raise exception 'FAIL: cambiar la configuración no queda en la auditoría';
+  end if;
+  raise notice 'PASS equipo (invite/role_change), empresa y configuración auditados en servidor';
+end $$;
+
 reset role;
 \echo ''
 \echo '✔ Todos los tests de aislamiento, permisos e integridad han pasado.'

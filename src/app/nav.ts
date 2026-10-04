@@ -76,8 +76,8 @@ export const NAV: NavGroup[] = [
   {
     label: "Empresa",
     items: [
-      { to: "/ajustes?tab=equipo", label: "Equipo", icon: UsersRound, perm: "dashboard.view", status: "FUNCTIONAL", description: "Personas, roles y centros a los que accede cada una" },
-      { to: "/ajustes?tab=centros", label: "Centros", icon: MapPin, perm: "dashboard.view", status: "FUNCTIONAL", description: "Centros de la empresa: cada uno con su caja, ventas e informes" },
+      { to: "/ajustes?tab=equipo", label: "Equipo", icon: UsersRound, perm: "team.manage", status: "FUNCTIONAL", description: "Personas, roles y centros a los que accede cada una" },
+      { to: "/ajustes?tab=centros", label: "Centros", icon: MapPin, perm: "settings.manage", status: "FUNCTIONAL", description: "Centros de la empresa: cada uno con su caja, ventas e informes" },
     ],
   },
   {

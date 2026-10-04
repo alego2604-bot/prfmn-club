@@ -28,7 +28,7 @@ export default function CatalogPage() {
   const [status, setStatus] = useState<CatalogStatus | "all">("active");
   const [category, setCategory] = useState<string>("all");
   const editingId = params.get("producto");
-  const creating = params.get("nuevo") === "1";
+  const creating = params.get("nuevo") === "1" && can("catalog.manage");
 
   const usage = useMemo(() => {
     const m = new Map<string, { sales: number; units: number }>();
@@ -270,6 +270,8 @@ function ProductDrawer({ productId, onClose }: { productId?: string; onClose: ()
   }, [productId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const readOnly = !can("catalog.manage");
+  // Cambiar precio de un producto existente requiere su propio permiso (el encargado edita fichas, no precios)
+  const priceLocked = !!product && !can("catalog.prices");
   const priceChanged = product && (price !== product.price || form.taxRateBp !== product.taxRateBp);
   const history = ws.productPrices.filter((p) => p.productId === productId).sort((a, b) => b.validFrom.localeCompare(a.validFrom));
   const usage = product ? productUsage(ws, product.id) : null;
@@ -336,7 +338,7 @@ function ProductDrawer({ productId, onClose }: { productId?: string; onClose: ()
           </Field>
         </div>
         <div className="grid grid-cols-3 gap-3">
-          <Field label="Precio (IVA incl.)" required><MoneyInput value={price} onChange={setPrice} invalid={price === null} /></Field>
+          <Field label="Precio (IVA incl.)" required hint={priceLocked ? "Solo quien gestiona precios puede cambiarlo" : undefined}><MoneyInput value={price} onChange={setPrice} invalid={price === null} disabled={priceLocked} /></Field>
           <Field label="IVA">
             <Select value={form.taxRateBp} onChange={(e) => setForm({ ...form, taxRateBp: Number(e.target.value) })}>
               {ws.taxRates.filter((t) => t.status === "active").map((t) => <option key={t.id} value={t.rateBp}>{formatRate(t.rateBp)}</option>)}

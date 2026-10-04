@@ -115,7 +115,7 @@ export function updateActivityRules(ctx: Ctx, rules: ActivityRule[], requireCash
     return {
       ...ws,
       settings: after,
-      auditLogs: [...ws.auditLogs, auditEntry(ws, ctx, { action: "update", entityType: "organization_settings", entityLabel: "Configuración", changes })],
+      auditLogs: [...ws.auditLogs, auditEntry(ws, ctx, { action: "update", entityType: "organization_settings", entityId: ws.organization.id, entityLabel: "Configuración", changes })],
     };
   });
 }

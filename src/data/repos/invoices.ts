@@ -65,7 +65,7 @@ function draftFields(ws: Workspace, ctx: Ctx, input: InvoiceDraftInput) {
 }
 
 /** Crea o actualiza un borrador (líneas incluidas). Un borrador no tiene número ni valor fiscal. */
-export function saveInvoiceDraft(ctx: Ctx, input: InvoiceDraftInput, id?: string): Invoice {
+export function saveInvoiceDraft(ctx: Ctx, input: InvoiceDraftInput, id?: string, origin?: { duplicateOf: string; label: string }): Invoice {
   assertCan(ctx, "invoices.manage");
   let saved!: Invoice;
   ctx.store.update((ws) => {
@@ -85,7 +85,11 @@ export function saveInvoiceDraft(ctx: Ctx, input: InvoiceDraftInput, id?: string
       ...ws,
       invoices: before ? ws.invoices.map((i) => (i.id === saved.id ? saved : i)) : [...ws.invoices, saved],
       invoiceItems: [...others, ...items],
-      auditLogs: [...ws.auditLogs, auditEntry(ws, ctx, { action: before ? "update" : "insert", entityType: "invoices", entityId: saved.id, entityLabel: `Borrador · ${saved.customerName ?? "sin cliente"} · ${formatMoney(saved.total)}` })],
+      auditLogs: [...ws.auditLogs, auditEntry(ws, ctx, {
+        action: before ? "update" : origin ? "duplicate" : "insert", entityType: "invoices", entityId: saved.id,
+        entityLabel: origin ? `Borrador copiado de ${origin.label} · ${formatMoney(saved.total)}` : `Borrador · ${saved.customerName ?? "sin cliente"} · ${formatMoney(saved.total)}`,
+        context: origin ? { duplicateOf: origin.duplicateOf } : undefined,
+      })],
     };
   });
   return saved;
@@ -137,7 +141,7 @@ export function duplicateInvoice(ctx: Ctx, id: string): Invoice {
   return saveInvoiceDraft(ctx, {
     customerId: inv.customerId, customerName: inv.customerId ? undefined : inv.customerName, customerTaxId: inv.customerId ? undefined : inv.customerTaxId,
     customerAddress: inv.customerId ? undefined : inv.customerAddress, locationId: inv.locationId, issueDate: today, dueDays: due, concept: inv.concept, notes: inv.notes, lines,
-  });
+  }, undefined, { duplicateOf: inv.id, label: inv.number ?? "un borrador" });
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

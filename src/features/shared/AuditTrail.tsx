@@ -1,12 +1,7 @@
 import { History } from "lucide-react";
 import { useWorkspace } from "@/app/session";
 import { formatDateTime } from "@/lib/dates";
-
-const ACTION: Record<string, string> = {
-  insert: "Creado", update: "Modificado", void: "Anulado", archive: "Archivado", payment: "Cobro / pago registrado", issue: "Emitida",
-  price_change: "Cambio de precio", pause: "Pausada", resume: "Reanudada", cancel: "Baja", reactivate: "Reactivada", plan_change: "Cambio de tarifa",
-  charge: "Cuota generada", complete: "Completada", note: "Nota", close: "Cierre", reopen: "Reapertura", import: "Importado", revert: "Revertido", delete: "Eliminado",
-};
+import { AUDIT_ACTION } from "./auditLabels";
 
 /** Historial de un registro (auditoría): quién hizo qué y cuándo. Nada se borra; todo queda aquí. */
 export function AuditTrail({ entityIds, limit = 12, title = "Historial" }: { entityIds: string[]; limit?: number; title?: string }) {
@@ -21,7 +16,7 @@ export function AuditTrail({ entityIds, limit = 12, title = "Historial" }: { ent
           {logs.map((l) => (
             <li key={l.id} className="relative pb-3 last:pb-0">
               <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full border-2 border-surface bg-line-strong" />
-              <p className="text-sm"><span className="font-medium">{ACTION[l.action] ?? l.action}</span>{l.entityLabel && <span className="text-fg-3"> · {l.entityLabel}</span>}</p>
+              <p className="text-sm"><span className="font-medium">{AUDIT_ACTION[l.action] ?? l.action}</span>{l.entityLabel && <span className="text-fg-3"> · {l.entityLabel}</span>}</p>
               <p className="text-xs text-fg-3">{l.actorName ?? "Sistema"} · {formatDateTime(l.createdAt)}</p>
             </li>
           ))}

@@ -139,6 +139,8 @@ export function voidSale(ctx: Ctx, saleId: string, reason: string) {
       auditLogs: [
         ...ws.auditLogs,
         auditEntry(ws, ctx, { action: "void", entityType: "sales", entityId: saleId, entityLabel: `Venta #${sale.number} · ${formatMoney(sale.total)}`, context: { reason: reason.trim() } }),
+        // Cada devolución, con su propia traza (importe y cobro original)
+        ...refunds.map((r) => auditEntry(ws, ctx, { action: "refund", entityType: "payments", entityId: r.id, entityLabel: `Devolución venta #${sale.number} · ${formatMoney(r.amount)}`, context: { refundOf: r.refundOfPaymentId, reason: reason.trim() } })),
       ],
     };
   });

@@ -90,7 +90,8 @@ export function updatePlan(ctx: Ctx, id: string, input: PlanInput) {
         price: Math.round(input.price), taxRateBp: input.taxRateBp, sessions: input.sessions || undefined, durationDays: input.durationDays || undefined, validFrom: today,
       };
       versions = [...ws.planVersions.map((v) => (v.id === cur?.id && !v.validTo ? { ...v, validTo: addDaysISO(today, -1) < v.validFrom ? v.validFrom : addDaysISO(today, -1) } : v)), next];
-      logs.push(auditEntry(ws, ctx, { action: "price_change", entityType: "membership_plans", entityId: id, entityLabel: `${after.name} · ${cur ? formatMoney(cur.price) : "—"} → ${formatMoney(next.price)}` }));
+      // Va con la versión nueva (su propio id): no choca con el «editó» de la tarifa en la nube
+      logs.push(auditEntry(ws, ctx, { action: "price_change", entityType: "membership_plan_versions", entityId: next.id, entityLabel: `${after.name} · ${cur ? formatMoney(cur.price) : "—"} → ${formatMoney(next.price)}` }));
     }
     const changes = diff(before, after);
     if (Object.keys(changes).length) logs.push(auditEntry(ws, ctx, { action: "update", entityType: "membership_plans", entityId: id, entityLabel: after.name, changes }));

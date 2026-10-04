@@ -11,7 +11,8 @@ export type Permission =
   | "imports.run" | "imports.revert" | "documents.manage"
   | "settings.manage" | "team.manage" | "audit.view";
 
-const ROLE_PERMISSIONS: Record<RoleKey, Permission[] | "*"> = {
+/** Exportado para comprobar en tests que coincide con lo sembrado en el servidor (role_permissions). */
+export const ROLE_PERMISSIONS: Record<RoleKey, Permission[] | "*"> = {
   owner: "*",
   admin: "*",
   manager: [

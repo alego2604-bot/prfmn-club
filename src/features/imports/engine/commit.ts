@@ -68,6 +68,8 @@ export interface CommitOptions {
  */
 export function commitPlan(ctx: Ctx, plan: ImportPlan, file: FileMeta, opts: CommitOptions = {}): ImportJob {
   assertCan(ctx, "imports.run");
+  // Importar facturas crea facturas: además hace falta poder emitirlas (el servidor lo exige igual)
+  if (plan.kind === "invoices") assertCan(ctx, "invoices.manage");
   assertLocation(ctx, plan.options.locationId);
   let job!: ImportJob;
   ctx.store.update((ws0) => {

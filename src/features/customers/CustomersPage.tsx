@@ -131,7 +131,7 @@ export default function CustomersPage() {
         }}
         empty={{ icon: Users, title: active ? "Ningún cliente con estos filtros" : "Aún no hay clientes", description: active ? "Quita algún filtro para ver más." : "Crea tu primer cliente o importa tus facturas: los clientes se crean automáticamente, sin duplicados.", action: active ? <Button onClick={clear}>Quitar filtros</Button> : can("customers.manage") ? <Button variant="primary" icon={Plus} onClick={() => setParams({ nuevo: "1" })}>Nuevo cliente</Button> : undefined }}
       />
-      {params.get("nuevo") === "1" && <CustomerForm onClose={() => setParams({})} onSaved={(c) => navigate(`/clientes/${c.id}`)} />}
+      {params.get("nuevo") === "1" && can("customers.manage") && <CustomerForm onClose={() => setParams({})} onSaved={(c) => navigate(`/clientes/${c.id}`)} />}
     </Page>
   );
 }

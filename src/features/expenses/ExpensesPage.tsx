@@ -31,7 +31,7 @@ export default function ExpensesPage() {
   const [params, setParams] = useSearchParams();
   const { filterId, current, locations, canSeeAll } = useLocationScope();
   const { now, period, prev, control } = useFinancePeriod();
-  const [editing, setEditing] = useState<{ mode: "new" } | { mode: "edit"; e: Expense } | { mode: "dup"; e: Expense } | null>(params.get("nuevo") ? { mode: "new" } : null);
+  const [editing, setEditing] = useState<{ mode: "new" } | { mode: "edit"; e: Expense } | { mode: "dup"; e: Expense } | null>(params.get("nuevo") && can("expenses.manage") ? { mode: "new" } : null);
   const [detail, setDetail] = useState<Expense | null>(null);
   const [voiding, setVoiding] = useState<Expense | null>(null);
   const [q, setQ] = useState(params.get("q") ?? "");

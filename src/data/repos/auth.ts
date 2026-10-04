@@ -5,7 +5,8 @@
 import type { Member, RoleKey, UserAccount, Vertical } from "@/domain/types";
 import { sha256Hex } from "@/lib/hash";
 import { nowISO, uid } from "@/lib/ids";
-import { ValidationError } from "../context";
+import { assertCan, auditEntry, ValidationError, type Ctx } from "../context";
+import { ROLE_LABELS } from "@/domain/permissions";
 import type { Store } from "../store";
 import { buildWorkspace } from "../workspace";
 
@@ -63,12 +64,20 @@ export async function createOrganization(
   return ws.organization.id;
 }
 
-/** Añadir un miembro del equipo (crea cuenta local si no existe). */
+/** Deja constancia en la auditoría de la empresa (modo local; en la nube lo hace el servidor). */
+function auditTeam(ctx: Ctx, action: string, label: string, entityId: string, context: Record<string, unknown>) {
+  if (!ctx.store.getWorkspace()) return;
+  ctx.store.update((ws) => ({ ...ws, auditLogs: [...ws.auditLogs, auditEntry(ws, ctx, { action, entityType: "organization_members", entityId, entityLabel: label, context })] }));
+}
+
+/** Añadir un miembro del equipo (crea cuenta local si no existe). Solo quien gestiona el equipo. */
 export async function addTeamMember(
-  store: Store,
+  ctx: Ctx,
   orgId: string,
   input: { fullName: string; email: string; password: string; role: RoleKey; locationIds: string[] | null },
 ): Promise<void> {
+  assertCan(ctx, "team.manage");
+  const store = ctx.store;
   const email = input.email.trim().toLowerCase();
   let user = store.getMeta().users.find((u) => u.email === email);
   if (!user) user = await registerAccount(store, { fullName: input.fullName, email, password: input.password });
@@ -76,12 +85,18 @@ export async function addTeamMember(
   if (input.role === "owner") throw new ValidationError("Solo puede haber un owner por empresa");
   const member: Member = { id: uid(), organizationId: orgId, userId: user.id, role: input.role, locationIds: input.locationIds, status: "active", createdAt: nowISO() };
   await store.updateMeta((m) => ({ ...m, members: [...m.members, member] }));
+  auditTeam(ctx, "invite", input.fullName || email, member.id, { email, role: ROLE_LABELS[input.role].name });
 }
 
-export async function updateMember(store: Store, memberId: string, patch: Partial<Pick<Member, "role" | "status" | "locationIds">>): Promise<void> {
+export async function updateMember(ctx: Ctx, memberId: string, patch: Partial<Pick<Member, "role" | "status" | "locationIds">>): Promise<void> {
+  assertCan(ctx, "team.manage");
+  const store = ctx.store;
   const target = store.getMeta().members.find((m) => m.id === memberId);
   if (!target) throw new ValidationError("Miembro no encontrado");
   if (target.role === "owner") throw new ValidationError("El owner no se puede modificar desde aquí");
   if (patch.role === "owner") throw new ValidationError("Solo puede haber un owner por empresa");
   await store.updateMeta((m) => ({ ...m, members: m.members.map((x) => (x.id === memberId ? { ...x, ...patch } : x)) }));
+  const name = store.getMeta().users.find((u) => u.id === target.userId)?.fullName ?? "Miembro";
+  if (patch.role && patch.role !== target.role) auditTeam(ctx, "role_change", name, memberId, { from: ROLE_LABELS[target.role].name, to: ROLE_LABELS[patch.role].name });
+  else auditTeam(ctx, "update", name, memberId, { ...patch });
 }

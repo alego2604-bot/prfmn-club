@@ -40,6 +40,7 @@ export function AssignMembershipDrawer({ open, onClose, customerId, onSaved }: {
   const version = plan ? currentVersion(ws.planVersions, plan.id, start) : undefined;
   const effective = price ?? version?.price ?? 0;
   const canCharge = can("invoices.manage");
+  const canCollect = canCharge && can("payments.manage");
   const end = plan && version ? addDaysISO(periodEnd(start, plan.billingPeriod, version.durationDays), -1) : undefined;
   const save = () => {
     try {
@@ -91,7 +92,7 @@ export function AssignMembershipDrawer({ open, onClose, customerId, onSaved }: {
           {canCharge ? (
             <div>
               <p className="mb-2 text-[13px] font-medium text-fg-2">Primera cuota</p>
-              <Segmented value={first} onChange={setFirst} items={[{ value: "now", label: "Cobrar ahora" }, { value: "pending", label: "Emitir pendiente" }, { value: "later", label: "Más tarde" }]} />
+              <Segmented value={first} onChange={setFirst} items={[...(canCollect ? [{ value: "now" as const, label: "Cobrar ahora" }] : []), { value: "pending" as const, label: "Emitir pendiente" }, { value: "later" as const, label: "Más tarde" }]} />
               {first === "now" && (
                 <Field label="Cobrada con" className="mt-3 max-w-[240px]">
                   <Select value={method} onChange={(e) => setMethod(e.target.value)}>{ws.paymentMethods.filter((m) => m.status === "active" && m.kind !== "unknown").map((m) => <option key={m.id} value={m.key}>{m.name}</option>)}</Select>

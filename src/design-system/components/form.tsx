@@ -174,7 +174,7 @@ export function Select({ className, children, ...rest }: SelectHTMLAttributes<HT
 }
 
 /** Entrada de dinero: el usuario escribe "2,50" y el valor es 250 céntimos. */
-export function MoneyInput({ value, onChange, className, placeholder = "0,00", autoFocus, id, invalid }: { value: number | null; onChange: (cents: number | null) => void; className?: string; placeholder?: string; autoFocus?: boolean; id?: string; invalid?: boolean }) {
+export function MoneyInput({ value, onChange, className, placeholder = "0,00", autoFocus, id, invalid, disabled }: { value: number | null; onChange: (cents: number | null) => void; className?: string; placeholder?: string; autoFocus?: boolean; id?: string; invalid?: boolean; disabled?: boolean }) {
   const [text, setText] = useState(value === null ? "" : (value / 100).toFixed(2).replace(".", ","));
   useEffect(() => {
     const parsed = parseMoneyInput(text);
@@ -186,6 +186,7 @@ export function MoneyInput({ value, onChange, className, placeholder = "0,00", a
       id={id}
       inputMode="decimal"
       autoFocus={autoFocus}
+      disabled={disabled}
       className={cn("num", className)}
       placeholder={placeholder}
       invalid={invalid}

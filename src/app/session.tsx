@@ -299,7 +299,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           await cloud.addMemberByEmail(sb, orgId, input.email, input.role, input.locationIds);
           await sync.pull();
         } else {
-          await localAuth.addTeamMember(store, orgId, input);
+          await localAuth.addTeamMember(ctx!, orgId, input);
         }
       },
       updateMember: async (memberId, patch) => {
@@ -307,7 +307,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           await cloud.updateMember(sb, memberId, patch);
           await sync.pull();
         } else {
-          await localAuth.updateMember(store, memberId, patch);
+          await localAuth.updateMember(ctx!, memberId, patch);
         }
       },
       onSyncError: (l) => sync?.onError(l) ?? (() => undefined),

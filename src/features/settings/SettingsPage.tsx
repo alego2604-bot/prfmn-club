@@ -15,6 +15,7 @@ import { formatDateTime } from "@/lib/dates";
 import { formatRate, NUM } from "@/lib/money";
 import { triggerDownload } from "@/lib/export";
 import { normalizeKey } from "@/lib/text";
+import { AUDIT_ACTION, AUDIT_ENTITY, auditTone, formatAuditValue } from "../shared/auditLabels";
 
 type Tab = "company" | "locations" | "team" | "payments" | "taxes" | "billing" | "expenses" | "rules" | "audit" | "data";
 
@@ -25,16 +26,22 @@ const PARAM_OF = Object.fromEntries(Object.entries(TAB_PARAM).map(([k, v]) => [v
 export default function SettingsPage() {
   const { can } = useSession();
   const [params, setParams] = useSearchParams();
-  const fallback: Tab = can("settings.manage") ? "company" : "audit";
-  const tab = TAB_PARAM[params.get("tab") ?? ""] ?? fallback;
-  const setTab = (t: Tab) => setParams(t === fallback ? {} : { tab: PARAM_OF[t] }, { replace: true });
   const items: { value: Tab; label: string }[] = [
     ...(can("settings.manage") ? [{ value: "company" as Tab, label: "Empresa" }, { value: "locations" as Tab, label: "Centros" }] : []),
     ...(can("team.manage") ? [{ value: "team" as Tab, label: "Equipo y roles" }] : []),
-    ...(can("settings.manage") ? [{ value: "payments" as Tab, label: "Métodos de pago" }, { value: "taxes" as Tab, label: "Impuestos" }, { value: "billing" as Tab, label: "Facturación" }, { value: "expenses" as Tab, label: "Categorías de gasto" }, { value: "rules" as Tab, label: "Reglas" }] : []),
+    ...(can("settings.manage") ? [{ value: "payments" as Tab, label: "Métodos de pago" }, { value: "taxes" as Tab, label: "Impuestos" }, { value: "billing" as Tab, label: "Facturación" }] : []),
+    // Las categorías de gasto las gestiona también quien lleva los gastos (contable)
+    ...(can("settings.manage") || can("expenses.manage") ? [{ value: "expenses" as Tab, label: "Categorías de gasto" }] : []),
+    ...(can("settings.manage") ? [{ value: "rules" as Tab, label: "Reglas" }] : []),
     ...(can("audit.view") ? [{ value: "audit" as Tab, label: "Auditoría" }] : []),
     { value: "data", label: "Datos" },
   ];
+  // Solo se muestra una pestaña permitida, aunque llegue por URL (?tab=equipo sin permiso → la primera permitida)
+  const allowed = new Set(items.map((i) => i.value));
+  const fallback: Tab = items[0]!.value;
+  const wanted = TAB_PARAM[params.get("tab") ?? ""];
+  const tab: Tab = wanted && allowed.has(wanted) ? wanted : fallback;
+  const setTab = (t: Tab) => setParams(t === fallback ? {} : { tab: PARAM_OF[t] }, { replace: true });
   return (
     <Page>
       <PageHeader title="Ajustes" description="Todo lo que cambia con el negocio se configura aquí, sin tocar código. Cada cambio queda en la auditoría." />
@@ -336,34 +343,18 @@ function RulesTab() {
   );
 }
 
-const ACTION_LABEL: Record<string, string> = {
-  insert: "Creó", update: "Editó", price_change: "Cambió precio", archive: "Archivó", deactivate: "Desactivó", activate: "Activó", void: "Anuló",
-  open: "Abrió caja", close: "Cerró caja", reopen: "Reabrió caja", cash_in: "Entrada de caja", cash_out: "Salida de caja", import: "Importó", revert: "Revirtió", note: "Añadió nota", payment: "Registró cobro",
-};
-const ENTITY_LABEL: Record<string, string> = {
-  products: "Producto", product_categories: "Categoría", sales: "Venta", cash_sessions: "Caja", cash_closings: "Cierre", cash_movements: "Movimiento de caja",
-  customers: "Cliente", invoices: "Factura", imports: "Importación", organizations: "Empresa", locations: "Centro", payment_methods: "Método de pago", tax_rates: "IVA", organization_settings: "Configuración",
-};
-
-function fmtVal(v: unknown, key: string): string {
-  if (v === null || v === undefined || v === "") return "—";
-  if (typeof v === "number" && ["price", "cost", "total"].includes(key)) return `${(v / 100).toFixed(2).replace(".", ",")} €`;
-  if (typeof v === "number" && key === "taxRateBp") return formatRate(v);
-  return String(v).slice(0, 60);
-}
-
 function AuditTab() {
   const ws = useWorkspace();
   const columns: Column<AuditLog>[] = [
     { id: "date", header: "Fecha", sortValue: (l) => l.createdAt, exportValue: (l) => new Date(l.createdAt), exportFormat: "datetime", cell: (l) => <span className="whitespace-nowrap text-fg-2">{formatDateTime(l.createdAt)}</span> },
     { id: "actor", header: "Usuario", exportValue: (l) => l.actorName ?? "", cell: (l) => l.actorName },
-    { id: "action", header: "Acción", exportValue: (l) => ACTION_LABEL[l.action] ?? l.action, cell: (l) => <Badge tone={l.action === "void" || l.action === "revert" ? "danger" : l.action === "price_change" ? "warning" : "neutral"}>{ACTION_LABEL[l.action] ?? l.action}</Badge> },
-    { id: "entity", header: "Elemento", exportValue: (l) => `${ENTITY_LABEL[l.entityType] ?? l.entityType}: ${l.entityLabel ?? ""}`, cell: (l) => <span><span className="text-fg-3">{ENTITY_LABEL[l.entityType] ?? l.entityType} · </span>{l.entityLabel}</span> },
+    { id: "action", header: "Acción", exportValue: (l) => AUDIT_ACTION[l.action] ?? l.action, cell: (l) => <Badge tone={auditTone(l.action)}>{AUDIT_ACTION[l.action] ?? l.action}</Badge> },
+    { id: "entity", header: "Elemento", exportValue: (l) => `${AUDIT_ENTITY[l.entityType] ?? l.entityType}: ${l.entityLabel ?? ""}`, cell: (l) => <span><span className="text-fg-3">{AUDIT_ENTITY[l.entityType] ?? l.entityType} · </span>{l.entityLabel}</span> },
     {
       id: "changes", header: "Cambios", exportValue: (l) => JSON.stringify(l.changes ?? l.context ?? ""),
       cell: (l) => (
         <span className="text-xs text-fg-3">
-          {l.changes ? Object.entries(l.changes).slice(0, 3).map(([k, v]) => <span key={k} className="block">{k}: {fmtVal(v.from, k)} → <span className="text-fg">{fmtVal(v.to, k)}</span></span>) : typeof l.context?.reason === "string" ? `«${l.context.reason}»` : ""}
+          {l.changes ? Object.entries(l.changes).slice(0, 3).map(([k, v]) => <span key={k} className="block">{k}: {formatAuditValue(v.from, k)} → <span className="text-fg">{formatAuditValue(v.to, k)}</span></span>) : typeof l.context?.reason === "string" ? `«${l.context.reason}»` : ""}
         </span>
       ),
     },
@@ -373,7 +364,7 @@ function AuditTab() {
       rows={[...ws.auditLogs].sort((a, b) => b.createdAt.localeCompare(a.createdAt))}
       columns={columns}
       getRowId={(l) => l.id}
-      searchText={(l) => `${l.actorName} ${l.action} ${ACTION_LABEL[l.action] ?? ""} ${l.entityLabel ?? ""} ${ENTITY_LABEL[l.entityType] ?? ""}`}
+      searchText={(l) => `${l.actorName} ${l.action} ${AUDIT_ACTION[l.action] ?? ""} ${l.entityLabel ?? ""} ${AUDIT_ENTITY[l.entityType] ?? ""}`}
       searchPlaceholder="Buscar usuario, acción o elemento…"
       exportName="Auditoria"
       exportCompany={ws.organization.name}
@@ -384,7 +375,8 @@ function AuditTab() {
 
 function DataTab() {
   const ws = useWorkspace();
-  const { store, can } = useSession();
+  const { store, can, mode, sync } = useSession();
+  const cloud = mode === "cloud";
   const counts: [string, number][] = [
     ["Productos", ws.products.length], ["Ventas", ws.sales.length], ["Líneas de venta", ws.saleItems.length], ["Pagos", ws.payments.length], ["Facturas", ws.invoices.length],
     ["Clientes", ws.customers.length], ["Cierres", ws.cashClosings.length], ["Importaciones", ws.imports.length], ["Registros de auditoría", ws.auditLogs.length],
@@ -392,20 +384,29 @@ function DataTab() {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card>
-        <CardHeader title="Almacenamiento" description="Modo local: los datos viven en este navegador (IndexedDB), aislados por empresa." />
+        <CardHeader
+          title="Tus datos"
+          description={cloud
+            ? "Guardados en el servidor, aislados por empresa. Este dispositivo conserva una copia para abrir al instante y trabajar sin conexión."
+            : "Modo local: los datos viven en este navegador, aislados por empresa."}
+        />
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
           {counts.map(([k, v]) => <div key={k} className="flex justify-between"><span className="text-fg-3">{k}</span><span className="font-medium num">{v.toLocaleString("es-ES", NUM)}</span></div>)}
         </div>
-        <Callout className="mt-5" tone="warning" icon={Database} title="Haz copias de seguridad">
-          Hasta conectar el servidor (Supabase), borrar los datos del navegador borraría la empresa. Descarga una copia periódicamente.
-        </Callout>
+        {cloud ? (
+          <p className="mt-5 flex items-center gap-2 text-xs text-fg-3"><Database className="h-3.5 w-3.5" />{sync?.lastSyncedAt ? `Última sincronización: ${formatDateTime(sync.lastSyncedAt)}` : "Sincronizando con el servidor…"}</p>
+        ) : (
+          <Callout className="mt-5" tone="warning" icon={Database} title="Haz copias de seguridad">
+            En modo local, borrar los datos del navegador borraría la empresa. Descarga una copia periódicamente.
+          </Callout>
+        )}
       </Card>
       <Card>
-        <CardHeader title="Copia de seguridad" description="Exporta toda la empresa en JSON (mismo modelo que la base de datos SQL)." />
+        <CardHeader title="Copia de seguridad" description="Descarga toda la empresa en un único archivo (JSON): clientes, ventas, facturas, gastos, membresías y auditoría." />
         <Button variant="primary" icon={Download} disabled={!can("settings.manage")} onClick={async () => triggerDownload(new Blob([await store.exportWorkspaceJson()], { type: "application/json" }), `backup_${ws.organization.name.replace(/\W+/g, "_")}_${new Date().toISOString().slice(0, 10)}.json`)}>
           Descargar copia (.json)
         </Button>
-        <p className="mt-4 text-xs text-fg-3">Plan de plataforma: Starter (sin facturación SaaS activa). Arquitectura preparada para Starter · Pro · Business.</p>
+        {!can("settings.manage") && <p className="mt-3 text-xs text-fg-3">Solo quien administra la empresa puede descargar la copia.</p>}
       </Card>
     </div>
   );
