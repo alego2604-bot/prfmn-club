@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Ban, Clock, Plus, ShoppingBag, Upload } from "lucide-react";
-import { useCtx, useLocationScope, useSession, useWorkspace } from "@/app/session";
+import { useCtx, useLocationScope, usePersonName, useSession, useWorkspace } from "@/app/session";
 import { Badge, Button, DataTable, DescriptionList, Drawer, FilterSelect, Kpi, KpiStrip, Mono, Page, PageHeader, ReasonDialog, useToast, type Column } from "@/design-system/components";
 import { voidSale } from "@/data/repos/sales";
 import { customerName } from "@/data/repos/customers";
@@ -133,12 +133,15 @@ function SaleDrawer({ sale, onClose }: { sale?: Sale; onClose: () => void }) {
   const { can } = useSession();
   const toast = useToast();
   const [voiding, setVoiding] = useState(false);
+  const person = usePersonName();
   if (!sale) return null;
   const items = ws.saleItems.filter((i) => i.saleId === sale.id);
   const payments = ws.payments.filter((p) => p.saleId === sale.id);
   const methodName = new Map(ws.paymentMethods.map((m) => [m.key, m.name]));
   const log = ws.auditLogs.filter((l) => l.entityId === sale.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const imp = sale.importId ? ws.imports.find((i) => i.id === sale.importId) : undefined;
+  const session = sale.cashSessionId ? ws.cashSessions.find((x) => x.id === sale.cashSessionId) : undefined;
+  const invoice = ws.invoices.find((i) => i.saleId === sale.id && i.status !== "void");
   const rec = sale.importId ? ws.importRecords.find((r) => r.entityId === sale.id) : undefined;
   const byRate = new Map<number, { base: number; tax: number }>();
   for (const i of items) {
@@ -152,7 +155,7 @@ function SaleDrawer({ sale, onClose }: { sale?: Sale; onClose: () => void }) {
       <Drawer
         open
         onClose={onClose}
-        title={`Venta ${saleNo(sale.number)}`}
+        title={<span className="flex items-center gap-2">Venta {saleNo(sale.number)}{sale.status === "voided" ? <Badge tone="danger" dot>Anulada</Badge> : sale.status === "pending_payment" ? <Badge tone="warning" dot>Pendiente</Badge> : <Badge tone="success" dot>Cobrada</Badge>}</span>}
         subtitle={sale.timePrecision === "exact" ? formatDateTime(sale.occurredAt) : `${formatDate(sale.occurredAt)} · hora no registrada`}
         footer={
           sale.status !== "voided" && can("sales.void") ? (
@@ -204,6 +207,9 @@ function SaleDrawer({ sale, onClose }: { sale?: Sale; onClose: () => void }) {
             { label: "Centro", value: ws.locations.find((l) => l.id === sale.locationId)?.name },
             { label: "Cliente", value: sale.customerId ? <Link className="text-accent-fg hover:underline" to={`/clientes/${sale.customerId}`}>{customerName(ws.customers.find((c) => c.id === sale.customerId)!)}</Link> : "—" },
             { label: "Origen", value: SOURCE_LABEL[sale.source] + (sale.granularity === "aggregate" ? " (resumen mensual)" : "") },
+            ...(sale.sellerId ? [{ label: "Vendida por", value: person(sale.sellerId) }] : []),
+            ...(session ? [{ label: "Caja", value: <Link className="text-accent-fg hover:underline" to="/cierres">Turno del {formatDate(session.openedAt)}{session.status === "open" ? " · abierta" : " · cerrada"}</Link> }] : []),
+            ...(invoice ? [{ label: "Factura", value: <Link className="text-accent-fg hover:underline" to={`/facturas/${invoice.id}`}>{invoice.number ?? invoice.externalNumber ?? "Ver factura"}</Link> }] : []),
             ...(imp ? [{ label: "Importación", value: <Link className="text-accent-fg hover:underline" to={`/importaciones/${imp.id}`}>{imp.fileName}{rec ? ` · ${rec.sheet} fila ${rec.rowNumber}` : ""}</Link> }] : []),
             ...(sale.notes ? [{ label: "Notas", value: sale.notes }] : []),
           ]}

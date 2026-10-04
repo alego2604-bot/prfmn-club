@@ -300,21 +300,30 @@ export function buildReport(ws: Workspace, key: ReportKey, f: ReportFilters, tod
       };
     }
     case "locations": {
+      // Por centro: dónde se factura, con qué ticket y dónde se gana (margen sobre la base imponible)
       const rows = ws.locations.filter((l) => l.status !== "archived").map((l) => {
         const k = computeKpis(ws, f.period, l.id);
         const pl = profitAndLoss(ws, ws.expenses, f.period, l.id);
-        return [l.name, k.operations, k.salesRevenue, k.revenue, pl.expensesGross, pl.result] as (string | number)[];
+        const prevRev = f.compare ? computeKpis(ws, f.compare, l.id).revenue : null;
+        return { cells: [l.name, k.operations, k.avgTicket ?? 0, k.salesRevenue, k.revenue, pl.expensesGross, pl.result, pl.margin ?? 0] as (string | number)[], prevRev, base: pl.revenueBase };
       });
       const general = periodExpenses(ws.expenses, f.period).filter((e) => !e.locationId).reduce((t, e) => t + e.total, 0);
       if (general) notes.push(`Gastos generales sin centro (${(general / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}) no se reparten: solo cuentan en el consolidado.`);
-      const totalRev = rows.reduce((t, r) => t + Number(r[3]), 0);
+      const totalRev = rows.reduce((t, r) => t + Number(r.cells[4]), 0);
+      const sum = (i: number) => rows.reduce((t, r) => t + Number(r.cells[i]), 0);
+      const totalOps = sum(1);
+      // Margen del total coherente con la fila: resultado de los centros sobre su base (sin gastos generales)
+      const baseSum = rows.reduce((t, r) => t + r.base, 0);
       return {
         meta, notes,
-        kpis: rows.slice(0, 4).map((r) => ({ label: String(r[0]), value: Number(r[3]), previous: null, format: "money" as const, hint: `${totalRev ? Math.round((Number(r[3]) / totalRev) * 100) : 0} % de los ingresos` })),
+        kpis: rows.slice(0, 4).map((r) => ({
+          label: String(r.cells[0]), value: Number(r.cells[4]), previous: r.prevRev && r.prevRev > 0 ? r.prevRev : null, format: "money" as const,
+          hint: `${totalRev ? Math.round((Number(r.cells[4]) / totalRev) * 100) : 0} % de los ingresos`,
+        })),
         table: {
-          columns: [{ header: "Centro", format: "text" }, { header: "Operaciones", format: "int", align: "right" }, { header: "Caja", format: "money", align: "right" }, { header: "Ingresos totales", format: "money", align: "right" }, { header: "Gastos (IVA incl.)", format: "money", align: "right" }, { header: "Resultado (sin IVA)", format: "money", align: "right" }],
-          rows,
-          totals: ["Total", rows.reduce((t, r) => t + Number(r[1]), 0), rows.reduce((t, r) => t + Number(r[2]), 0), totalRev, rows.reduce((t, r) => t + Number(r[4]), 0), rows.reduce((t, r) => t + Number(r[5]), 0)],
+          columns: [{ header: "Centro", format: "text" }, { header: "Operaciones", format: "int", align: "right" }, { header: "Ticket medio", format: "money", align: "right" }, { header: "Caja", format: "money", align: "right" }, { header: "Ingresos totales", format: "money", align: "right" }, { header: "Gastos (IVA incl.)", format: "money", align: "right" }, { header: "Resultado (sin IVA)", format: "money", align: "right" }, { header: "Margen", format: "percent", align: "right" }],
+          rows: rows.map((r) => r.cells),
+          totals: ["Total", totalOps, totalOps ? Math.round(sum(3) / totalOps) : 0, sum(3), totalRev, sum(5), sum(6), baseSum ? sum(6) / baseSum : 0],
         },
       };
     }

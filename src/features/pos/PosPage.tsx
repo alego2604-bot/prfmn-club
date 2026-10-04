@@ -266,10 +266,12 @@ export default function PosPage() {
               })}
             </div>
             {otherMethods.length > 0 && (
-              <div className="no-scrollbar mt-2 flex gap-1.5 overflow-x-auto">
+              <div className="no-scrollbar mt-2 flex gap-1.5 overflow-x-auto" role="radiogroup" aria-label="Otros métodos de pago">
                 {otherMethods.map((m) => (
                   <button type="button"
                     key={m.id}
+                    role="radio"
+                    aria-checked={method === m.key}
                     disabled={!lines.length || needsSession}
                     onClick={() => { setMethod(m.key); setReceived(null); }}
                     className={cn("h-8 shrink-0 rounded-lg border px-3 text-xs font-medium transition-colors disabled:opacity-40", method === m.key ? "border-ink bg-ink text-fg-inverse" : "border-line text-fg-2 hover:bg-surface-2")}
@@ -321,13 +323,14 @@ export default function PosPage() {
   );
 
   return (
-    <div className="flex h-full min-w-0 flex-col lg:flex-row">
+    <div className="flex h-full min-w-0 flex-col md:flex-row">
       {/* Productos */}
       <section className="flex min-h-0 min-w-0 flex-1 flex-col">
         <h1 className="sr-only">Caja</h1>
         <div className="flex flex-col gap-3 px-4 pb-3 pt-4 sm:px-5">
-          <div className="flex items-center gap-2">
-            <Input ref={searchRef} leading={<Search className="h-4 w-4" />} placeholder="Buscar producto o SKU" aria-label="Buscar producto o SKU" value={query} onChange={(e) => setQuery(e.target.value)} className="h-11 flex-1 text-[15px]" />
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Con el carrito al lado (iPad vertical) el buscador va en su propia fila para no quedarse en «Buscar» */}
+            <Input ref={searchRef} leading={<Search className="h-4 w-4" />} placeholder="Buscar producto o SKU" aria-label="Buscar producto o SKU" value={query} onChange={(e) => setQuery(e.target.value)} className="h-11 min-w-0 flex-1 text-[15px] md:basis-full lg:basis-0" />
             {locations.length > 1 && !current && (
               <select aria-label="Centro de la venta" value={locationId ?? ""} onChange={(e) => setLocationId(e.target.value || undefined)} className="h-11 rounded-lg border border-line bg-surface px-3 text-sm">
                 <option value="">Centro…</option>
@@ -361,8 +364,8 @@ export default function PosPage() {
         {needsSession && locationId && <OpenSessionBar locationId={locationId} />}
         {!locationId && <div className="px-4 pb-3 sm:px-5"><Callout tone="warning" icon={Building2}>Elige el centro en el que estás vendiendo.</Callout></div>}
 
-        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-28 pt-1 sm:px-5 lg:pb-5">
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-28 pt-1 sm:px-5 md:pb-5">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {visibleProducts.map((p) => {
               const q = qtyOf(p.id);
               const low = p.trackStock && p.minStock !== undefined && (p.stockQuantity ?? 0) <= p.minStock;
@@ -396,10 +399,11 @@ export default function PosPage() {
       </section>
 
       {/* Carrito: lateral desde 1024 px (iPad horizontal y escritorio) */}
-      <aside className="hidden w-[360px] shrink-0 border-l border-line bg-surface lg:flex xl:w-[400px] 2xl:w-[440px]">{cartPanel}</aside>
+      {/* iPad vertical (≥768) ya tiene el carrito siempre a la vista: es el TPV más habitual en mostrador */}
+      <aside className="hidden w-[320px] shrink-0 border-l border-line bg-surface md:flex lg:w-[360px] xl:w-[400px] 2xl:w-[440px]">{cartPanel}</aside>
 
       {/* Carrito: hoja inferior en móvil e iPad vertical */}
-      <div className="lg:hidden">
+      <div className="md:hidden">
         {!sheetOpen && (
           <button type="button"
             onClick={() => setSheetOpen(true)}

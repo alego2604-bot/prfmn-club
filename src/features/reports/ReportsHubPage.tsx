@@ -74,7 +74,14 @@ function ReportView({ reportKey }: { reportKey: ReportKey }) {
   const navigate = useNavigate();
   const { current, locations, canSeeAll } = useLocationScope();
   const now = useMemo(() => new Date(), []);
-  const [preset, setPreset] = useState<Preset>(reportKey === "cash" ? "month" : "quarter");
+  // Periodo inicial con datos suficientes: a principio de trimestre (o de mes, en caja) el «hasta hoy» son pocos días
+  // y las comparativas alarman (−50 %…); entonces se abre el periodo anterior completo, el que pide la gestoría.
+  const [preset, setPreset] = useState<Preset>(() => {
+    const d = new Date();
+    if (reportKey === "cash") return d.getDate() < 7 ? "prev_month" : "month";
+    const qStart = new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1);
+    return (d.getTime() - qStart.getTime()) / 86_400_000 < 30 ? "prev_quarter" : "quarter";
+  });
   const [custom, setCustom] = useState({ start: toISODate(addDays(now, -29)), end: toISODate(now) });
   const [compare, setCompare] = useState<"previous" | "year" | "none">(reportKey === "memberships" || reportKey === "cash" ? "none" : "previous");
   const [loc, setLoc] = useState<string>(current?.id ?? "");
