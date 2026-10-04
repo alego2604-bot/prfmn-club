@@ -84,3 +84,15 @@ Este registro **no** reproduce los datos eliminados.
 3. `update_member.p_status` sin lista blanca en la función (la protege el CHECK de la tabla). Recomendado validarlo y registrar la auditoría con el autor.
 4. `app.next_counter` es ejecutable por `authenticated` (lo necesita `assign_sale_number`, que no es definer). No es invocable vía API porque el esquema `app` no está expuesto en PostgREST; mantener `app` fuera de "Exposed schemas".
 
+
+
+## 5. Permisos por rol (auditoría 2026-10-04)
+
+`src/data/repos/permissions.test.ts` verifica que los permisos del cliente (`ROLE_PERMISSIONS`) coinciden con la semilla SQL y que cada rol solo escribe lo suyo. Ver CHANGELOG 2026-10-04 para lo corregido.
+
+Pendiente (documentado, no corregido):
+1. `permission_overrides` existe en la base de datos, pero el cliente lo ignora: la interfaz solo usa el rol.
+2. El permiso `customers.sensitive` no se aplica: todos los que ven clientes ven todos sus campos.
+3. El encargado tiene `memberships.manage`, pero no `invoices.manage`, así que no puede cobrar cuotas. Es una decisión de negocio pendiente.
+4. RLS permite a un empleado (`pos.sell`) insertar cobros de factura. La interfaz no lo ofrece. Recomendado: restringir a `payments.manage` en una migración.
+5. Migración 0910 (auditoría de equipo y configuración en el servidor) pendiente de aplicar en staging.

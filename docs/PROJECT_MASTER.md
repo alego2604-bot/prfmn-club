@@ -346,7 +346,7 @@ Escala: `PLANNED` → `DESIGNED` → `FRONTEND ONLY` → `FUNCTIONAL` (funciona 
 | Persistencia en Supabase (sync transaccional por lotes, caché/offline IndexedDB) | TESTED | Validada contra business-os-staging: `test:cloud` 18/18 (4 de integración real, incluida una importación de 1.500 ventas por lotes), E2E persistencia 22/22, E2E multiempresa 7/7. Lotes ≤ 300 filas, reintento idempotente, división ante timeout, cola por pestaña. No es PRODUCTION READY: no existe aún el proyecto de producción |
 | Auth Supabase (registro, login, sesión, logout con borrado de caché) | TESTED | Email + contraseña. Confirmación de email depende de la config del proyecto |
 | Organizaciones, centros, miembros, roles | TESTED | Alta por RPC; equipo por email con `add_member_by_email` / `update_member` (sin claves de servicio) |
-| Auditoría en servidor | TESTED | Trigger append-only con etiqueta/acción/contexto declarados por la app |
+| Auditoría en servidor | TESTED | Trigger append-only con etiqueta/acción/contexto declarados por la app. Migración 0910 (equipo y configuración) probada en local, **pendiente de aplicar en staging** |
 | Stock en servidor | TESTED | Trigger en líneas de venta y anulación; ventas anteriores al alta del producto no mueven stock |
 | Capa de integraciones (conexiones, identidades externas, eventos) | DESIGNED | Tablas + RLS probadas; conectores aún no implementados |
 | Empresa demo sintética (siembra por lotes) | TESTED | 2 centros, caja diaria con cierres, notas, importación histórica; `npm run seed:demo` reintentable e idempotente contra staging |
@@ -363,13 +363,14 @@ Escala: `PLANNED` → `DESIGNED` → `FRONTEND ONLY` → `FUNCTIONAL` (funciona 
 | Cierres de caja | TESTED | |
 | Importación caja / facturas XLSX/CSV (pipeline por lotes) | TESTED | Job IMPORTING → COMPLETED / PARTIAL / FAILED / CANCELLED / REVERTED, oculto hasta completar, cancelable, limpiable, reanudable. 7 tests de pipeline + integración en staging (1.500 ventas, 19 s) |
 | Historial y reversión de importaciones | TESTED | Reversión persistida (test de integración) |
-| Facturas emitidas (listado, KPIs, filtros, export, cobro, anulación) | FUNCTIONAL | Emisión manual: PLANNED |
+| Facturas emitidas (listado, KPIs, filtros, export, cobro, anulación) | FUNCTIONAL | Borrador → emitida → cobro parcial/total → anulación; ficha con vencimiento y cronología de actividad; PDF. Validación fiscal pendiente |
 | Clientes y ficha 360 (notas, timeline, saldo, renovación) | FUNCTIONAL | Bajas coherentes, orígenes traducidos, acciones rápidas, cronología con altas/bajas/cambios de estado; vista móvil en tarjetas |
 | Informes (generación gestoría XLSX/CSV/PDF) | TESTED | Flujo periodo → secciones → formato → vista previa |
 | Ajustes (empresa, centros, métodos de pago, IVA, equipo, módulos) | FUNCTIONAL | |
 | Gastos y proveedores | TESTED | Alta/edición, pagado/pendiente/vencido, anulación con motivo (sin borrado), duplicado de factura de proveedor, filtros, export XLSX/CSV, dashboard. Validado en business-os-staging (integración + E2E de navegador) |
 | Membresías y tarifas | TESTED | Tarifas versionadas, alta con primera cuota, pausa/reanudación, baja, reactivación, cambio de tarifa, cobro de cuota con factura; MRR y evolución. Sin cobro automático (Stripe no conectado). Validado en business-os-staging |
-| Seguimiento / Tareas | FUNCTIONAL | Tareas con vencimiento, posponer, completar; acción siguiente en la ficha. Asistencia: DESIGNED |
+| Seguimiento / Tareas | FUNCTIONAL | Tareas con vencimiento, posponer, completar, filtro Todas/Mías; acción siguiente en la ficha. Asistencia: DESIGNED |
+| Roles y permisos | TESTED | Paridad cliente = semilla SQL y rechazos por rol (`permissions.test.ts`); RLS como última barrera. `permission_overrides` y `customers.sensitive` sin aplicar en el cliente (SECURITY §5) |
 | Inbox / Plantillas / WhatsApp | DESIGNED | |
 | Documentos | DESIGNED | |
 | Puesta en marcha (onboarding guiado) | FUNCTIONAL | 10 pasos con progreso persistido en `organization_settings.onboarding` |

@@ -276,3 +276,22 @@ La paleta de 8 colores de categoría no supera la validación de daltonismo (ski
 ## Pendiente de validación legal/fiscal
 
 **Nota**: el modelo de facturación (`BILLING_SYSTEM.md`) está preparado conceptualmente para normativa española (series, IVA, NIF/CIF) pero no ha sido validado por un asesor fiscal. No se debe emitir facturas reales en producción sin esa validación.
+
+
+## 2026-10-04 — Estado de una cuota derivado de su factura
+
+**Decisión**: una cuota fallida, facturada o programada cuya factura está cobrada se ve como cobrada (`effectiveChargeStatus`). La derivación la hace `visibleWorkspace` siempre. El dato guardado no cambia.
+
+**Motivo**: RLS solo deja actualizar `membership_charges` con `memberships.manage`. Un contable puede cobrar la factura, pero no puede marcar la cuota, y la membresía se quedaba en impago. Derivarlo evita dar permisos de más y no necesita migración.
+
+## 2026-10-04 — Gestión de equipo con permiso y auditoría también en local
+
+**Decisión**: `addTeamMember` y `updateMember` exigen `team.manage` y registran «invite», «role_change» y «update». En el servidor lo hace la migración 0910 con triggers (pendiente de aplicar en staging).
+
+**Motivo**: en modo local cualquier rol podía añadir personas o cambiar roles. El cambio de rol es una acción sensible que debe quedar trazada.
+
+## 2026-10-04 — Migración 0910 (auditoría de equipo y configuración) pendiente de aplicar
+
+**Decisión**: se versiona la migración aditiva y reversible 0910. Solo crea o sustituye funciones y triggers de auditoría, sin tocar datos. No se aplica a `business-os-staging` desde esta sesión, que no tiene credenciales de gestión.
+
+**Motivo**: sin ella, el servidor no audita los cambios de rol ni los de configuración de empresa. La app funciona igual con o sin la migración.

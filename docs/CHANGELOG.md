@@ -2,6 +2,74 @@
 
 Formato: fecha, fase, resumen. Más reciente arriba.
 
+## 2026-10-04 — Sprint de producto real: dashboard, finanzas, permisos, auditoría y primera impresión
+
+Auditoría del producto con cinco perspectivas (propietario, encargado, empleado, contable y cliente potencial) y correcciones por bloques. No se ha tocado la sincronización ni el rendimiento de la demo.
+
+### Resumen (dashboard)
+- Tres cifras principales: **Facturación** (desglosada en caja y en cuotas/facturas), **Gastos** (con su variación) y **Resultado** (sin IVA, con margen).
+- Una sola tarjeta «Mix de ingresos» para categoría y método de pago, en lugar de dos.
+- Nueva tabla de rendimiento por centro: facturación, ticket medio, resultado, margen y peso.
+- Los avisos se despliegan en la misma tarjeta. Antes, «Ver los 6 avisos» llevaba a Seguimiento, que mostraba «0 avisos».
+
+### Finanzas, facturas, gastos y seguimiento
+- Finanzas: sección «Movimientos recientes» con cobros, devoluciones y gastos pagados, cada uno enlazado a su origen.
+- Ficha de factura:
+  - línea de vencimiento («Vence en N días», «Vencida hace N días», «Cobrada el…»);
+  - cronología de actividad (creación, emisión, cobros, devoluciones, vencimiento, anulación y ediciones) en orden correcto;
+  - el cobro no puede superar el importe pendiente.
+- Gastos: vencimiento relativo en el detalle, en rojo si ya ha vencido.
+- Seguimiento: filtro «Todas / Mías» cuando el equipo tiene más de una persona.
+
+### Membresías
+- **Error corregido**: una cuota devuelta que después se cobraba dejaba la membresía en «impago» si quien cobraba no podía modificar membresías (por ejemplo, un contable). Ahora el estado se deriva de la factura cobrada.
+- Test: «Cuota devuelta y cobrada después».
+
+### Caja, ventas e informes
+- Caja en iPad (vertical y horizontal): el carrito se ve siempre en un panel lateral, con rejilla de productos adaptada. Los métodos de pago son un grupo de opciones accesible.
+- Detalle de venta: estado, quién la hizo, enlace a la sesión de caja y factura asociada.
+- Informes: el periodo por defecto es útil. Al principio del trimestre se abre el trimestre anterior; antes se abría un periodo de 4 días.
+- Informe de centros: añade ticket medio, margen y comparación con el periodo anterior.
+
+### Clientes
+- La banda de 5 KPI ya no deja un hueco a 820 px.
+- Avatar compacto en móvil en la ficha 360.
+
+### Permisos (auditoría por rol y 8 tests nuevos en `permissions.test.ts`)
+- Test de paridad: los permisos del cliente deben coincidir con la semilla SQL `role_permissions`.
+- Corregido:
+  - en modo local, cualquiera podía añadir personas o cambiar roles (ahora exige `team.manage` y queda en la auditoría);
+  - las pestañas de Ajustes se abrían por URL sin permiso;
+  - la navegación de Equipo y Centros no comprobaba permisos;
+  - el encargado podía editar el precio de un producto (requiere `catalog.prices`);
+  - los formularios abiertos con `?nuevo=1` no comprobaban permisos;
+  - «Cobrar ahora» aparecía sin `payments.manage`;
+  - se podían importar facturas sin `invoices.manage`.
+- Pendiente: ver SECURITY §5.
+
+### Auditoría
+- Etiquetas unificadas (`auditLabels.ts`) para acciones, entidades y valores con importe.
+- Entradas que el servidor descartaba porque no apuntaban a la fila escrita: notas de cliente, cambio de precio de tarifa (a la nueva versión) y reglas de actividad (a la empresa).
+- Nuevas acciones «duplicar» factura y «devolución» al anular una venta.
+- **Migración 0910** (`20261005000910_audit_team_settings.sql`, reversible con `rollbacks/20261005000910_down.sql`):
+  - auditoría en servidor de alta de personas, cambio de rol, cambios de centros/estado y cambios de configuración de empresa;
+  - líneas de factura con `app.audit_row`;
+  - comprobaciones SQL en `rls_isolation.sql` (sección 0910), que pasan en local con `db:test`;
+  - **no aplicada en `business-os-staging`**: no hay token de gestión en esta sesión, queda para el propietario.
+
+### Ajustes
+- En la nube, «Datos» muestra «Guardados en el servidor» y la última sincronización, en lugar del texto del prototipo.
+
+### Primera impresión
+- Acceso: vista previa del producto en el panel lateral (desde 1280 px), con facturación, tendencia y un cobro entrando. Las cifras son de ejemplo y decorativas.
+
+### Hosting
+- Sin cambios. Los 404 de GitHub Pages al abrir una ruta directamente son la limitación conocida (`DEPLOYMENT.md`); la solución es un hosting con reescritura SPA.
+
+### Verificación
+- `check:privacy`, `lint`, `typecheck`, `test` (130, incluidas las integraciones contra staging), `build` y `db:test`.
+- Una ejecución completa tuvo 1 fallo intermitente en una integración contra staging; la repetición pasó 130/130.
+
 ## 2026-10-04 — Experiencia mientras se crea la demo (comprobada en la URL pública)
 
 Sonda de navegador (escritorio 1440 y móvil 390) en https://alego2604-bot.github.io/prfmn-club/ mientras se sube la demo: navegación continua entre Clientes, Ventas, Membresías, Caja y Resumen (escritorio 193 navegaciones, mediana 96 ms, máx 868 ms; móvil 113 abriendo el menú, mediana 371 ms), sin fallos ni errores JS. Hilo principal: tareas largas de máximo 265-468 ms (al generar la demo) y hueco máximo entre frames de 351-471 ms. Progreso monotónico en todas las muestras; fases registradas uploading → checking → done con «Demo lista». Sin datos engañosos: lo que se ve es la demo completa (ya está en el dispositivo, con sus números de ticket); lo que falta es guardarla en el servidor.

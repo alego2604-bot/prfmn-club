@@ -102,6 +102,14 @@ Dark mode está **diseñado**, no invertido: superficies grafito con elevación 
 - Gráficas: `FlowChart` (entradas/salidas/neto), `CountTrend`, `tone="out"` en barras.
 - Estados: vacío con acción, cargando, error por ruta (`RouteErrorBoundary`) y servidor sin capacidad (`ServerNotice`).
 
+## 8c. Sprint de producto (2026-10-04)
+
+- **Jerarquía de cifras**: hay como mucho tres cifras principales por pantalla (Resumen: Facturación, Gastos y Resultado). El resto son secundarias, de menor tamaño, o tablas. Se evita el muro de tarjetas: cuando dos tarjetas responden la misma pregunta, se fusionan en una con `Segmented` (por ejemplo, «Mix de ingresos»).
+- **Fechas relativas** cuando importan: vencimientos («Vence en 3 días», en rojo si ha vencido) en facturas y gastos.
+- **Cronologías** de actividad ordenadas por día, con rango de evento cuando coinciden (creación → emisión → cobro → devolución → vencimiento → anulación).
+- **Acceso**: el panel oscuro muestra una vista previa del producto con cifras de ejemplo (`aria-hidden` y decorativa), solo desde 1280 px.
+- **Caja**: desde 768 px el carrito es un panel lateral fijo de 320 a 360 px; por debajo, una hoja inferior.
+
 ## 9. Preparado para el futuro (sin construir aún)
 
 Widgets reordenables y preferencias de dashboard: las secciones del Inicio son bloques independientes en una rejilla de 12 columnas; añadir orden/visibilidad por usuario será configuración, no rediseño.
