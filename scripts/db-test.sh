@@ -38,3 +38,15 @@ done
 
 echo "→ tests"
 "${PSQL[@]}" -f "$ROOT/supabase/tests/rls_isolation.sql" 2>&1 | sed 's/^psql:[^:]*:[0-9]*: NOTICE:  /  /'
+
+# Reversión de 0920 y reaplicación: la migración es reversible y forward-only repetible (sin pérdida de datos de prueba)
+echo "→ rollback 0920"
+"${PSQL[@]}" -f "$ROOT/supabase/rollbacks/20261006000920_down.sql" >/dev/null 2>&1 || { echo "FAIL: el rollback de 0920 falló"; exit 1; }
+[ "$("${PSQL[@]}" -tA -c "select count(*) from pg_trigger where tgname in ('trg_payments_permission','trg_members_guard','trg_customers_sensitive')")" = "0" ] || { echo "FAIL: el rollback dejó triggers"; exit 1; }
+[ "$("${PSQL[@]}" -tA -c "select has_column_privilege('authenticated','public.customers','tax_id','select')")" = "t" ] || { echo "FAIL: el rollback no devolvió el SELECT"; exit 1; }
+[ "$("${PSQL[@]}" -tA -c "select (public.server_capabilities() ->> 'schema')::int")" = "900" ] || { echo "FAIL: el rollback no restauró server_capabilities"; exit 1; }
+echo "→ 20261006000920 (reaplicada)"
+"${PSQL[@]}" -f "$ROOT/supabase/migrations/20261006000920_permissions_enforcement.sql" >/dev/null 2>&1 || { echo "FAIL: reaplicar 0920 falló"; exit 1; }
+[ "$("${PSQL[@]}" -tA -c "select has_column_privilege('authenticated','public.customers','tax_id','select')")" = "f" ] || { echo "FAIL: tras reaplicar, tax_id sigue legible"; exit 1; }
+[ "$("${PSQL[@]}" -tA -c "select (public.server_capabilities() ->> 'schema')::int")" = "920" ] || { echo "FAIL: capacidades 920"; exit 1; }
+echo "✔ 0920 reversible y reaplicable"
