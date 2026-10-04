@@ -11,6 +11,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AuditLog, Member, Organization, PaymentMethod, RoleKey } from "@/domain/types";
+import { normalizeOverrides } from "@/domain/permissions";
 import { uid } from "@/lib/ids";
 import type { KV } from "../persistence";
 import { liveTabs as defaultLiveTabs, tabId as defaultTabId } from "./tab";
@@ -230,6 +231,24 @@ async function serverSchema(sb: SupabaseClient): Promise<number> {
   }
 }
 
+/**
+ * Datos fiscales/personales de los clientes (migración 0920): la API no los entrega por la tabla; solo la RPC
+ * `customers_sensitive`, y únicamente a quien tiene customers.sensitive (al resto devuelve vacío). Paginada por id.
+ */
+const SENSITIVE_PAGE = 2000;
+export async function fetchSensitiveCustomers(sb: SupabaseClient, orgId: string): Promise<Row[]> {
+  const out: Row[] = [];
+  let after: string | null = null;
+  for (;;) {
+    const { data, error } = await sb.rpc("customers_sensitive", { p_org: orgId, p_after: after, p_limit: SENSITIVE_PAGE });
+    if (error) throw new CloudError(error.message, error.code);
+    const rows = (data ?? []) as Row[];
+    out.push(...rows);
+    if (rows.length < SENSITIVE_PAGE) return out;
+    after = String(rows[rows.length - 1]!.id);
+  }
+}
+
 export interface Person { id: string; fullName: string }
 export interface TeamMember extends Member { fullName?: string; email?: string }
 
@@ -244,14 +263,21 @@ export async function pullWorkspace(sb: SupabaseClient, orgId: string): Promise<
 
   const schema = await serverSchema(sb);
   // Las tablas de 0900 ya existían (lectura con RLS) en servidores anteriores: se leen siempre que se pueda
-  const results = await Promise.all(COLLECTIONS.map(([, table]) => fetchAll(sb, table, orgId).catch((e) => {
+  // Con 0920 los clientes se leen por la vista `customers_safe` (sin columnas sensibles) y lo sensible llega aparte, solo con permiso
+  const split = schema >= 920;
+  const results = await Promise.all(COLLECTIONS.map(([, table]) => fetchAll(sb, split && table === "customers" ? "customers_safe" : table, orgId).catch((e) => {
     if (SCHEMA_900_TABLES.has(table) && schema < 900) return [] as Row[];
     throw e;
   })));
+  if (split) {
+    const ci = COLLECTIONS.findIndex(([key]) => key === "customers");
+    const sensitive = new Map((await fetchSensitiveCustomers(sb, orgId)).map((r) => [String(r.id), r]));
+    if (sensitive.size) results[ci] = results[ci]!.map((r) => (sensitive.has(String(r.id)) ? { ...r, ...sensitive.get(String(r.id)) } : r));
+  }
   const [prices, audit, team, people] = await Promise.all([
     fetchAll(sb, "product_prices", orgId),
     sb.from("audit_logs").select("*").eq("organization_id", orgId).order("id", { ascending: false }).limit(1000),
-    sb.from("organization_members").select("id, organization_id, user_id, location_ids, status, created_at, invited_email, roles(key)").eq("organization_id", orgId),
+    sb.from("organization_members").select("id, organization_id, user_id, location_ids, status, created_at, invited_email, permission_overrides, roles(key)").eq("organization_id", orgId),
     sb.from("profiles").select("id, full_name"),
   ]);
 
@@ -284,6 +310,7 @@ export async function pullWorkspace(sb: SupabaseClient, orgId: string): Promise<
     team: ((team.data ?? []) as unknown as (Row & { roles: { key: string } | null })[]).map((m) => ({
       id: String(m.id), organizationId: String(m.organization_id), userId: String(m.user_id), role: (m.roles?.key ?? "read_only") as RoleKey,
       locationIds: (m.location_ids as string[] | null) ?? null, status: m.status as Member["status"], createdAt: String(m.created_at),
+      permissionOverrides: normalizeOverrides(m.permission_overrides),
       fullName: names.get(String(m.user_id)), email: (m.invited_email as string | null) ?? undefined,
     })),
   };

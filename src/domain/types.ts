@@ -1,3 +1,4 @@
+import type { PermissionOverrides } from "./permissions";
 /**
  * Entidades de dominio. Reflejan 1:1 las tablas de supabase/migrations (camelCase ↔ snake_case),
  * para que el paso del adaptador local al de Supabase sea un mapeo, no un rediseño.
@@ -64,6 +65,8 @@ export interface Member {
   role: RoleKey;
   locationIds: ID[] | null;
   status: "invited" | "active" | "suspended";
+  /** Excepciones individuales sobre el rol (permitir/denegar permisos concretos). Ausente = ninguna. */
+  permissionOverrides?: PermissionOverrides;
   createdAt: ISODateTime;
 }
 

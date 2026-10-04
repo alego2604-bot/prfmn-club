@@ -9,7 +9,7 @@ export const AUDIT_ACTION: Record<string, string> = {
   complete: "Completó", note: "Añadió nota", open: "Abrió caja", close: "Cerró caja", reopen: "Reabrió caja", cash_in: "Entrada de caja", cash_out: "Salida de caja",
   import: "Importó", revert: "Revirtió", importing: "Inició importación", completed: "Completó importación", partial: "Importación parcial",
   failed: "Importación fallida", cancelled: "Canceló importación", reverted: "Revirtió importación", analyzing: "Analizó archivo",
-  invite: "Invitó al equipo", role_change: "Cambió rol",
+  invite: "Invitó al equipo", role_change: "Cambió rol", permission_change: "Cambió permisos",
 };
 
 export const AUDIT_ENTITY: Record<string, string> = {
@@ -23,7 +23,7 @@ export const AUDIT_ENTITY: Record<string, string> = {
 
 /** Tono de la acción en la tabla de auditoría. */
 export const auditTone = (action: string): "danger" | "warning" | "neutral" =>
-  ["void", "revert", "reverted", "delete", "cancel", "failed"].includes(action) ? "danger" : ["price_change", "role_change", "reopen", "plan_change"].includes(action) ? "warning" : "neutral";
+  ["void", "revert", "reverted", "delete", "cancel", "failed"].includes(action) ? "danger" : ["price_change", "role_change", "permission_change", "reopen", "plan_change"].includes(action) ? "warning" : "neutral";
 
 const MONEY_KEYS = new Set(["price", "cost", "total", "subtotal", "amount", "unit_price", "unitPrice", "opening_float", "openingFloat", "counted_cash", "countedCash", "expected_cash", "expectedCash", "tax_total", "taxTotal"]);
 const RATE_KEYS = new Set(["taxRateBp", "tax_rate_bp", "defaultTaxRateBp", "default_tax_rate_bp", "rate_bp", "rateBp"]);

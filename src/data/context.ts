@@ -1,4 +1,4 @@
-import { roleCan, type Permission } from "@/domain/permissions";
+import { can, type Permission, type PermissionOverrides } from "@/domain/permissions";
 import type { AuditLog, RoleKey, UserAccount } from "@/domain/types";
 import { nowISO, uid } from "@/lib/ids";
 import type { Store, Workspace } from "./store";
@@ -10,7 +10,12 @@ export interface Ctx {
   role: RoleKey;
   /** null = todos los centros */
   locationIds: string[] | null;
+  /** Excepciones individuales sobre el rol (permitir/denegar). Ausente = solo el rol. */
+  overrides?: PermissionOverrides;
 }
+
+/** ¿Puede quien ejecuta la acción ejercer este permiso? (rol + excepciones: misma regla que el servidor) */
+export const ctxCan = (ctx: Pick<Ctx, "role" | "overrides">, perm: Permission): boolean => can(ctx.role, ctx.overrides, perm);
 
 export class PermissionError extends Error {
   constructor(perm: Permission) {
@@ -27,7 +32,7 @@ export class ValidationError extends Error {
 }
 
 export function assertCan(ctx: Ctx, perm: Permission): void {
-  if (!roleCan(ctx.role, perm)) throw new PermissionError(perm);
+  if (!ctxCan(ctx, perm)) throw new PermissionError(perm);
 }
 
 export function assertLocation(ctx: Ctx, locationId: string | undefined): void {

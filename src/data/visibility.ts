@@ -6,6 +6,7 @@
 import type { ImportJob } from "@/domain/types";
 import type { Workspace } from "./store";
 import { effectiveChargeStatus } from "@/domain/memberships";
+import { redactWorkspace } from "./privacy";
 
 /** ¿Los datos de este job cuentan? Solo si llegó a completarse (aunque después se revirtiera: quedan anulados). */
 export function importCounts(job: ImportJob): boolean {
@@ -55,5 +56,21 @@ export function visibleWorkspace(input: Workspace): Workspace {
     customerMemberships: ws.customerMemberships.filter((m) => !isHidden(m)),
   };
   cache.set(input, out);
+  return out;
+}
+
+const redactedCache = new WeakMap<Workspace, Workspace>();
+
+/**
+ * Lo que ve una persona concreta: importaciones completadas (visibleWorkspace) y, sin el permiso customers.sensitive,
+ * sin datos fiscales ni personales de clientes (data/privacy.ts). Es lo que leen pantallas, ⌘K, informes y exportaciones.
+ */
+export function workspaceFor(input: Workspace, canSensitive: boolean): Workspace {
+  const v = visibleWorkspace(input);
+  if (canSensitive) return v;
+  const hit = redactedCache.get(v);
+  if (hit) return hit;
+  const out = redactWorkspace(v);
+  redactedCache.set(v, out);
   return out;
 }

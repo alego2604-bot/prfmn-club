@@ -23,10 +23,24 @@ export function fakeServer() {
   const maxInFlight = new Map<string, number>();
   let reads = 0;
   let latency = 0;
+  /** Versión del esquema que anuncia server_capabilities (900 = antes de 0920). */
+  let schema = 900;
+  /** ¿Entrega customers_sensitive lo sensible? (customers.sensitive del usuario simulado) */
+  let canSensitive = true;
+  const SENSITIVE = ["tax_id", "tax_id_normalized", "tax_id_valid", "address", "postal_code", "city", "company_name", "birth_date"];
   const tbl = (t: string) => tables.get(t) ?? tables.set(t, new Map()).get(t)!;
 
-  const rpc = async (fn: string, args: { p_batch: { ops: Op[] } }) => {
-    if (fn === "server_capabilities") return { data: { schema: 900 }, error: null };
+  const rpc = async (fn: string, args: { p_batch: { ops: Op[] } } & Record<string, unknown>) => {
+    if (fn === "server_capabilities") return { data: { schema }, error: null };
+    if (fn === "customers_sensitive") {
+      if (schema < 920) return { data: null, error: { code: "PGRST202", message: "Could not find the function public.customers_sensitive" } };
+      const org = args.p_org as string;
+      const rows = !canSensitive ? [] : [...tbl("customers").values()]
+        .filter((r) => r.organization_id === org && SENSITIVE.some((k) => r[k] != null) && (!args.p_after || String(r.id) > String(args.p_after)))
+        .sort((a, b) => String(a.id).localeCompare(String(b.id))).slice(0, Number(args.p_limit ?? 2000))
+        .map((r) => Object.fromEntries(["id", ...SENSITIVE].map((k) => [k, r[k] ?? null])));
+      return { data: rows, error: null };
+    }
     const key = args.p_batch.ops.map((o) => o.table).join("+");
     inFlight.set(key, (inFlight.get(key) ?? 0) + 1);
     maxInFlight.set(key, Math.max(maxInFlight.get(key) ?? 0, inFlight.get(key)!));
@@ -76,7 +90,10 @@ export function fakeServer() {
     reads++;
     const q = { eq: [] as [string, unknown][], in: null as null | [string, string[]], single: false, maybe: false, range: null as null | [number, number] };
     const run = () => {
-      let rows = [...tbl(table).values()];
+      // customers_safe (0920): la misma tabla sin las columnas sensibles
+      let rows = table === "customers_safe"
+        ? [...tbl("customers").values()].map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => !SENSITIVE.includes(k))))
+        : [...tbl(table).values()];
       for (const [c, v] of q.eq) rows = rows.filter((r) => r[c] === v);
       if (q.in) rows = rows.filter((r) => q.in![1].includes(String(r[q.in![0]])));
       rows.sort((a, b) => String(a.id).localeCompare(String(b.id)));
@@ -115,6 +132,8 @@ export function fakeServer() {
     reads: () => reads,
     /** Retardo por llamada (ms) para observar envíos en paralelo; 0 = inmediato. */
     setLatency: (ms: number) => void (latency = ms),
+    setSchema: (n: number) => void (schema = n),
+    setCanSensitive: (v: boolean) => void (canSensitive = v),
     seedFrom,
     count: (t: string, where?: (r: Record<string, unknown>) => boolean) => [...tbl(t).values()].filter(where ?? (() => true)).length,
   };

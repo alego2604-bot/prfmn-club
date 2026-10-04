@@ -4,13 +4,13 @@ import { Store } from "../store";
 import { createMemoryKV } from "../persistence";
 import { buildWorkspace } from "../workspace";
 import type { Ctx } from "../context";
-import { ROLE_PERMISSIONS, roleCan } from "@/domain/permissions";
+import { ALL_PERMISSIONS, ROLE_PERMISSIONS, roleCan, type PermissionOverrides } from "@/domain/permissions";
 import type { RoleKey } from "@/domain/types";
 import { createCategory, createProduct, updateProduct } from "./catalog";
 import { createCustomer } from "./customers";
 import { openCashSession } from "./cash";
 import { createExpense, createSupplier } from "./expenses";
-import { registerInvoicePayment, saveInvoiceDraft } from "./invoices";
+import { issueInvoice, registerInvoicePayment, saveInvoiceDraft } from "./invoices";
 import { createPlan } from "./memberships";
 import { addLocation, updateOrganization } from "./settings";
 import { createTask } from "./tasks";
@@ -22,7 +22,7 @@ import { addTeamMember, registerAccount, updateMember } from "./auth";
  */
 let owner: Ctx;
 let loc: string;
-const as = (role: RoleKey): Ctx => ({ ...owner, user: { id: `u-${role}`, fullName: role, email: `${role}@t` }, role });
+const as = (role: RoleKey, overrides?: PermissionOverrides): Ctx => ({ ...owner, user: { id: `u-${role}`, fullName: role, email: `${role}@t` }, role, overrides });
 
 beforeEach(async () => {
   const store = new Store(createMemoryKV());
@@ -35,17 +35,34 @@ beforeEach(async () => {
 });
 
 describe("roles: cliente = servidor", () => {
-  it("los permisos de cada rol coinciden con los sembrados en la base de datos", () => {
-    const sql = readFileSync(new URL("../../../supabase/migrations/20261001000100_foundation.sql", import.meta.url), "utf8");
+  const read = (f: string) => readFileSync(new URL(`../../../supabase/migrations/${f}`, import.meta.url), "utf8");
+  /** Permisos por rol tal y como los deja la base de datos: siembra de 0100 + las concesiones posteriores (0920…). */
+  const serverRoles = () => {
+    const sql = read("20261001000100_foundation.sql");
     const block = sql.slice(sql.indexOf("insert into public.role_permissions"), sql.indexOf("end) as p;"));
-    const server: Record<string, string[] | "*"> = {};
-    for (const m of block.matchAll(/when '(\w+)' then array\[([^\]]*)\]/g)) {
-      const perms = [...m[2]!.matchAll(/'([^']+)'/g)].map((x) => x[1]!);
-      server[m[1]!] = perms.length === 1 && perms[0] === "*" ? "*" : perms.sort();
+    const server: Record<string, string[]> = {};
+    for (const m of block.matchAll(/when '(\w+)' then array\[([^\]]*)\]/g)) server[m[1]!] = [...m[2]!.matchAll(/'([^']+)'/g)].map((x) => x[1]!);
+    // Concesiones posteriores: insert into role_permissions … select r.id, '<permiso>' from public.roles r where … r.key = '<rol>'
+    for (const f of ["20261006000920_permissions_enforcement.sql"]) {
+      for (const m of read(f).matchAll(/select r\.id, '([a-z_]+\.[a-z_]+)' from public\.roles r where r\.organization_id is null and r\.key = '(\w+)'/g)) {
+        server[m[2]!] = [...(server[m[2]!] ?? []), m[1]!];
+      }
     }
+    return Object.fromEntries(Object.entries(server).map(([k, v]) => [k, v.length === 1 && v[0] === "*" ? "*" : [...new Set(v)].sort()]));
+  };
+
+  it("los permisos de cada rol coinciden con los de la base de datos (siembra + migraciones posteriores)", () => {
     const client = Object.fromEntries(Object.entries(ROLE_PERMISSIONS).map(([k, v]) => [k, v === "*" ? "*" : [...v].sort()]));
+    const server = serverRoles();
     expect(Object.keys(server).sort()).toEqual(Object.keys(client).sort());
     expect(server).toEqual(client);
+  });
+
+  it("el catálogo de permisos del cliente es el de la base de datos", () => {
+    const sql = read("20261001000100_foundation.sql");
+    const block = sql.slice(sql.indexOf("insert into public.permissions"), sql.indexOf("create table public.roles"));
+    const server = [...block.matchAll(/\('([a-z_]+\.[a-z_]+)',/g)].map((m) => m[1]!).sort();
+    expect([...ALL_PERMISSIONS].sort()).toEqual(server);
   });
 });
 
@@ -106,7 +123,11 @@ describe("cada rol solo escribe lo suyo", () => {
 
   it("cobrar una factura exige poder registrar cobros", () => {
     const inv = saveInvoiceDraft(owner, draft);
-    expect(() => registerInvoicePayment(as("manager"), inv.id, { methodKey: "card" })).toThrow();
+    expect(() => registerInvoicePayment(as("employee"), inv.id, { methodKey: "card" })).toThrow();
+    expect(() => registerInvoicePayment(as("read_only"), inv.id, { methodKey: "card" })).toThrow();
+    // …y con ese permiso por excepción, sí
+    const issued = issueInvoice(owner, inv.id);
+    expect(() => registerInvoicePayment(as("employee", { grant: ["payments.manage"], revoke: [] }), issued.id, { methodKey: "card", amount: 100 })).not.toThrow();
   });
 });
 

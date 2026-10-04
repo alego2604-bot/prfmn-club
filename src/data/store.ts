@@ -5,6 +5,7 @@
  * Todas las escrituras pasan por `store.update(fn)`: la función recibe el workspace actual y
  * devuelve el nuevo. Si lanza, no se aplica nada (atomicidad, p. ej. en importaciones).
  */
+import { redactWorkspace } from "./privacy";
 import type {
   AuditLog, CashClosing, CashMovement, CashSession, Customer, CustomerMembership, CustomerNote, DocumentSeries, Expense,
   ExpenseCategory, ImportJob, ImportRecordRow, Invoice, InvoiceItem, Location, Member, MembershipCharge, MembershipPlan,
@@ -198,8 +199,10 @@ export class Store {
     })();
   }
 
-  async exportWorkspaceJson(): Promise<string> {
+  /** Copia de seguridad en JSON. Sin customers.sensitive la copia sale sin datos fiscales ni personales de clientes. */
+  async exportWorkspaceJson(opts: { canSensitive?: boolean } = {}): Promise<string> {
     await this.flush();
-    return JSON.stringify(this.requireWorkspace(), null, 2);
+    const ws = this.requireWorkspace();
+    return JSON.stringify(opts.canSensitive === false ? redactWorkspace(ws) : ws, null, 2);
   }
 }

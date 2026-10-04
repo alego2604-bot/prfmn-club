@@ -5,8 +5,8 @@
 import type { Member, RoleKey, UserAccount, Vertical } from "@/domain/types";
 import { sha256Hex } from "@/lib/hash";
 import { nowISO, uid } from "@/lib/ids";
-import { assertCan, auditEntry, ValidationError, type Ctx } from "../context";
-import { ROLE_LABELS } from "@/domain/permissions";
+import { assertCan, auditEntry, ctxCan, PermissionError, ValidationError, type Ctx } from "../context";
+import { normalizeOverrides, ROLE_LABELS, type PermissionOverrides } from "@/domain/permissions";
 import type { Store } from "../store";
 import { buildWorkspace } from "../workspace";
 
@@ -88,15 +88,39 @@ export async function addTeamMember(
   auditTeam(ctx, "invite", input.fullName || email, member.id, { email, role: ROLE_LABELS[input.role].name });
 }
 
+/** Miembro de la empresa activa sobre el que quien actúa puede operar: nunca el propio, nunca el owner, nunca de otra empresa. */
+function manageableTarget(ctx: Ctx, memberId: string): Member {
+  const target = ctx.store.getMeta().members.find((m) => m.id === memberId);
+  const orgId = ctx.store.getWorkspace()?.organization.id;
+  if (!target || !orgId || target.organizationId !== orgId) throw new ValidationError("Miembro no encontrado");
+  if (target.role === "owner") throw new ValidationError("El owner no se puede modificar desde aquí");
+  if (target.userId === ctx.user.id) throw new ValidationError("No puedes cambiar tu propio rol ni tus permisos");
+  return target;
+}
+
 export async function updateMember(ctx: Ctx, memberId: string, patch: Partial<Pick<Member, "role" | "status" | "locationIds">>): Promise<void> {
   assertCan(ctx, "team.manage");
   const store = ctx.store;
-  const target = store.getMeta().members.find((m) => m.id === memberId);
-  if (!target) throw new ValidationError("Miembro no encontrado");
-  if (target.role === "owner") throw new ValidationError("El owner no se puede modificar desde aquí");
+  const target = manageableTarget(ctx, memberId);
   if (patch.role === "owner") throw new ValidationError("Solo puede haber un owner por empresa");
   await store.updateMeta((m) => ({ ...m, members: m.members.map((x) => (x.id === memberId ? { ...x, ...patch } : x)) }));
   const name = store.getMeta().users.find((u) => u.id === target.userId)?.fullName ?? "Miembro";
   if (patch.role && patch.role !== target.role) auditTeam(ctx, "role_change", name, memberId, { from: ROLE_LABELS[target.role].name, to: ROLE_LABELS[patch.role].name });
   else auditTeam(ctx, "update", name, memberId, { ...patch });
+}
+
+/**
+ * Excepciones individuales sobre el rol. Solo se puede PERMITIR lo que quien las da ya tiene (nadie se escala por esta vía);
+ * denegar no tiene esa restricción. El owner no admite excepciones y nadie edita las suyas.
+ */
+export async function setMemberOverrides(ctx: Ctx, memberId: string, overrides: PermissionOverrides): Promise<void> {
+  assertCan(ctx, "team.manage");
+  const target = manageableTarget(ctx, memberId);
+  const next = normalizeOverrides(overrides);
+  const before = normalizeOverrides(target.permissionOverrides);
+  for (const p of next.grant) if (!before.grant.includes(p) && !ctxCan(ctx, p)) throw new PermissionError(p);
+  if (JSON.stringify(before) === JSON.stringify(next)) return;
+  await ctx.store.updateMeta((m) => ({ ...m, members: m.members.map((x) => (x.id === memberId ? { ...x, permissionOverrides: next } : x)) }));
+  const name = ctx.store.getMeta().users.find((u) => u.id === target.userId)?.fullName ?? "Miembro";
+  auditTeam(ctx, "permission_change", name, memberId, { role: target.role, from: before, to: next });
 }

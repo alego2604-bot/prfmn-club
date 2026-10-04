@@ -258,8 +258,9 @@ export function changeMembershipPlan(ctx: Ctx, id: string, planId: string, opts:
  * `methodKey` → factura cobrada + pago; sin método → factura emitida pendiente de cobro.
  */
 export function chargeMembership(ctx: Ctx, id: string, opts: { methodKey?: string; issueDate?: string } = {}): { invoice: Invoice; charge: MembershipCharge } {
+  // La cuota es una operación de membresías (genera su factura de cuota); cobrarla en el acto exige además el permiso de cobros.
+  // No depende de invoices.manage: emitir facturas libres y cobrar cuotas son capacidades distintas.
   assertCan(ctx, "memberships.manage");
-  assertCan(ctx, "invoices.manage");
   if (opts.methodKey) assertCan(ctx, "payments.manage");
   let result!: { invoice: Invoice; charge: MembershipCharge };
   ctx.store.update((ws) => {

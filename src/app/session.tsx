@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Store } from "@/data/store";
 import { createIndexedDbKV } from "@/data/persistence";
 import type { Ctx } from "@/data/context";
-import { roleCan, type Permission } from "@/domain/permissions";
+import { can as roleCan, type Permission, type PermissionOverrides } from "@/domain/permissions";
 import type { Member, RoleKey, UserAccount, Vertical } from "@/domain/types";
 import * as localAuth from "@/data/repos/auth";
 import { createDemoWorkspace, DEMO_ORGANIZATION, fillDemoWorkspace } from "@/data/demo";
@@ -10,7 +10,7 @@ import * as cloud from "@/data/cloud/account";
 import { CloudSync, type SyncStatus } from "@/data/cloud/sync";
 import { clearOrgFromUrl, readTabContext, writeTabContext, type TabContext } from "./tabContext";
 import { liveTabs } from "@/data/cloud/tab";
-import { visibleWorkspace } from "@/data/visibility";
+import { workspaceFor } from "@/data/visibility";
 import { resumeImports, type GroupSync } from "@/features/imports/engine/pipeline";
 
 /**
@@ -54,6 +54,8 @@ interface SessionValue {
   retryBoot: () => void;
   addMember: (input: { fullName: string; email: string; password: string; role: RoleKey; locationIds: string[] | null }) => Promise<void>;
   updateMember: (memberId: string, patch: { role?: RoleKey; locationIds?: string[] | null; status?: Member["status"] }) => Promise<void>;
+  /** Excepciones individuales (permitir/denegar permisos concretos) sobre el rol de un miembro. */
+  setMemberOverrides: (memberId: string, overrides: PermissionOverrides) => Promise<void>;
   onSyncError: (l: (message: string) => void) => () => void;
   can: (p: Permission) => boolean;
   ctx: Ctx | null;
@@ -117,8 +119,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     clearOrgFromUrl();
     // Importaciones que quedaron a medias (pestaña cerrada, conexión perdida): se reanudan o se cierran.
     // Siempre después de enviar la cola y descargar el estado real: nunca se juzga con una caché vieja.
-    if (sync && roleCan(m.role, "imports.run")) {
-      const resumeCtx: Ctx = { store, user: u, role: m.role, locationIds: m.locationIds };
+    if (sync && roleCan(m.role, m.permissionOverrides, "imports.run")) {
+      const resumeCtx: Ctx = { store, user: u, role: m.role, locationIds: m.locationIds, overrides: m.permissionOverrides };
       void (async () => {
         await sync.settle().catch(() => undefined);
         if (openOrg.current !== orgId) return;
@@ -177,7 +179,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<SessionValue>(() => {
-    const ctx: Ctx | null = user && member ? { store, user, role: member.role, locationIds: member.locationIds } : null;
+    // El rol, las excepciones y el estado vigentes salen del equipo ya descargado (si cambian mientras la sesión está abierta,
+    // la interfaz lo refleja en la siguiente sincronización); el servidor impone lo mismo en cada escritura.
+    const ws0 = store.getWorkspace();
+    const liveRow = member ? (sb ? ws0?.team?.find((t) => t.id === member.id) : store.getMeta().members.find((x) => x.id === member.id)) : undefined;
+    const live: Member | null = member ? { ...member, ...(liveRow ? { role: liveRow.role, locationIds: liveRow.locationIds, status: liveRow.status, permissionOverrides: liveRow.permissionOverrides } : {}) } : null;
+    const active = !!live && live.status === "active";
+    const ctx: Ctx | null = user && live && active ? { store, user, role: live.role, locationIds: live.locationIds, overrides: live.permissionOverrides } : null;
     const requireUser = () => {
       if (!user) throw new Error("Sin sesión");
       return user;
@@ -188,7 +196,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       status,
       bootError,
       user,
-      member,
+      member: live,
       memberships,
       organizations,
       sync: syncStatus,
@@ -310,8 +318,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           await localAuth.updateMember(ctx!, memberId, patch);
         }
       },
+      setMemberOverrides: async (memberId, overrides) => {
+        if (sb && sync) {
+          await cloud.setMemberOverrides(sb, memberId, overrides);
+          await sync.pull();
+        } else {
+          await localAuth.setMemberOverrides(ctx!, memberId, overrides);
+        }
+      },
       onSyncError: (l) => sync?.onError(l) ?? (() => undefined),
-      can: (p) => !!member && roleCan(member.role, p),
+      can: (p) => !!live && active && roleCan(live.role, live.permissionOverrides, p),
       ctx,
     };
     // version: re-render cuando cambia el store
@@ -332,8 +348,8 @@ export function useWorkspace() {
   const s = useSession();
   const ws = s.store.getWorkspace();
   if (!ws) throw new Error("Sin empresa activa");
-  // Los datos de importaciones no completadas (en curso, interrumpidas o canceladas) no se muestran
-  return visibleWorkspace(ws);
+  // Importaciones no completadas fuera; sin customers.sensitive, sin datos fiscales/personales de clientes
+  return workspaceFor(ws, s.can("customers.sensitive"));
 }
 
 /** Contexto para repositorios (autor + rol + centros). */

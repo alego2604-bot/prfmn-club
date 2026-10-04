@@ -2,7 +2,8 @@ import type { Customer, CustomerNote, CustomerStatus } from "@/domain/types";
 import { nowISO, uid, } from "@/lib/ids";
 import { classifyTaxId } from "@/lib/taxid";
 import { toISODate } from "@/lib/dates";
-import { assertCan, auditEntry, diff, ValidationError, type Ctx } from "../context";
+import { assertCan, auditEntry, ctxCan, diff, PermissionError, ValidationError, type Ctx } from "../context";
+import { CUSTOMER_SENSITIVE_FIELDS } from "@/domain/permissions";
 import type { Workspace } from "../store";
 
 export interface CustomerInput {
@@ -54,8 +55,24 @@ function normalizeInput(ws: Workspace, input: CustomerInput, selfId?: string) {
   };
 }
 
+/** Campos del formulario que son datos sensibles (customers.sensitive): ver CUSTOMER_SENSITIVE_FIELDS. */
+const SENSITIVE_INPUT = ["taxId", "birthDate", "address", "postalCode", "city", "companyName"] as const satisfies readonly (keyof CustomerInput)[];
+
+/**
+ * Quien no tiene customers.sensitive no puede crear ni cambiar datos fiscales/personales. Un formulario sin esos campos los
+ * deja vacíos: eso NO es borrarlos (se conservan los que ya hay); lo que sí falla es intentar poner o cambiar uno.
+ */
+function guardSensitive(ctx: Ctx, input: CustomerInput, before?: Customer) {
+  if (ctxCan(ctx, "customers.sensitive")) return;
+  for (const k of SENSITIVE_INPUT) {
+    const v = String(input[k] ?? "").trim();
+    if (v && v !== String(before?.[k] ?? "")) throw new PermissionError("customers.sensitive");
+  }
+}
+
 export function createCustomer(ctx: Ctx, input: CustomerInput): Customer {
   assertCan(ctx, "customers.manage");
+  guardSensitive(ctx, input);
   let created!: Customer;
   ctx.store.update((ws) => {
     const now = nowISO();
@@ -78,7 +95,9 @@ export function updateCustomer(ctx: Ctx, id: string, input: CustomerInput): Cust
   ctx.store.update((ws) => {
     const before = ws.customers.find((c) => c.id === id);
     if (!before) throw new ValidationError("Cliente no encontrado");
+    guardSensitive(ctx, input, before);
     updated = { ...before, ...normalizeInput(ws, input, id), updatedAt: nowISO() };
+    if (!ctxCan(ctx, "customers.sensitive")) for (const f of CUSTOMER_SENSITIVE_FIELDS) (updated as unknown as Record<string, unknown>)[f] = before[f];
     if (before.status !== "cancelled" && updated.status === "cancelled" && !updated.leftAt) updated.leftAt = toISODate(new Date());
     const changes = diff(before, updated, ["updatedAt"]);
     if (!Object.keys(changes).length) return ws;
