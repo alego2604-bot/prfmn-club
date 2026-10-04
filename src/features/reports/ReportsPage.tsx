@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, ArrowLeft, Download, FileSpreadsheet, FileText, Sheet } from "lucide-react";
 import { useLocationScope, useSession, useWorkspace } from "@/app/session";
-import { Badge, Button, Card, Checkbox, Field, Input, Page, PageHeader, Segmented, Select, useToast } from "@/design-system/components";
+import { Badge, Button, Card, Checkbox, Field, Page, PageHeader, Segmented, Select, useToast, DateInput } from "@/design-system/components";
 import { cn } from "@/lib/cn";
 import { addDays, makePeriod, quarterPeriod, toISODate, type Period } from "@/lib/dates";
 import { downloadCsv, downloadXlsx, triggerDownload } from "@/lib/export";
@@ -91,8 +91,8 @@ export default function ReportsPage() {
               )}
               {mode === "custom" && (
                 <>
-                  <Field label="Desde"><Input type="date" value={custom.start} onChange={(e) => setCustom({ ...custom, start: e.target.value })} /></Field>
-                  <Field label="Hasta"><Input type="date" value={custom.end} min={custom.start} onChange={(e) => setCustom({ ...custom, end: e.target.value })} /></Field>
+                  <Field label="Desde"><DateInput value={custom.start} onChange={(e) => setCustom({ ...custom, start: e.target.value })} /></Field>
+                  <Field label="Hasta"><DateInput value={custom.end} min={custom.start} onChange={(e) => setCustom({ ...custom, end: e.target.value })} /></Field>
                 </>
               )}
               {locations.length > 1 && (

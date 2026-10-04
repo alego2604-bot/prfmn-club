@@ -5,7 +5,7 @@ import {
   Store, TrendingUp, Users, Wallet, type LucideIcon,
 } from "lucide-react";
 import { useLocationScope, useWorkspace } from "@/app/session";
-import { Button, Card, CardHeader, DeltaChip, EmptyState, FilterBar, FilterSelect, Input, Menu, MenuItem, Page, PageHeader, Segmented } from "@/design-system/components";
+import { Button, Card, CardHeader, DeltaChip, EmptyState, FilterBar, FilterSelect, Menu, MenuItem, Page, PageHeader, Segmented, DateInput } from "@/design-system/components";
 import { ColumnChart, compactMoney } from "@/design-system/components/charts";
 import { buildReport, comparableOf, kpiDelta, REPORTS, reportPeriod, toDate, type ReportKey } from "@/domain/reports";
 import { addDays, toISODate, type Period } from "@/lib/dates";
@@ -130,8 +130,8 @@ function ReportView({ reportKey }: { reportKey: ReportKey }) {
         <FilterSelect label="Periodo" icon={CalendarRange} allLabel="Este trimestre" value={preset === "quarter" ? "" : preset} onChange={(v) => setPreset((v || "quarter") as Preset)} options={PRESETS.filter((p) => p.value !== "quarter")} />
         {preset === "custom" && (
           <span className="flex items-center gap-1.5">
-            <Input type="date" aria-label="Desde" value={custom.start} onChange={(e) => setCustom({ ...custom, start: e.target.value })} className="h-8 w-[140px]" />
-            <Input type="date" aria-label="Hasta" value={custom.end} min={custom.start} onChange={(e) => setCustom({ ...custom, end: e.target.value })} className="h-8 w-[140px]" />
+            <DateInput aria-label="Desde" value={custom.start} onChange={(e) => setCustom({ ...custom, start: e.target.value })} size="sm" className="w-[140px]" />
+            <DateInput aria-label="Hasta" value={custom.end} min={custom.start} onChange={(e) => setCustom({ ...custom, end: e.target.value })} size="sm" className="w-[140px]" />
           </span>
         )}
         {canSeeAll && reportKey !== "locations" && <FilterSelect label="Centro" icon={Store} allLabel="Todos (consolidado)" value={loc} onChange={setLoc} options={locations.map((l) => ({ value: l.id, label: l.name }))} />}

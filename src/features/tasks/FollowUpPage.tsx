@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { AlarmClock, CalendarClock, CheckCircle2, Circle, CircleDollarSign, ListTodo, PauseCircle, Plus, RotateCcw, Sparkles, UserPlus, UserRoundX } from "lucide-react";
 import { useCtx, usePersonName, useSession, useWorkspace } from "@/app/session";
 import { ServerNotice, useServerReady } from "@/app/serverCaps";
-import { Avatar, Badge, Button, Card, Combobox, Drawer, EmptyState, Field, IconButton, Input, Page, PageHeader, Segmented, Textarea, useToast } from "@/design-system/components";
+import { Avatar, Badge, Button, Card, Combobox, Drawer, EmptyState, Field, IconButton, Input, Page, PageHeader, Segmented, Textarea, useToast, DateInput } from "@/design-system/components";
 import { createTask, setTaskStatus, snoozeTask, taskBucket, type TaskBucket, type TaskInput } from "@/data/repos/tasks";
 import { customerName } from "@/data/repos/customers";
 import { customerIndex } from "@/domain/customer360";
@@ -43,7 +43,7 @@ export function TaskDrawer({ open, onClose, defaults }: { open: boolean; onClose
               const v = toISODate(addDays(new Date(), d));
               return <button key={l} type="button" onClick={() => setF({ ...f, dueDate: v })} className={cn("h-8 rounded-full border px-3 text-sm transition-colors", f.dueDate === v ? "border-accent bg-accent-soft text-accent-fg" : "border-line hover:bg-surface-2")}>{l}</button>;
             })}
-            <Input type="date" className="h-8 w-[150px]" value={f.dueDate ?? ""} onChange={(e) => setF({ ...f, dueDate: e.target.value || undefined })} aria-label="Fecha" />
+            <DateInput size="sm" className="w-[150px]" value={f.dueDate ?? ""} onChange={(e) => setF({ ...f, dueDate: e.target.value || undefined })} aria-label="Fecha" />
           </div>
         </Field>
         <Field label="Detalle"><Textarea value={f.description ?? ""} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>

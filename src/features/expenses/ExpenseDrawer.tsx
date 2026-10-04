@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Paperclip } from "lucide-react";
 import { useCtx, useLocationScope, useSession, useWorkspace } from "@/app/session";
 import { useServerReady } from "@/app/serverCaps";
-import { Button, Combobox, Drawer, Field, Input, MoneyInput, Segmented, Select, Switch, Textarea, useToast } from "@/design-system/components";
+import { Button, Combobox, Drawer, Field, Input, MoneyInput, Segmented, Select, Switch, Textarea, useToast, DateInput } from "@/design-system/components";
 import { createExpense, createExpenseCategory, createSupplier, ensureExpenseCategories, expenseToInput, updateExpense, type ExpenseInput } from "@/data/repos/expenses";
 import { expenseAmounts } from "@/domain/expenses";
 import type { Expense } from "@/domain/types";
@@ -148,10 +148,10 @@ export function ExpenseDrawer({ open, onClose, expense, duplicateOf, defaults, o
             />
           </Field>
           <Field label="Fecha de la factura" required>
-            <Input type="date" value={form.issueDate} onChange={(e) => set("issueDate", e.target.value)} />
+            <DateInput value={form.issueDate} onChange={(e) => set("issueDate", e.target.value)} />
           </Field>
           <Field label="Vencimiento" hint="Opcional: avisa si se pasa sin pagar">
-            <Input type="date" value={form.dueDate ?? ""} min={form.issueDate} onChange={(e) => set("dueDate", e.target.value || undefined)} />
+            <DateInput value={form.dueDate ?? ""} min={form.issueDate} onChange={(e) => set("dueDate", e.target.value || undefined)} />
           </Field>
           <Field label="Nº de factura del proveedor" hint="Evita registrar dos veces la misma factura">
             <Input value={form.supplierInvoiceNumber ?? ""} onChange={(e) => set("supplierInvoiceNumber", e.target.value)} placeholder="Ej. A-2026-0142" />
@@ -176,7 +176,7 @@ export function ExpenseDrawer({ open, onClose, expense, duplicateOf, defaults, o
             </Field>
             {form.paid && (
               <Field label="Fecha de pago">
-                <Input type="date" value={form.paidAt ?? form.issueDate} onChange={(e) => set("paidAt", e.target.value || undefined)} />
+                <DateInput value={form.paidAt ?? form.issueDate} onChange={(e) => set("paidAt", e.target.value || undefined)} />
               </Field>
             )}
           </div>

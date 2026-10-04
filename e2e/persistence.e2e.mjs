@@ -13,6 +13,7 @@ import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, devices } from "playwright";
+import { createConsoleWatch } from "./consoleWatch.mjs";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://127.0.0.1:5173";
 const OUT = process.env.E2E_OUT ?? join(process.cwd(), "e2e", "results");
@@ -23,7 +24,7 @@ const PASSWORD = "contraseña-e2e-segura";
 const COMPANY = `Empresa E2E ${run}`;
 const PRODUCT = `Agua E2E ${run}`;
 const results = [];
-const errors = [];
+const cw = createConsoleWatch();
 
 const step = async (page, name, fn) => {
   const t = Date.now();
@@ -38,8 +39,7 @@ const step = async (page, name, fn) => {
   }
 };
 const watch = (page, label) => {
-  page.on("pageerror", (e) => errors.push(`${label} pageerror: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && !/favicon/.test(m.text()) && errors.push(`${label} console: ${m.text()}`));
+  cw.watch(page, label);
 };
 /** Espera a que no quede nada pendiente de guardar en el servidor. */
 const saved = async (page) => {
@@ -188,7 +188,7 @@ await ctxA.close();
 rmSync(profileA, { recursive: true, force: true });
 
 const failed = results.filter((r) => !r.ok);
-console.log(`\n${results.length - failed.length}/${results.length} pasos OK · errores de consola: ${errors.length}`);
-if (errors.length) console.log(errors.slice(0, 10).join("\n"));
+const unexpected = cw.report();
+console.log(`\n${results.length - failed.length}/${results.length} pasos OK · errores no esperados: ${unexpected}`);
 console.log(JSON.stringify({ email: EMAIL, results }, null, 1).slice(0, 0));
-process.exit(failed.length || errors.length ? 1 : 0);
+process.exit(failed.length || unexpected ? 1 : 0);

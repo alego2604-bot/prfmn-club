@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowRightLeft, Ban, CirclePause, CirclePlay, CreditCard, MoreHorizontal, RotateCcw } from "lucide-react";
 import { useCtx, useLocationScope, useSession, useWorkspace } from "@/app/session";
 import { useServerReady } from "@/app/serverCaps";
-import { Button, Callout, Combobox, Drawer, Field, Input, Menu, MenuItem, Modal, MoneyInput, Segmented, Select, Switch, Textarea, useToast } from "@/design-system/components";
+import { Button, Callout, Combobox, Drawer, Field, Input, Menu, MenuItem, Modal, MoneyInput, Segmented, Select, Switch, Textarea, useToast, DateInput } from "@/design-system/components";
 import { assignMembership, cancelMembership, changeMembershipPlan, chargeMembership, pauseMembership, reactivateMembership, resumeMembership } from "@/data/repos/memberships";
 import { customerName } from "@/data/repos/customers";
 import { BILLING_PERIOD, currentVersion, membershipView, periodEnd } from "@/domain/memberships";
@@ -84,7 +84,7 @@ export function AssignMembershipDrawer({ open, onClose, customerId, onSaved }: {
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Inicio" required hint={end ? `Primer periodo hasta el ${formatDate(end)}` : undefined}><Input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
+            <Field label="Inicio" required hint={end ? `Primer periodo hasta el ${formatDate(end)}` : undefined}><DateInput value={start} onChange={(e) => setStart(e.target.value)} /></Field>
             <Field label="Centro"><Select value={loc} onChange={(e) => setLoc(e.target.value)}>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</Select></Field>
             <Field label="Precio pactado (IVA incluido)" hint={version && price !== null && price !== version.price ? `Tarifa: ${formatMoney(version.price)}` : "Se conserva aunque la tarifa suba"}><MoneyInput value={effective} onChange={setPrice} /></Field>
           </div>
@@ -182,7 +182,7 @@ function PauseModal({ onClose, onConfirm }: { onClose: () => void; onConfirm: (r
     <Modal open onClose={onClose} size="sm" title="Pausar membresía" description="No se generan cuotas mientras dure la pausa. Al reanudar, la renovación se desplaza los días pausados."
       footer={<><Button onClick={onClose}>Cancelar</Button><Button variant="primary" onClick={() => onConfirm(resumeOn || undefined, reason)}>Pausar</Button></>}>
       <div className="grid gap-4">
-        <Field label="Vuelve el" hint="Opcional: crea un aviso en Seguimiento"><Input type="date" value={resumeOn} onChange={(e) => setResumeOn(e.target.value)} /></Field>
+        <Field label="Vuelve el" hint="Opcional: crea un aviso en Seguimiento"><DateInput value={resumeOn} onChange={(e) => setResumeOn(e.target.value)} /></Field>
         <Field label="Motivo"><Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Viaje, lesión, vacaciones…" /></Field>
       </div>
     </Modal>
@@ -199,7 +199,7 @@ function CancelModal({ m, onClose, onConfirm }: { m: CustomerMembership; onClose
       footer={<><Button onClick={onClose}>Cancelar</Button><Button variant="danger" disabled={!reason.trim()} onClick={() => onConfirm({ reason, endDate, markCustomerInactive: mark })}>Confirmar baja</Button></>}>
       <div className="grid gap-4">
         <Field label="Motivo" required><Input autoFocus value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Cambio de ciudad, precio, horarios…" /></Field>
-        <Field label="Último día con acceso" hint="Por defecto, el final del periodo ya pagado"><Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></Field>
+        <Field label="Último día con acceso" hint="Por defecto, el final del periodo ya pagado"><DateInput value={endDate} onChange={(e) => setEndDate(e.target.value)} /></Field>
         <Switch checked={mark} onChange={setMark} label="Marcar al cliente como baja" description="Si no tiene otra membresía activa" />
       </div>
     </Modal>
@@ -218,7 +218,7 @@ function ChangePlanModal({ m, onClose, onConfirm }: { m: CustomerMembership; onC
       footer={<><Button onClick={onClose}>Cancelar</Button><Button variant="primary" disabled={!planId} onClick={() => onConfirm(planId, start)}>Cambiar tarifa</Button></>}>
       <div className="grid gap-4">
         <Field label="Nueva tarifa"><Select value={planId} onChange={(e) => setPlanId(e.target.value)}>{plans.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select></Field>
-        <Field label="Desde" hint="Por defecto, la próxima renovación"><Input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
+        <Field label="Desde" hint="Por defecto, la próxima renovación"><DateInput value={start} onChange={(e) => setStart(e.target.value)} /></Field>
         {v && p && <p className="text-sm text-fg-2">Nuevo precio: <span className="font-semibold num">{planLabel(v.price, p.billingPeriod)}</span> (antes {formatMoney(m.price)})</p>}
       </div>
     </Modal>

@@ -9,6 +9,7 @@ import type { Payment, Sale, SaleItem } from "@/domain/types";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatMoney, formatRate, NUM } from "@/lib/money";
 import { usePeriodFilter } from "../shared/PeriodPicker";
+import { saleNo } from "@/lib/text";
 
 const SOURCE_LABEL: Record<Sale["source"], string> = { pos: "Caja", manual: "Manual", import: "Importada", membership: "Cuota", online: "Online" };
 
@@ -52,7 +53,7 @@ export default function SalesPage() {
   const summary = (s: Sale) => (itemsBySale.get(s.id) ?? []).map((i) => `${i.quantity > 1 ? `${i.quantity}× ` : ""}${i.productName}`).join(", ");
 
   const columns: Column<Sale>[] = [
-    { id: "number", header: "Nº", cell: (s) => <Mono className="text-fg-3">#{s.number}</Mono>, sortValue: (s) => s.number, exportValue: (s) => s.number, exportFormat: "integer", width: 80 },
+    { id: "number", header: "Nº", cell: (s) => <Mono className="text-fg-3">{saleNo(s.number)}</Mono>, sortValue: (s) => s.number, exportValue: (s) => s.number, exportFormat: "integer", width: 80 },
     {
       id: "date", header: "Fecha", sortValue: (s) => s.occurredAt, exportValue: (s) => new Date(s.occurredAt), exportFormat: "datetime",
       cell: (s) => (
@@ -107,7 +108,7 @@ export default function SalesPage() {
         mobile={{
           title: (s) => summary(s),
           value: (s) => <span className={s.status === "voided" ? "text-fg-3 line-through" : undefined}>{formatMoney(s.total)}</span>,
-          subtitle: (s) => `#${s.number} · ${formatDateTime(s.occurredAt)}${s.customerId ? ` · ${custName.get(s.customerId) ?? ""}` : ` · ${methodsOf(s)}`}`,
+          subtitle: (s) => `${saleNo(s.number)} · ${formatDateTime(s.occurredAt)}${s.customerId ? ` · ${custName.get(s.customerId) ?? ""}` : ` · ${methodsOf(s)}`}`,
           status: (s) => (s.status === "voided" ? <Badge tone="danger">Anulada</Badge> : s.status === "pending_payment" ? <Badge tone="warning">Pendiente</Badge> : null),
         }}
         toolbar={
@@ -151,7 +152,7 @@ function SaleDrawer({ sale, onClose }: { sale?: Sale; onClose: () => void }) {
       <Drawer
         open
         onClose={onClose}
-        title={`Venta #${sale.number}`}
+        title={`Venta ${saleNo(sale.number)}`}
         subtitle={sale.timePrecision === "exact" ? formatDateTime(sale.occurredAt) : `${formatDate(sale.occurredAt)} · hora no registrada`}
         footer={
           sale.status !== "voided" && can("sales.void") ? (
@@ -227,14 +228,14 @@ function SaleDrawer({ sale, onClose }: { sale?: Sale; onClose: () => void }) {
         open={voiding}
         onClose={() => setVoiding(false)}
         danger
-        title={`Anular venta #${sale.number}`}
+        title={`Anular venta ${saleNo(sale.number)}`}
         description={<>La venta seguirá en el histórico marcada como anulada y sus pagos se compensarán con una devolución ({formatMoney(sale.total)}).</>}
         confirmLabel="Anular venta"
         placeholder="Ej.: cobrada por error, el cliente devolvió el producto…"
         onConfirm={(reason) => {
           try {
             voidSale(ctx, sale.id, reason);
-            toast.success(`Venta #${sale.number} anulada`);
+            toast.success(`Venta ${saleNo(sale.number)} anulada`);
             setVoiding(false);
           } catch (e) {
             toast.fromError(e);

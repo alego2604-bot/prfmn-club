@@ -309,7 +309,7 @@ export function Sparkline({ values, width = 96, height = 28, className, tone = "
 }
 
 /** Ranking horizontal en un solo tono: etiqueta, importe, cuota y variación opcional. */
-export function BarList({ rows, format = (v) => formatMoney(v), max: maxRows = 8, emptyText = "Sin datos en este periodo", showShare = true, tone = "accent" }: {
+export function BarList({ rows, format = (v) => formatMoney(v), max: maxRows = 8, emptyText = "Sin datos en este periodo", showShare = true, tone = "accent", wrap = false }: {
   rows: { key: string; label: ReactNode; value: number; sub?: ReactNode; delta?: ReactNode }[];
   format?: (v: number) => string;
   max?: number;
@@ -317,6 +317,8 @@ export function BarList({ rows, format = (v) => formatMoney(v), max: maxRows = 8
   showShare?: boolean;
   /** "out" = dinero que sale (gastos) */
   tone?: "accent" | "out";
+  /** Nombres en dos líneas en vez de recortarlos (tarjetas estrechas con nombres largos) */
+  wrap?: boolean;
 }) {
   const total = rows.reduce((s, r) => s + r.value, 0);
   const top = rows.slice(0, maxRows);
@@ -330,8 +332,21 @@ export function BarList({ rows, format = (v) => formatMoney(v), max: maxRows = 8
         const share = total ? Math.round((r.value / total) * 100) : 0;
         return (
           <div key={r.key} className="group" title={`${format(r.value)} · ${share} %`}>
-            <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
-              <span className="min-w-0 truncate text-fg-2 transition-colors group-hover:text-fg">{r.label}</span>
+            <div className={cn("mb-1.5 flex justify-between gap-3 text-sm", wrap ? "items-start" : "items-baseline")}>
+              <span className="flex min-w-0 items-baseline gap-1.5 text-fg-2 transition-colors group-hover:text-fg">
+                {wrap ? (
+                  <span className="min-w-0 break-words [&>button]:text-left">
+                    {r.label}
+                    {"sub" in r && r.sub !== undefined && <span className="whitespace-nowrap text-xs text-fg-3 num"> · {r.sub}</span>}
+                  </span>
+                ) : (
+                  <>
+                    <span className="min-w-0 truncate [&>*]:max-w-full [&>*]:truncate [&>*]:align-bottom">{r.label}</span>
+                    {/* Dato secundario (nº de membresías, de facturas…): nunca se recorta, aunque el nombre sí */}
+                    {"sub" in r && r.sub !== undefined && <span className="shrink-0 text-xs text-fg-3 num">· {r.sub}</span>}
+                  </>
+                )}
+              </span>
               <span className="flex shrink-0 items-baseline gap-2">
                 {"delta" in r && r.delta}
                 <span className="font-medium text-fg num">{format(r.value)}</span>

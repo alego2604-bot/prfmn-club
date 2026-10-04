@@ -1,7 +1,8 @@
-import { cloneElement, forwardRef, isValidElement, useEffect, useId, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
-import { ChevronDown } from "lucide-react";
+import { cloneElement, forwardRef, isValidElement, useEffect, useId, useRef, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { CalendarDays, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { parseMoneyInput } from "@/lib/money";
+import { isoToDisplay, maskDateTyping, parseDisplayDate } from "@/lib/dates";
 
 const control =
   "w-full rounded-lg border border-line bg-surface px-3 text-[14px] text-fg shadow-xs outline-none transition-[border,box-shadow] placeholder:text-fg-3 hover:border-line-strong focus:border-accent focus:ring-[3px] focus:ring-accent/15 disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:text-fg-3";
@@ -41,6 +42,121 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
     return <input ref={ref} className={cn(control, "h-9", invalid && "border-danger", className)} {...rest} />;
   },
 );
+
+/**
+ * Fecha siempre en formato español (dd/mm/aaaa), sea cual sea el idioma del navegador; el valor sigue siendo ISO
+ * (aaaa-mm-dd), igual que `<input type="date">`, así que ni el almacenamiento ni la validación cambian.
+ * - Se escribe con el teclado numérico (las barras se ponen solas) y se valida al salir del campo.
+ * - El botón de calendario abre el selector nativo (en móvil e iPad, la rueda del sistema).
+ * - `onChange` recibe `{ target: { value } }` como el input nativo: «» si se vacía, ISO si la fecha es válida.
+ */
+export function DateInput({ value, onChange, min, max, id, className, size, disabled, required, invalid, ...aria }: {
+  value: string | undefined;
+  onChange?(e: { target: { value: string } }): void;
+  min?: string;
+  max?: string;
+  id?: string;
+  className?: string;
+  size?: "sm";
+  disabled?: boolean;
+  required?: boolean;
+  invalid?: boolean;
+  "aria-label"?: string;
+  "aria-describedby"?: string;
+}) {
+  const [text, setText] = useState(() => isoToDisplay(value));
+  const [bad, setBad] = useState(false);
+  const native = useRef<HTMLInputElement>(null);
+  // Cambios desde fuera (otro campo, reinicio del formulario): se refleja el nuevo valor
+  useEffect(() => {
+    if (parseDisplayDate(text) !== (value || null)) {
+      setText(isoToDisplay(value));
+      setBad(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  const emit = (iso: string) => {
+    if (iso !== (value ?? "")) onChange?.({ target: { value: iso } });
+  };
+  const outOfRange = (iso: string) => (!!min && iso < min) || (!!max && iso > max);
+  const commit = (t: string) => {
+    if (!t.trim()) {
+      setBad(false);
+      return emit("");
+    }
+    const iso = parseDisplayDate(t);
+    if (!iso) return setBad(true);
+    setText(isoToDisplay(iso));
+    setBad(outOfRange(iso));
+    emit(iso);
+  };
+  const h = size === "sm" ? "h-8" : "h-9";
+  return (
+    <div className={cn("relative", className)}>
+      <input
+        id={id}
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="dd/mm/aaaa"
+        value={text}
+        disabled={disabled}
+        required={required}
+        aria-invalid={bad || invalid || undefined}
+        aria-label={aria["aria-label"]}
+        aria-describedby={aria["aria-describedby"]}
+        title={bad ? "Fecha no válida: escribe día/mes/año, por ejemplo 04/10/2026" : undefined}
+        onChange={(e) => {
+          const next = maskDateTyping(e.target.value, text);
+          setText(next);
+          const iso = parseDisplayDate(next);
+          if (iso && /\d{4}$/.test(next)) { // al teclear, solo con el año completo (con dos cifras, al salir)
+            setBad(outOfRange(iso));
+            emit(iso);
+          } else if (!next) emit("");
+        }}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && commit((e.target as HTMLInputElement).value)}
+        className={cn(control, h, "pr-9 num", (bad || invalid) && "border-danger focus:border-danger focus:ring-danger/15")}
+      />
+      <button
+        type="button"
+        tabIndex={-1}
+        disabled={disabled}
+        aria-label="Abrir calendario"
+        title="Abrir calendario"
+        onClick={() => {
+          const el = native.current;
+          if (!el) return;
+          try {
+            el.showPicker();
+          } catch {
+            el.focus();
+            el.click();
+          }
+        }}
+        className="absolute inset-y-0 right-0 flex w-9 items-center justify-center rounded-r-lg text-fg-3 transition-colors hover:text-fg disabled:pointer-events-none"
+      >
+        <CalendarDays className="h-4 w-4" />
+      </button>
+      <input
+        ref={native}
+        type="date"
+        tabIndex={-1}
+        aria-hidden
+        value={value ?? ""}
+        min={min}
+        max={max}
+        onChange={(e) => {
+          setText(isoToDisplay(e.target.value));
+          setBad(false);
+          emit(e.target.value);
+        }}
+        className="pointer-events-none absolute bottom-0 right-0 h-px w-px opacity-0"
+      />
+    </div>
+  );
+}
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function Textarea({ className, ...rest }, ref) {
   return <textarea ref={ref} className={cn(control, "min-h-[88px] py-2 leading-relaxed", className)} {...rest} />;

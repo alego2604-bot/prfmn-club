@@ -161,13 +161,20 @@ export default function ExpensesPage() {
           </KpiStrip>
 
           <div className="mb-6 grid gap-4 md:grid-cols-12 [&>*]:min-w-0">
-            <Card className="md:col-span-12 xl:col-span-7">
+            <Card className="flex flex-col md:col-span-12 xl:col-span-7">
               <CardHeader title="Evolución" description="Gasto mensual · IVA incluido · últimos 12 meses" />
-              <ColumnChart tone="out" partialLast height={220} currentLabel="Gasto" data={series.map((r) => ({ key: toISODate(r.date), label: capitalize(monthShort(r.date.getMonth())), tooltipLabel: capitalize(`${monthName(r.date.getMonth())} ${r.date.getFullYear()}`), current: r.total }))} />
+              <ColumnChart fill tone="out" partialLast height={220} currentLabel="Gasto" data={series.map((r) => ({ key: toISODate(r.date), label: capitalize(monthShort(r.date.getMonth())), tooltipLabel: capitalize(`${monthName(r.date.getMonth())} ${r.date.getFullYear()}`), current: r.total }))} />
             </Card>
-            <Card className="md:col-span-6 xl:col-span-5">
+            <Card className="flex flex-col md:col-span-6 xl:col-span-5">
               <CardHeader title="Por categoría" description={period.label} action={<Tag className="h-4 w-4 text-fg-3" />} />
               <BarList tone="out" max={6} rows={k.byCategory.map((c) => ({ key: c.id, label: <button type="button" className="hover:underline" onClick={() => setCat(c.id)}>{c.name}</button>, value: c.amount }))} emptyText="Sin gastos en el periodo" />
+              {k.byCategory.length > 0 && <div className="min-h-5 flex-1" />}
+              {k.byCategory.length > 0 && (
+                <div className="flex items-baseline justify-between gap-3 border-t border-line pt-3 text-sm">
+                  <span className="text-fg-3">{k.byCategory.length} {k.byCategory.length === 1 ? "categoría" : "categorías"} · pulsa una para filtrar la lista</span>
+                  <span className="font-semibold num">{formatMoney(k.byCategory.reduce((s, c) => s + c.amount, 0))}</span>
+                </div>
+              )}
             </Card>
             <Card className="md:col-span-6 xl:col-span-7">
               <CardHeader title="Principales proveedores" description={period.label} action={<Truck className="h-4 w-4 text-fg-3" />} />

@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Contact, CornerDownLeft, FileText, ListTodo, Moon, Package, Plus, Receipt, Rocket, ScrollText, Search, ShoppingBag, Truck, Upload, User, Wallet, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { normalizeKey } from "@/lib/text";
+import { normalizeKey, saleNo } from "@/lib/text";
 import { formatMoney } from "@/lib/money";
 import { formatDate } from "@/lib/dates";
 import { Kbd } from "@/design-system/components";
@@ -120,7 +120,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       const num = /^#?(\d+)$/.exec(q.trim());
       if (num) {
         const s = ws.sales.find((x) => x.number === Number(num[1]));
-        if (s) out.push({ id: `s-${s.id}`, group: "Ventas", label: `Venta #${s.number}`, hint: `${formatDate(s.occurredAt)} · ${formatMoney(s.total)}`, icon: ShoppingBag, to: `/ventas?venta=${s.id}` });
+        if (s) out.push({ id: `s-${s.id}`, group: "Ventas", label: `Venta ${saleNo(s.number)}`, hint: `${formatDate(s.occurredAt)} · ${formatMoney(s.total)}`, icon: ShoppingBag, to: `/ventas?venta=${s.id}` });
       }
     }
     if (can("finance.view")) {

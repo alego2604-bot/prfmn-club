@@ -12,13 +12,14 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "playwright";
+import { createConsoleWatch } from "./consoleWatch.mjs";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://127.0.0.1:5173";
 const OUT = process.env.E2E_OUT ?? join(process.cwd(), "e2e", "results");
 mkdirSync(OUT, { recursive: true });
 const run = Date.now().toString(36);
 const results = [];
-const errors = [];
+const cw = createConsoleWatch();
 
 const step = async (page, name, fn) => {
   try {
@@ -53,7 +54,7 @@ const revenue = async (page) => {
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "es-ES", timezoneId: "Europe/Madrid" });
 const A = await ctx.newPage();
-A.on("pageerror", (e) => errors.push(`A: ${e.message}`));
+cw.watch(A, "A");
 let B = null;
 console.log("Multiempresa");
 
@@ -93,7 +94,7 @@ await step(A, "B se abre con la demo en otra pestaña", async () => {
   await A.locator('[data-testid="company-switcher"]').first().click();
   const [popup] = await Promise.all([ctx.waitForEvent("page"), A.getByRole("button", { name: /Abrir Atlas.* en una pestaña nueva/ }).click()]);
   B = popup;
-  B.on("pageerror", (e) => errors.push(`B: ${e.message}`));
+  cw.watch(B, "B");
   await B.locator('[data-testid="company-switcher"]').first().waitFor({ timeout: 60000 });
   expect((await company(B)).includes("Atlas"), "B debería abrir la demo");
   expect(!B.url().includes("empresa="), "la URL de B debería limpiarse");
@@ -135,6 +136,6 @@ await step(A, "filtro de centro en B (consolidado vs Centro Sur) sin afectar a A
 
 await browser.close();
 const ok = results.filter((r) => r.ok).length;
-console.log(`\n${ok}/${results.length} pasos OK · errores de consola: ${errors.length}`);
-if (errors.length) console.log(errors.slice(0, 5).join("\n"));
-process.exit(ok === results.length && !errors.length ? 0 : 1);
+const unexpected = cw.report();
+console.log(`\n${ok}/${results.length} pasos OK · errores no esperados: ${unexpected}`);
+process.exit(ok === results.length && !unexpected ? 0 : 1);

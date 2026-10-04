@@ -11,6 +11,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, devices } from "playwright";
+import { createConsoleWatch } from "./consoleWatch.mjs";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://127.0.0.1:5175";
 const OUT = process.env.E2E_OUT ?? join(process.cwd(), "e2e", "results");
@@ -20,7 +21,7 @@ const EMAIL = `biz-${run}@empresa.test`;
 const PASSWORD = "contraseña-e2e-segura";
 const COMPANY = `Negocio E2E ${run}`;
 const results = [];
-const errors = [];
+const cw = createConsoleWatch();
 let invoiceNumber = "";
 
 const step = async (page, name, fn) => {
@@ -36,8 +37,7 @@ const step = async (page, name, fn) => {
   }
 };
 const watch = (page, label) => {
-  page.on("pageerror", (e) => errors.push(`${label} pageerror: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && !/favicon/.test(m.text()) && errors.push(`${label} console: ${m.text()}`));
+  cw.watch(page, label);
 };
 const saved = (page) => page.waitForFunction(() => document.querySelector('[data-testid="sync-indicator"]')?.getAttribute("data-state") === "idle", null, { timeout: 20000 });
 const download = async (page, trigger) => {
@@ -171,6 +171,6 @@ await pageB.screenshot({ path: join(OUT, "biz-B-ipad.png") });
 await browser.close();
 
 const failed = results.filter((r) => !r.ok);
-console.log(`\n${results.length - failed.length}/${results.length} pasos OK · errores de consola: ${errors.length}`);
-if (errors.length) console.log(errors.slice(0, 10).join("\n"));
-process.exit(failed.length || errors.length ? 1 : 0);
+const unexpected = cw.report();
+console.log(`\n${results.length - failed.length}/${results.length} pasos OK · errores no esperados: ${unexpected}`);
+process.exit(failed.length || unexpected ? 1 : 0);

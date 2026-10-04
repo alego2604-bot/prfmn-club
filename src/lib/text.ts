@@ -46,3 +46,6 @@ export function initials(name: string): string {
 export function plural(n: number, one: string, many: string): string {
   return `${n.toLocaleString("es-ES", NUM)} ${n === 1 ? one : many}`;
 }
+
+/** Nº de ticket visible. 0 = aún sin número del servidor (se asigna al guardarse): no se muestra «#0». */
+export const saleNo = (n: number | null | undefined) => (n ? `#${n}` : "sin nº");

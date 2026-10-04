@@ -14,6 +14,7 @@ import type { ActivityRule, AuditLog, PaymentKind, RoleKey, Vertical } from "@/d
 import { formatDateTime } from "@/lib/dates";
 import { formatRate, NUM } from "@/lib/money";
 import { triggerDownload } from "@/lib/export";
+import { normalizeKey } from "@/lib/text";
 
 type Tab = "company" | "locations" | "team" | "payments" | "taxes" | "billing" | "expenses" | "rules" | "audit" | "data";
 
@@ -247,10 +248,13 @@ function PaymentsTab() {
     <div className="flex flex-col gap-4">
       <Card padded={false}>
         {[...ws.paymentMethods].sort((a, b) => a.sortOrder - b.sortOrder).map((m) => (
-          <div key={m.id} className="flex flex-wrap items-center gap-4 border-b border-line px-5 py-3 last:border-0">
-            <Input defaultValue={m.name} className="w-56" onBlur={(e) => e.target.value !== m.name && safe(() => updatePaymentMethod(ctx, m.id, { name: e.target.value }))} />
-            <span className="text-xs text-fg-3">{PAYMENT_KIND_LABEL[m.kind]}</span>
-            <div className="ml-auto flex items-center gap-6">
+          <div key={m.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-5 py-2.5 last:border-0">
+            <div className="w-full sm:w-64">
+              <Input aria-label={`Nombre del método (${PAYMENT_KIND_LABEL[m.kind]})`} defaultValue={m.name} onBlur={(e) => e.target.value !== m.name && safe(() => updatePaymentMethod(ctx, m.id, { name: e.target.value }))} />
+            </div>
+            {/* El tipo solo aporta si el nombre no lo dice ya («Vale regalo» → tipo «Vale o bono») */}
+            {normalizeKey(m.name) !== normalizeKey(PAYMENT_KIND_LABEL[m.kind]) && <Badge>{PAYMENT_KIND_LABEL[m.kind]}</Badge>}
+            <div className="flex items-center gap-6 sm:ml-auto">
               <Switch checked={m.affectsCashDrawer} onChange={(v) => safe(() => updatePaymentMethod(ctx, m.id, { affectsCashDrawer: v }))} label="Cuenta en el cajón" />
               <Switch checked={m.status === "active"} onChange={(v) => safe(() => updatePaymentMethod(ctx, m.id, { status: v ? "active" : "inactive" }))} label="Activo" />
             </div>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { CalendarRange } from "lucide-react";
-import { FilterSelect, Input, Select } from "@/design-system/components";
+import { FilterSelect, Select, DateInput } from "@/design-system/components";
 import { addDays, inPeriod, makePeriod, quarterPeriod, toISODate, type Period, type PeriodPreset } from "@/lib/dates";
 
 export type ListPreset = PeriodPreset | "all" | "prev_quarter";
@@ -43,8 +43,8 @@ export function usePeriodFilter(initial: ListPreset = "all") {
       </Select>
       {preset === "custom" && (
         <>
-          <Input type="date" aria-label="Desde" value={custom.start} onChange={(e) => setCustom({ ...custom, start: e.target.value })} className="w-[150px]" />
-          <Input type="date" aria-label="Hasta" value={custom.end} min={custom.start} onChange={(e) => setCustom({ ...custom, end: e.target.value })} className="w-[150px]" />
+          <DateInput aria-label="Desde" value={custom.start} onChange={(e) => setCustom({ ...custom, start: e.target.value })} className="w-[150px]" />
+          <DateInput aria-label="Hasta" value={custom.end} min={custom.start} onChange={(e) => setCustom({ ...custom, end: e.target.value })} className="w-[150px]" />
         </>
       )}
     </div>
@@ -62,8 +62,8 @@ export function usePeriodFilter(initial: ListPreset = "all") {
       />
       {preset === "custom" && (
         <span className="flex items-center gap-1.5">
-          <Input type="date" aria-label="Desde" value={custom.start} onChange={(e) => setCustom({ ...custom, start: e.target.value })} className="h-8 w-[140px]" />
-          <Input type="date" aria-label="Hasta" value={custom.end} min={custom.start} onChange={(e) => setCustom({ ...custom, end: e.target.value })} className="h-8 w-[140px]" />
+          <DateInput aria-label="Desde" value={custom.start} onChange={(e) => setCustom({ ...custom, start: e.target.value })} size="sm" className="w-[140px]" />
+          <DateInput aria-label="Hasta" value={custom.end} min={custom.start} onChange={(e) => setCustom({ ...custom, end: e.target.value })} size="sm" className="w-[140px]" />
         </span>
       )}
     </>

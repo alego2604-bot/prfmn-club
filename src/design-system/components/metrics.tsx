@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowDownRight, ArrowUpRight, Calendar, Check, Info, Minus, TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Sparkline } from "./charts";
+import { DateInput } from "./form";
 
 export function DeltaChip({ value, label, invert, size = "sm", className }: { value: number | null; label?: ReactNode; invert?: boolean; size?: "sm" | "md"; className?: string }) {
   if (value === null) return <span className={cn("text-xs text-fg-3", className)}>Sin comparación</span>;
@@ -174,8 +175,8 @@ export function RangeSelector<T extends string>({ value, onChange, options, cust
         <div className="absolute right-0 top-10 z-30 w-[290px] animate-pop-in rounded-xl border border-line bg-surface p-4 shadow-lg">
           <p className="text-sm font-semibold">Periodo personalizado</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <label className="text-xs text-fg-3">Desde<input type="date" value={draft.start} onChange={(e) => setDraft({ ...draft, start: e.target.value })} className="mt-1 h-9 w-full rounded-md border border-line bg-surface px-2 text-sm text-fg" /></label>
-            <label className="text-xs text-fg-3">Hasta<input type="date" value={draft.end} min={draft.start} onChange={(e) => setDraft({ ...draft, end: e.target.value })} className="mt-1 h-9 w-full rounded-md border border-line bg-surface px-2 text-sm text-fg" /></label>
+            <label className="text-xs text-fg-3">Desde<DateInput value={draft.start} onChange={(e) => setDraft({ ...draft, start: e.target.value })} className="mt-1 w-full" /></label>
+            <label className="text-xs text-fg-3">Hasta<DateInput value={draft.end} min={draft.start} onChange={(e) => setDraft({ ...draft, end: e.target.value })} className="mt-1 w-full" /></label>
           </div>
           <button type="button"
             disabled={!draft.start || !draft.end || draft.end < draft.start}

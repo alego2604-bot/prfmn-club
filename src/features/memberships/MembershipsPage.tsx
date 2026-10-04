@@ -112,7 +112,7 @@ export default function MembershipsPage() {
               </Card>
               <Card className="md:col-span-5">
                 <CardHeader title="MRR por tarifa" description="Ingreso recurrente mensual · sin IVA" action={<BadgeEuro className="h-4 w-4 text-fg-3" />} />
-                <BarList rows={sum.byPlan.map((p) => ({ key: p.id, label: <button type="button" className="hover:underline" onClick={() => setPlanF(p.id)}>{p.name} <span className="text-xs text-fg-3">· {p.count}</span></button>, value: p.mrr }))} emptyText="Sin membresías vivas" />
+                <BarList wrap rows={sum.byPlan.map((p) => ({ key: p.id, label: <button type="button" className="hover:underline" title={p.name} onClick={() => setPlanF(p.id)}>{p.name}</button>, sub: p.count, value: p.mrr }))} emptyText="Sin membresías vivas" />
               </Card>
             </div>
             <DataTable

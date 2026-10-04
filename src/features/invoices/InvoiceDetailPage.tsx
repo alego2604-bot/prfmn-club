@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Ban, CheckCircle2, Copy, Download, FileCheck2, Link2, MoreHorizontal, Pencil, Printer, Receipt } from "lucide-react";
 import { useCtx, useSession, useWorkspace } from "@/app/session";
 import { useServerReady } from "@/app/serverCaps";
-import { Badge, Button, Callout, Card, CardHeader, EmptyState, Field, Input, Ledger, Menu, MenuItem, Modal, MoneyInput, Page, ProgressBar, ReasonDialog, Select, useToast } from "@/design-system/components";
+import { Badge, Button, Callout, Card, CardHeader, EmptyState, Field, Input, Ledger, Menu, MenuItem, Modal, MoneyInput, Page, ProgressBar, ReasonDialog, Select, useToast, DateInput } from "@/design-system/components";
 import { duplicateInvoice, invoiceLabel, issueInvoice, registerInvoicePayment, voidInvoice } from "@/data/repos/invoices";
 import { INVOICE_VIEW, invoiceView } from "@/domain/invoicing";
 import { formatDate, formatDateTime, toISODate } from "@/lib/dates";
@@ -11,6 +11,7 @@ import { formatMoney } from "@/lib/money";
 import { AuditTrail } from "@/features/shared/AuditTrail";
 import { InvoicePaper } from "./InvoicePaper";
 import { downloadInvoicePdf, printInvoicePdf } from "./invoicePdf";
+import { saleNo } from "@/lib/text";
 
 export default function InvoiceDetailPage() {
   const { id } = useParams();
@@ -119,7 +120,7 @@ export default function InvoiceDetailPage() {
               <CardHeader title="Relacionado" action={<Link2 className="h-4 w-4 text-fg-3" />} />
               <Ledger rows={[
                 ...(membership ? [{ label: "Membresía", value: <Link className="text-accent-fg hover:underline" to={`/clientes/${membership.customerId}?tab=membresia`}>{plan?.name ?? "Ver"}</Link> }] : []),
-                ...(sale ? [{ label: "Venta", value: <Link className="text-accent-fg hover:underline" to={`/ventas?venta=${sale.id}`}>Ticket #{sale.number}</Link> }] : []),
+                ...(sale ? [{ label: "Venta", value: <Link className="text-accent-fg hover:underline" to={`/ventas?venta=${sale.id}`}>Ticket {saleNo(sale.number)}</Link> }] : []),
                 ...(imp ? [{ label: "Importación", value: <Link className="text-accent-fg hover:underline" to={`/importaciones/${imp.id}`}>{imp.fileName}</Link> }] : []),
               ]} />
             </Card>
@@ -176,7 +177,7 @@ export function PaymentModal({ invoiceId, due, onClose }: { invoiceId: string; d
         <Field label="Importe" hint={amount && amount < due ? `Quedarán ${formatMoney(due - amount)} pendientes` : "Cobro completo"}><MoneyInput value={amount} onChange={setAmount} autoFocus /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Método"><Select value={methodKey} onChange={(e) => setMethodKey(e.target.value)}>{methods.map((m) => <option key={m.id} value={m.key}>{m.name}</option>)}</Select></Field>
-          <Field label="Fecha"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+          <Field label="Fecha"><DateInput value={date} onChange={(e) => setDate(e.target.value)} /></Field>
         </div>
         <Field label="Referencia" hint="Opcional: nº de transferencia, recibo…"><Input value={reference} onChange={(e) => setReference(e.target.value)} /></Field>
       </div>

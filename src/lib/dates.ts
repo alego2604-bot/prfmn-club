@@ -182,3 +182,46 @@ export function parseDMY(s: string): Date | null {
   if (d.getMonth() !== Number(mm) - 1 || d.getDate() !== Number(dd)) return null;
   return d;
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Campo de fecha en formato español (dd/mm/aaaa) con valor ISO (aaaa-mm-dd)
+// ---------------------------------------------------------------------------------------------------------------------
+/** «2026-10-04» → «04/10/2026» (vacío si no es una fecha ISO). */
+export function isoToDisplay(iso: string | undefined | null): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? "");
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
+}
+
+/**
+ * Texto escrito por la persona → fecha ISO, o null si no es una fecha válida. Acepta «4/10/2026», «04-10-26»,
+ * «04.10.2026», «04102026» y también ISO pegado («2026-10-04», no es ambiguo). Años de dos cifras: 20xx.
+ * Rechaza fechas imposibles (31/02).
+ */
+export function parseDisplayDate(text: string): string | null {
+  const t = text.trim();
+  let d: number, mo: number, y: number;
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+  const sep = /^(\d{1,2})[/.\-\s](\d{1,2})[/.\-\s](\d{2}|\d{4})$/.exec(t);
+  const compact = /^(\d{2})(\d{2})(\d{4})$/.exec(t);
+  if (iso) [d, mo, y] = [Number(iso[3]), Number(iso[2]), Number(iso[1])];
+  else if (sep) [d, mo, y] = [Number(sep[1]), Number(sep[2]), Number(sep[3])];
+  else if (compact) [d, mo, y] = [Number(compact[1]), Number(compact[2]), Number(compact[3])];
+  else return null;
+  if (y < 100) y += 2000;
+  if (y < 1900 || y > 2100 || mo < 1 || mo > 12 || d < 1) return null;
+  const date = new Date(y, mo - 1, d);
+  if (date.getMonth() !== mo - 1 || date.getDate() !== d) return null;
+  return toISODate(date);
+}
+
+/** Mientras se escribe solo con números, añade las barras: «0410» → «04/10», «04102026» → «04/10/2026». */
+export function maskDateTyping(text: string, prev: string): string {
+  if (/[^\d/]/.test(text) || text.length < prev.length) return text; // borrando o con otro separador: no se toca
+  if (text.endsWith("/") || (text.includes("/") && text.split("/").some((p) => p.length === 1))) return text; // «4/10/…»: respeta lo escrito
+  let digits = text.replace(/\D/g, "");
+  // Un día que empieza por 4-9 o un mes que empieza por 2-9 solo pueden ser de una cifra: «4071990» → 04/07/1990
+  if (/^[4-9]/.test(digits)) digits = `0${digits}`;
+  if (/^\d{2}[2-9]/.test(digits)) digits = `${digits.slice(0, 2)}0${digits.slice(2)}`;
+  digits = digits.slice(0, 8);
+  return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4)].filter(Boolean).join("/");
+}

@@ -4,7 +4,7 @@ import { ArrowLeft, Eye, FileCheck2, Plus, Save, Trash2, UserRound } from "lucid
 import { useCtx, useLocationScope, useSession, useWorkspace } from "@/app/session";
 import { ServerNotice, useServerReady } from "@/app/serverCaps";
 import {
-  Button, Callout, Card, Combobox, EmptyState, Field, IconButton, Input, Modal, MoneyInput, Page, Segmented, Select, Textarea, useToast,
+  Button, Callout, Card, Combobox, EmptyState, Field, IconButton, Input, Modal, MoneyInput, Page, Segmented, Select, Textarea, useToast, DateInput
 } from "@/design-system/components";
 import { issueInvoice, saveInvoiceDraft, type InvoiceDraftInput } from "@/data/repos/invoices";
 import { customerName } from "@/data/repos/customers";
@@ -196,7 +196,7 @@ export default function InvoiceEditorPage() {
           <Card>
             <h2 className="mb-4 text-[15px] font-semibold">Datos de la factura</h2>
             <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Fecha de emisión" required><Input type="date" value={form.issueDate} onChange={(e) => set("issueDate", e.target.value)} /></Field>
+              <Field label="Fecha de emisión" required><DateInput value={form.issueDate} onChange={(e) => set("issueDate", e.target.value)} /></Field>
               <Field label="Vencimiento" hint={`Vence el ${formatDate(addDaysISO(form.issueDate, form.dueDays))}`}>
                 <Select value={form.dueDays} onChange={(e) => set("dueDays", Number(e.target.value))}>
                   {DUE.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
@@ -214,8 +214,8 @@ export default function InvoiceEditorPage() {
             </div>
             {showPeriod ? (
               <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                <Field label="Periodo de servicio: desde"><Input type="date" value={form.servicePeriodStart ?? ""} onChange={(e) => set("servicePeriodStart", e.target.value || undefined)} /></Field>
-                <Field label="Hasta"><Input type="date" value={form.servicePeriodEnd ?? ""} min={form.servicePeriodStart} onChange={(e) => set("servicePeriodEnd", e.target.value || undefined)} /></Field>
+                <Field label="Periodo de servicio: desde"><DateInput value={form.servicePeriodStart ?? ""} onChange={(e) => set("servicePeriodStart", e.target.value || undefined)} /></Field>
+                <Field label="Hasta"><DateInput value={form.servicePeriodEnd ?? ""} min={form.servicePeriodStart} onChange={(e) => set("servicePeriodEnd", e.target.value || undefined)} /></Field>
               </div>
             ) : (
               <button type="button" className="mt-3 text-sm font-medium text-accent-fg hover:underline" onClick={() => setShowPeriod(true)}>+ Indicar periodo de servicio (cuotas, suscripciones)</button>

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Bell, Check, ChevronDown, FlaskConical, Layers, LogOut, Menu as MenuIcon, Monitor, Moon, MoreHorizontal, Search, Sun, X } from "lucide-react";
+import { AlertTriangle, Bell, Check, ChevronDown, FlaskConical, Layers, LogOut, Menu as MenuIcon, Monitor, Moon, MoreHorizontal, RefreshCw, Search, Sun, WifiOff, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Drawer, EmptyState, IconButton, Kbd, Menu, MenuItem, useToast } from "@/design-system/components";
 import { computeAlerts } from "@/domain/alerts";
@@ -13,6 +13,7 @@ import { Logo, LogoMark } from "./Logo";
 import { CommandPalette } from "./CommandPalette";
 import { CompanySwitcher, LocationSwitcher, OrgAvatar } from "./CompanySwitcher";
 import { applyTheme, getThemePref, type ThemePref } from "./theme";
+import { setupPercent, setupPhase, SETUP_PHASES } from "./setupProgress";
 
 /*
  * Estructura responsive:
@@ -302,6 +303,7 @@ function SyncIndicator() {
   const { state, pending, progress } = s.sync;
   const label =
     state === "offline" ? `Sin conexión · ${pending} pendiente${pending === 1 ? "" : "s"}`
+    : progress && progress.groupId.startsWith("demo:") ? `Preparando demo · ${setupPercent(progress)} %`
     : progress && progress.total > 1 ? `${progress.label} · ${progress.done}/${progress.total}`
     : state === "syncing" || pending ? "Guardando…"
     : state === "error" ? "Error al guardar"
@@ -318,6 +320,98 @@ function SyncIndicator() {
       <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />
       {label}
     </button>
+  );
+}
+
+type SetupStage = "idle" | "uploading" | "checking" | "done";
+
+/**
+ * Banda de la empresa demo. Mientras se guarda en la cuenta (la primera vez tarda unos segundos) cuenta en qué fase
+ * va con un porcentaje que nunca retrocede; si se corta la red o el servidor rechaza algo, lo dice y ofrece qué hacer.
+ * Los datos ya se ven en pantalla (están en este dispositivo); lo que falta es guardarlos en el servidor.
+ */
+function DemoBanner() {
+  const s = useSession();
+  const st = s.sync;
+  const demo = st?.progress?.groupId.startsWith("demo:") ? st.progress : undefined;
+  const [stage, setStage] = useState<SetupStage>("idle");
+  const pct = useRef(0);
+  const phase = useRef(0);
+  if (demo) {
+    pct.current = setupPercent(demo, pct.current);
+    phase.current = Math.max(phase.current, setupPhase(demo));
+  }
+  const state = st?.state;
+  useEffect(() => {
+    if (demo) return setStage("uploading");
+    setStage((prev) => {
+      if (prev === "uploading") return state === "idle" ? "done" : "checking";
+      if (prev === "checking" && state === "idle") return "done";
+      return prev;
+    });
+  }, [demo, state]);
+  useEffect(() => {
+    if (stage !== "done") return;
+    const t = setTimeout(() => {
+      setStage("idle");
+      pct.current = 0;
+      phase.current = 0;
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [stage]);
+
+  const base = "relative flex shrink-0 items-center justify-center gap-1.5 overflow-hidden border-b px-4 text-center font-medium";
+  if (stage === "idle") {
+    return (
+      <div className={cn(base, "h-7 border-accent/15 bg-accent-soft text-2xs text-accent-fg")} data-testid="demo-banner">
+        <FlaskConical className="h-3 w-3" />
+        <span className="sm:hidden">Empresa demo · datos ficticios</span>
+        <span className="hidden sm:inline">Empresa de demostración · datos ficticios, separados de tus empresas reales</span>
+      </div>
+    );
+  }
+  if (stage === "done") {
+    return (
+      <div className={cn(base, "h-9 border-success/20 bg-success-soft text-xs text-success-fg")} data-testid="demo-banner" data-setup="done" role="status">
+        <Check className="h-3.5 w-3.5" />Demo lista<span className="hidden sm:inline"> · todos los datos guardados en tu cuenta</span>
+      </div>
+    );
+  }
+  const offline = state === "offline";
+  const failed = state === "error";
+  const value = stage === "checking" ? 97 : pct.current;
+  const what = stage === "checking" ? "Comprobando los datos" : SETUP_PHASES[phase.current];
+  return (
+    <div className={cn(base, "h-9 text-xs", failed ? "border-danger/20 bg-danger-soft text-danger-fg" : offline ? "border-warning/25 bg-warning-soft text-warning-fg" : "border-accent/15 bg-accent-soft text-accent-fg")}
+      data-testid="demo-banner" data-setup={stage} role="status" aria-live="polite">
+      {failed ? (
+        <>
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">No se ha podido guardar toda la demo</span>
+          <button type="button" onClick={() => window.location.reload()} className="ml-1 shrink-0 rounded px-1.5 py-0.5 font-semibold underline-offset-2 hover:underline">Recargar</button>
+        </>
+      ) : offline ? (
+        <>
+          <WifiOff className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">Sin conexión · <span className="hidden sm:inline">la demo se terminará de guardar al volver la red · </span>{value} %</span>
+          <button type="button" onClick={() => void s.refresh().catch(() => undefined)} className="ml-1 inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-semibold underline-offset-2 hover:underline">
+            <RefreshCw className="h-3 w-3" />Reintentar
+          </button>
+        </>
+      ) : (
+        <>
+          <FlaskConical className="h-3.5 w-3.5 shrink-0 animate-pulse" />
+          <span className="truncate">
+            <span className="hidden sm:inline">Preparando tu empresa demo · </span><span className="sm:hidden">Preparando la demo · </span>
+            {what} · <span className="num">{value} %</span>
+          </span>
+          <span className="hidden text-accent-fg/70 lg:inline">· puedes explorarla mientras tanto</span>
+        </>
+      )}
+      <span className="absolute inset-x-0 bottom-0 h-0.5 bg-accent/10" role="progressbar" aria-label="Progreso de la demo" aria-valuemin={0} aria-valuemax={100} aria-valuenow={value}>
+        <span className={cn("block h-full transition-[width] duration-700 ease-out", failed ? "bg-danger" : offline ? "bg-warning" : "bg-accent")} style={{ width: `${value}%` }} />
+      </span>
+    </div>
   );
 }
 
@@ -352,13 +446,7 @@ export function AppShell() {
       <Sidebar pos={isPos} />
       <Rail pos={isPos} />
       <div className={cn(isPos ? "flex h-[100dvh] flex-col md:pl-[68px] 2xl:pl-[248px]" : "md:pl-[68px] xl:pl-[248px]")}>
-        {ws.organization.isDemo && (
-          <div className="flex h-7 shrink-0 items-center justify-center gap-1.5 border-b border-accent/15 bg-accent-soft px-4 text-center text-2xs font-medium text-accent-fg" data-testid="demo-banner">
-            <FlaskConical className="h-3 w-3" />
-            <span className="sm:hidden">Empresa demo · datos ficticios</span>
-            <span className="hidden sm:inline">Empresa de demostración · datos ficticios, separados de tus empresas reales</span>
-          </div>
-        )}
+        {ws.organization.isDemo && <DemoBanner />}
         <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-line bg-canvas/80 px-3 backdrop-blur-xl backdrop-saturate-150 sm:px-5">
           <IconButton icon={MenuIcon} label="Menú" className="md:hidden" onClick={() => setMobileOpen(true)} />
           <Link to="/" className="md:hidden" aria-label="Resumen"><LogoMark size={26} /></Link>

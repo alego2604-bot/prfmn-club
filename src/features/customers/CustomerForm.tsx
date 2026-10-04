@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useCtx } from "@/app/session";
-import { Button, Field, Input, Modal, Select, useToast } from "@/design-system/components";
+import { Button, Field, Input, Modal, Select, useToast, DateInput } from "@/design-system/components";
 import { createCustomer, updateCustomer, type CustomerInput } from "@/data/repos/customers";
 import type { Customer, CustomerStatus } from "@/domain/types";
 import { classifyTaxId } from "@/lib/taxid";
@@ -58,13 +58,13 @@ export function CustomerForm({ customer, onClose, onSaved }: { customer?: Custom
         </Field>
         <Field label="Email"><Input type="email" value={f.email} onChange={set("email")} /></Field>
         <Field label="Teléfono"><Input type="tel" value={f.phone} onChange={set("phone")} placeholder="+34 600 000 000" /></Field>
-        <Field label="Fecha de nacimiento"><Input type="date" value={f.birthDate} onChange={set("birthDate")} /></Field>
+        <Field label="Fecha de nacimiento"><DateInput value={f.birthDate} onChange={set("birthDate")} /></Field>
         <Field label="Empresa"><Input value={f.companyName} onChange={set("companyName")} placeholder="Opcional" /></Field>
         <Field label="Dirección" className="sm:col-span-2"><Input value={f.address} onChange={set("address")} /></Field>
         <Field label="Código postal"><Input value={f.postalCode} onChange={set("postalCode")} /></Field>
         <Field label="Ciudad"><Input value={f.city} onChange={set("city")} /></Field>
-        <Field label="Fecha de alta"><Input type="date" value={f.joinedAt} onChange={set("joinedAt")} /></Field>
-        <Field label="Fecha de baja"><Input type="date" value={f.leftAt} onChange={set("leftAt")} /></Field>
+        <Field label="Fecha de alta"><DateInput value={f.joinedAt} onChange={set("joinedAt")} /></Field>
+        <Field label="Fecha de baja"><DateInput value={f.leftAt} onChange={set("leftAt")} /></Field>
       </div>
     </Modal>
   );

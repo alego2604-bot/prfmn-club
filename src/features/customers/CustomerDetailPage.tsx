@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useCtx, useSession, useWorkspace, usePersonName } from "@/app/session";
 import { useServerReady } from "@/app/serverCaps";
-import { Avatar, Badge, Button, Callout, Card, CardHeader, DescriptionList, EmptyState, Field, Input, Ledger, Menu, MenuItem, Mono, Page, Switch, Tabs, Textarea, useToast } from "@/design-system/components";
+import { Avatar, Badge, Button, Callout, Card, CardHeader, DescriptionList, EmptyState, Field, Ledger, Menu, MenuItem, Mono, Page, Switch, Tabs, Textarea, useToast, DateInput } from "@/design-system/components";
 import { Sparkline } from "@/design-system/components/charts";
 import { addCustomerNote, customerName } from "@/data/repos/customers";
 import { invoiceLabel } from "@/data/repos/invoices";
@@ -23,6 +23,7 @@ import { AssignMembershipDrawer, MembershipActions } from "../memberships/Member
 import { TaskDrawer } from "../tasks/FollowUpPage";
 import { PaymentModal } from "../invoices/InvoiceDetailPage";
 import { ExpenseDrawer } from "../expenses/ExpenseDrawer";
+import { saleNo } from "@/lib/text";
 
 type Tab = "overview" | "timeline" | "membership" | "sales" | "payments" | "invoices" | "notes" | "tasks" | "documents";
 const TAB_PARAM: Record<string, Tab> = { membresia: "membership", cronologia: "timeline", ventas: "sales", cobros: "payments", facturas: "invoices", notas: "notes", tareas: "tasks", documentos: "documents" };
@@ -69,7 +70,7 @@ export default function CustomerDetailPage() {
     const MEMBER_ACTION: Record<string, string> = { insert: "Alta de membresía", pause: "Membresía en pausa", resume: "Membresía reanudada", cancel: "Baja de la membresía", reactivate: "Membresía reactivada", plan_change: "Cambio de tarifa", charge: "Cuota generada", update: "Membresía modificada" };
     const timeline = [
       ...invoices.map((i) => ({ at: `${i.issueDate}T12:00:00`, kind: "invoice", icon: Receipt, title: `Factura ${invoiceLabel(i)} · ${formatMoney(i.total)}`, sub: `${i.concept ?? ""} · ${INVOICE_VIEW[invoiceView(i, today)].label}`, to: `/facturas/${i.id}` })),
-      ...sales.map((s) => ({ at: s.occurredAt, kind: "purchase", icon: ShoppingBag, title: `Compra #${s.number} · ${formatMoney(s.total)}${s.status === "voided" ? " (anulada)" : ""}`, sub: items.get(s.id) ?? "", to: `/ventas?venta=${s.id}` })),
+      ...sales.map((s) => ({ at: s.occurredAt, kind: "purchase", icon: ShoppingBag, title: `Compra ${saleNo(s.number)} · ${formatMoney(s.total)}${s.status === "voided" ? " (anulada)" : ""}`, sub: items.get(s.id) ?? "", to: `/ventas?venta=${s.id}` })),
       ...payments.filter((p) => !p.saleId).map((p) => ({ at: p.paidAt, kind: "payment", icon: CreditCard, title: `${p.kind === "refund" ? "Devolución" : "Cobro"} ${formatMoney(p.amount)}`, sub: methodName.get(p.methodKey) ?? "", to: p.invoiceId ? `/facturas/${p.invoiceId}` : undefined })),
       ...notes.map((n) => ({ at: n.createdAt, kind: "note", icon: StickyNote, title: "Nota interna", sub: n.body, to: undefined as string | undefined })),
       ...tasks.map((t) => ({ at: t.completedAt ?? t.createdAt, kind: "task", icon: t.status === "done" ? CheckCircle2 : ListTodo, title: `${t.status === "done" ? "Tarea hecha" : "Tarea"}: ${t.title}`, sub: t.reason ?? (t.dueDate ? `Para el ${formatDate(t.dueDate)}` : ""), to: undefined as string | undefined })),
@@ -374,7 +375,7 @@ export default function CustomerDetailPage() {
                 <Link key={s.id} to={`/ventas?venta=${s.id}`} className="flex items-center justify-between gap-3 border-b border-line px-4 py-3 last:border-0 hover:bg-surface-2">
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-medium">{data.items.get(s.id)}</span>
-                    <span className="text-xs text-fg-3">#{s.number} · {formatDateTime(s.occurredAt)}</span>
+                    <span className="text-xs text-fg-3">{saleNo(s.number)} · {formatDateTime(s.occurredAt)}</span>
                   </span>
                   <span className={cn("text-sm font-medium num", s.status === "voided" && "text-fg-3 line-through")}>{formatMoney(s.total)}</span>
                 </Link>
@@ -442,7 +443,7 @@ export default function CustomerDetailPage() {
               <div className="mt-3 flex flex-col gap-3">
                 <Switch checked={pinned} onChange={setPinned} label="Fijar en la ficha" />
                 <Field label="Silenciar avisos de inactividad hasta" hint="Evita falsos avisos en Seguimiento mientras dure la ausencia.">
-                  <Input type="date" value={suppress} onChange={(e) => setSuppress(e.target.value)} className="max-w-[200px]" />
+                  <DateInput value={suppress} onChange={(e) => setSuppress(e.target.value)} className="max-w-[200px]" />
                 </Field>
                 <Button variant="primary" disabled={!note.trim()} onClick={saveNote} className="self-start">Guardar nota</Button>
               </div>

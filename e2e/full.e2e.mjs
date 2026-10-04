@@ -18,6 +18,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, devices } from "playwright";
+import { createConsoleWatch } from "./consoleWatch.mjs";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://127.0.0.1:5176";
 const OUT = process.env.E2E_OUT ?? join(process.cwd(), "e2e", "results");
@@ -29,7 +30,7 @@ const PASSWORD = "contraseña-e2e-segura";
 const C1 = `Empresa Uno ${run}`;
 const C2 = `Empresa Dos ${run}`;
 const results = [];
-const errors = [];
+const cw = createConsoleWatch();
 const facts = {};
 
 const iso = (d) => { const x = new Date(); x.setDate(x.getDate() + d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
@@ -47,13 +48,7 @@ async function step(page, name, fn) {
     await page.screenshot({ path: join(OUT, `full-fail-${name.replace(/\W+/g, "_").slice(0, 60)}.png`), fullPage: true }).catch(() => {});
   }
 }
-function watch(page, label) {
-  page.on("response", async (r) => {
-    if (r.status() === 409 || r.status() >= 500) errors.push(`${label} HTTP ${r.status()} ${r.url().split("?")[0].split("/").slice(-2).join("/")} ${(r.request().postData() ?? "").slice(0, 300)} → ${(await r.text().catch(() => "")).slice(0, 200)}`);
-  });
-  page.on("pageerror", (e) => errors.push(`${label} pageerror: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && !/favicon|ResizeObserver/.test(m.text()) && errors.push(`${label} console: ${m.text()}`));
-}
+const watch = (page, label) => cw.watch(page, label);
 const saved = (page) => page.waitForFunction(() => document.querySelector('[data-testid="sync-indicator"]')?.getAttribute("data-state") === "idle", null, { timeout: 30000 });
 const toast = (page, text) => page.getByText(text).first().waitFor({ timeout: 15000 });
 async function download(page, trigger) {
@@ -618,6 +613,6 @@ for (const [label, dev] of [["móvil", devices["iPhone 13"]], ["iPad vertical", 
 await browser.close();
 
 const failed = results.filter((r) => !r.ok);
-console.log(`\n${results.length - failed.length}/${results.length} pasos OK · errores de consola: ${errors.length}`);
-if (errors.length) console.log(errors.slice(0, 15).join("\n"));
-process.exit(failed.length || errors.length ? 1 : 0);
+const unexpected = cw.report();
+console.log(`\n${results.length - failed.length}/${results.length} pasos OK · errores no esperados: ${unexpected}`);
+process.exit(failed.length || unexpected ? 1 : 0);

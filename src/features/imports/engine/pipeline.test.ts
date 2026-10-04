@@ -59,6 +59,7 @@ describe("Pipeline de importación por lotes", () => {
     const r = await runImport(ctx, p, file, sync, { stages: [{ state: "ANALYZING", at: new Date().toISOString() }] });
     expect(r.state).toBe("COMPLETED");
     expect(hiddenDuring).toBe(0); // mientras se enviaba, nada visible
+    await sync.flush(); // el cambio de estado final viaja en su propio lote, después del último trozo
     expect(server.calls.length).toBeGreaterThan(5);
     expect(Math.max(...server.calls)).toBeLessThanOrEqual(300);
     expect(server.count("sales")).toBe(900);
@@ -83,6 +84,7 @@ describe("Pipeline de importación por lotes", () => {
     expect(partial).toBeGreaterThan(0);
     expect(partial).toBeLessThan(900);
     expect(visibleWorkspace(ws).sales.filter((s) => s.importId === r.job.id)).toHaveLength(0);
+    await sync.flush();
     expect(server.tables.get("imports")!.get(r.job.id)!.status).toBe("failed");
     cleanupImport(ctx, r.job.id);
     await sync.settle();
@@ -106,6 +108,7 @@ describe("Pipeline de importación por lotes", () => {
     expect((await running).state).toBe("CANCELLED");
     const ws = store.requireWorkspace();
     expect(importState(ws.imports.find((j) => j.id === job.id)!)).toBe("CANCELLED");
+    await sync.flush();
     expect(server.count("sales", (s) => s.import_id === job.id && s.status !== "voided")).toBe(0);
     expect(visibleWorkspace(ws).sales.some((s) => s.importId === job.id)).toBe(false);
   });

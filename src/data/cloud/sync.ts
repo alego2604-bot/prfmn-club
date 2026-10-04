@@ -56,6 +56,27 @@ export const CHUNK_MAX_BYTES = 300_000;
 export const batchRows = (b: Pick<Batch, "ops">) => b.ops.reduce((n, o) => n + o.rows.length, 0);
 
 /**
+ * Envíos en paralelo. `sync_push` es una transacción por trozo y el orden importa por las claves foráneas, así que
+ * solo se adelantan trozos CONSECUTIVOS de un mismo grupo que sean únicamente inserciones en una misma tabla cuyas
+ * inserciones no bloquean filas compartidas:
+ * - fuera `sales` (contador de numeración por empresa: se serializaría y desordenaría los tickets), `invoices`
+ *   (serie de numeración), catálogo y tarifas (versiones «solo una vigente»);
+ * - `sale_items` sí: su trigger de stock puede bloquear un producto, pero un interbloqueo (40P01) aborta la
+ *   transacción entera y se reintenta (ver isTransient), así que nunca se aplica a medias ni dos veces;
+ * - `payments` solo si ninguna fila es una devolución (referencia a otro pago que podría ir en un trozo paralelo).
+ * Medido en staging con la demo: los cobros y las líneas de venta eran el 60 % del tiempo de envío.
+ */
+export const PARALLEL_PUSHES = 4;
+const PARALLEL_SAFE = new Set(["sale_items", "payments", "invoice_items", "membership_charges", "expenses", "cash_movements", "customer_notes", "tasks", "import_records"]);
+
+function parallelKey(b: Batch): string | null {
+  const op = b.ops.length === 1 ? b.ops[0]! : null;
+  if (!b.group || !op || op.op !== "insert" || !PARALLEL_SAFE.has(op.table)) return null;
+  if (op.table === "payments" && op.rows.some((r) => r.refund_of_payment_id != null)) return null;
+  return `${b.group.id}:${op.table}`;
+}
+
+/**
  * Divide un lote en trozos que respetan el orden de las operaciones (y por tanto las dependencias FK: cada trozo
  * se confirma antes de enviar el siguiente). La auditoría de cada entidad viaja con el trozo que contiene su fila.
  */
@@ -274,7 +295,8 @@ export class CloudError extends Error {
 function isTransient(error: { code?: string; message?: string; status?: number } | null | undefined): boolean {
   if (!error) return false;
   const code = error.code ?? "";
-  if (/^[0-9A-Z]{5}$/.test(code) || code.startsWith("PGRST")) return code === "57P01" || code === "53300" || code === "08006";
+  // 40P01 interbloqueo y 40001 serialización: PostgreSQL aborta la transacción entera; reenviarla es seguro
+  if (/^[0-9A-Z]{5}$/.test(code) || code.startsWith("PGRST")) return ["57P01", "53300", "08006", "40P01", "40001"].includes(code);
   return true;
 }
 
@@ -284,6 +306,8 @@ export interface SyncProgress {
   label: string;
   done: number;
   total: number;
+  /** Tablas del próximo trozo del grupo (permite contar en qué fase va una operación larga). */
+  tables: string[];
 }
 export interface SyncStatus {
   state: SyncState;
@@ -298,6 +322,13 @@ export type GroupEvent = { groupId: string; state: "done" } | { groupId: string;
 /** Cola de cambios pendientes: una por empresa y pestaña (`outbox:<org>` es el formato anterior, sin pestaña). */
 export const outboxPrefix = (orgId: string) => `outbox:${orgId}`;
 const outboxKey = (orgId: string, tab: string) => `${outboxPrefix(orgId)}:${tab}`;
+/**
+ * Lotes enviados cuya confirmación aún no se ha guardado en la cola (respuesta en camino, perdida o pestaña cerrada
+ * justo después de que el servidor los aplicara). Al reabrir, esos lotes se comprueban ANTES de reenviarlos en vez
+ * de chocar con la clave primaria (409). La idempotencia del servidor sigue siendo la última barrera.
+ */
+export const inflightPrefix = (orgId: string) => `inflight:${orgId}`;
+const inflightKey = (orgId: string, tab: string) => `${inflightPrefix(orgId)}:${tab}`;
 
 interface SyncOptions {
   /** Id de la pestaña (por defecto, el de data/cloud/tab). */
@@ -321,6 +352,13 @@ export class CloudSync {
   private nextGroup: { id: string; label: string } | null = null;
   private cancelled = new Set<string>();
   private waiters = new Map<string, { resolve: () => void; reject: (e: Error) => void }[]>();
+  /** Lotes que pudieron aplicarse sin que llegara (o se guardara) la confirmación: se comprueban antes de reenviar. */
+  private maybeApplied = new Set<string>();
+  private inflight = new Set<string>();
+  /** Descarga en curso (una sola a la vez por empresa: la de la demo y la del temporizador coincidían). */
+  private pulling: { orgId: string; p: Promise<void> } | null = null;
+  /** Hubo una escritura mientras el bucle de envío terminaba: se relanza al acabar (si no, esperaría al próximo aviso). */
+  private kick = false;
   private statusListeners = new Set<(s: SyncStatus) => void>();
   private errorListeners = new Set<(message: string) => void>();
   private groupListeners = new Set<(e: GroupEvent) => void>();
@@ -339,8 +377,8 @@ export class CloudSync {
   private progress(): SyncProgress | undefined {
     const g = this.outbox[0]?.group;
     if (!g) return undefined;
-    const remaining = this.outbox.filter((b) => b.group?.id === g.id).length;
-    return { groupId: g.id, label: g.label, done: g.total - remaining, total: g.total };
+    const mine = this.outbox.filter((b) => b.group?.id === g.id);
+    return { groupId: g.id, label: g.label, done: g.total - mine.length, total: g.total, tables: mine[0]!.ops.map((o) => o.table) };
   }
 
   private setStatus(patch: Partial<SyncStatus>) {
@@ -361,6 +399,8 @@ export class CloudSync {
     this.outbox = [];
     this.tab = await (this.opts.tabId ?? defaultTabId)();
     this.outbox = await this.loadOutbox(orgId);
+    this.maybeApplied = await this.loadInflight(orgId);
+    this.inflight = new Set(this.maybeApplied);
     this.orgId = orgId;
     let cached = false;
     try {
@@ -396,6 +436,12 @@ export class CloudSync {
       if (!orphan) continue;
       adopted.push(...((await this.kv.get<Batch[]>(k)) ?? []));
       adoptedKeys.push(k);
+      if (k !== prefix) {
+        const ik = inflightKey(orgId, tab);
+        const marks = (await this.kv.get<string[]>(ik)) ?? [];
+        if (marks.length) await this.kv.set(inflightKey(orgId, this.tab!), [...((await this.kv.get<string[]>(inflightKey(orgId, this.tab!))) ?? []), ...marks]);
+        await this.kv.del(ik);
+      }
     }
     if (!adopted.length && !adoptedKeys.length) return mine;
     // Orden de creación (estable: los trozos de un mismo grupo comparten fecha y conservan su orden)
@@ -403,6 +449,17 @@ export class CloudSync {
     await this.kv.set(own, merged);
     for (const k of adoptedKeys) await this.kv.del(k);
     return merged;
+  }
+
+  /** Marcas «en vuelo» de esta pestaña que siguen en la cola (las demás ya se confirmaron). */
+  private async loadInflight(orgId: string): Promise<Set<string>> {
+    const marks = (await this.kv.get<string[]>(inflightKey(orgId, this.tab!))) ?? [];
+    const queued = new Set(this.outbox.map((b) => b.id));
+    return new Set(marks.filter((id) => queued.has(id)));
+  }
+
+  private saveInflight() {
+    return this.orgId && this.tab ? this.kv.set(inflightKey(this.orgId, this.tab), [...this.inflight]) : Promise.resolve();
   }
 
   close() {
@@ -439,6 +496,8 @@ export class CloudSync {
       d.orgId = org;
       d.tab = tab;
       d.outbox = (await this.kv.get<Batch[]>(outboxKey(org, tab))) ?? [];
+      d.maybeApplied = await d.loadInflight(org);
+      d.inflight = new Set(d.maybeApplied);
       await d.flush();
     })().finally(() => {
       if (!d.pending && this.drainers.get(org)?.sync === d) this.drainers.delete(org);
@@ -449,11 +508,23 @@ export class CloudSync {
   /** Elimina la caché local de cambios de una empresa (al cerrar sesión, tras comprobar que no queda nada). */
   async discardLocal(orgId: string): Promise<void> {
     const prefix = outboxPrefix(orgId);
-    for (const k of await this.kv.keys()) if (k === prefix || k.startsWith(`${prefix}:`)) await this.kv.del(k);
+    const iprefix = inflightPrefix(orgId);
+    for (const k of await this.kv.keys()) if (k === prefix || k.startsWith(`${prefix}:`) || k.startsWith(`${iprefix}:`)) await this.kv.del(k);
   }
 
   /** Descarga el estado real (no pisa cambios locales aún no enviados ni hechos durante la descarga). */
-  async pull(): Promise<void> {
+  pull(): Promise<void> {
+    const orgId = this.orgId;
+    if (!orgId) return Promise.resolve();
+    if (this.pulling?.orgId === orgId) return this.pulling.p;
+    const p = this.pullOnce().finally(() => {
+      if (this.pulling?.p === p) this.pulling = null;
+    });
+    this.pulling = { orgId, p };
+    return p;
+  }
+
+  private async pullOnce(): Promise<void> {
     const orgId = this.orgId;
     if (!orgId) return;
     this.setStatus({ state: "syncing" });
@@ -463,7 +534,7 @@ export class CloudSync {
     if (this.orgId !== orgId) return;
     if (this.outbox.length) return this.setStatus({ state: "idle" });
     // Una escritura hecha o confirmada mientras se descargaba: la foto puede no incluirla. Se vuelve a pedir.
-    if (this.writes !== writes || this.acks !== acks) return this.pull();
+    if (this.writes !== writes || this.acks !== acks) return this.pullOnce();
     this.store.setWorkspace(ws);
     this.setStatus({ state: "idle", lastSyncedAt: new Date().toISOString(), error: undefined });
   }
@@ -493,7 +564,10 @@ export class CloudSync {
       this.outbox.push({ ...p, id: uid(), createdAt, group: groupId ? { id: groupId, label, index, total: parts.length } : undefined });
     });
     this.setStatus({});
-    void this.persist().then(() => this.flush());
+    void this.persist().then(() => {
+      if (this.flushing) this.kick = true;
+      return this.flush();
+    });
   }
 
   private persist() {
@@ -566,6 +640,25 @@ export class CloudSync {
         const batch = this.outbox[0]!;
         if (batch.group && this.cancelled.has(batch.group.id)) return; // cancelGroup lo retira
         this.setStatus({ state: "syncing" });
+        // Pudo aplicarse sin que llegara la confirmación: se mira qué existe antes de reenviar (evita el 409)
+        if (this.maybeApplied.has(batch.id)) {
+          this.maybeApplied.delete(batch.id);
+          const pruned = await this.pruneExisting(batch).catch(() => null);
+          if (pruned === "done") {
+            await this.confirm(batch, []);
+            continue;
+          }
+          if (pruned) {
+            this.outbox[0] = pruned;
+            await this.persist();
+          }
+        }
+        const run = this.parallelRun();
+        if (run.length > 1) {
+          await this.pushParallel(run);
+          continue;
+        }
+        await this.markInflight([batch.id]);
         const { data, error } = await this.sb.rpc("sync_push", { p_org: batch.orgId, p_batch: { ops: batch.ops, audit: batch.audit } });
         if (error) {
           // Reintento tras una respuesta perdida: el trozo ya entró. Se quitan las filas existentes y se reenvía el resto.
@@ -585,11 +678,14 @@ export class CloudSync {
           if (error.code === "57014" && batchRows(batch) > 20) {
             const halves = splitBatch(batch, Math.ceil(batchRows(batch) / 2), Number.MAX_SAFE_INTEGER);
             this.outbox.splice(0, 1, ...halves.map((h, i) => ({ ...h, id: i === 0 ? batch.id : uid(), createdAt: batch.createdAt, group: batch.group })));
-            this.regroup(batch.group?.id);
+            this.regroup(batch.group?.id, halves.length - 1);
             await this.persist();
+            await this.clearInflight([batch.id]); // rechazado entero: no se aplicó nada
             continue;
           }
           if (isTransient(error)) {
+            // La respuesta pudo perderse después de aplicarse: el próximo intento comprueba primero
+            if (batch.ops.some((o) => o.op === "insert")) this.maybeApplied.add(batch.id);
             this.setStatus({ state: "offline", error: error.message });
             this.scheduleRetry();
             return;
@@ -598,6 +694,7 @@ export class CloudSync {
           const groupId = batch.group?.id;
           this.outbox = this.outbox.filter((b, i) => i !== 0 && (!groupId || b.group?.id !== groupId));
           await this.persist();
+          await this.clearInflight([batch.id]);
           this.setStatus({ state: "error", error: error.message });
           if (groupId) this.settleGroup(groupId, { groupId, state: "failed", error: humanize(error.message) });
           for (const l of this.errorListeners) l(humanize(error.message));
@@ -610,15 +707,70 @@ export class CloudSync {
     // .finally() se ejecuta siempre después de la asignación (aunque la cola esté vacía y run() termine en el acto)
     const p = run().finally(() => {
       if (this.flushing === p) this.flushing = null;
+      // Sin red (reintento programado) no se relanza: lo hará el temporizador
+      if (this.kick && !this.flushing && this.outbox.length && this.orgId && !this.retryTimer) {
+        this.kick = false;
+        void this.flush();
+      }
     });
     this.flushing = p;
     return p;
   }
 
+  /** Primeros trozos de la cola que pueden enviarse a la vez (ver PARALLEL_SAFE). */
+  private parallelRun(): Batch[] {
+    const key = this.outbox[0] ? parallelKey(this.outbox[0]) : null;
+    if (!key) return [];
+    const run: Batch[] = [];
+    for (const b of this.outbox) {
+      if (run.length >= PARALLEL_PUSHES || parallelKey(b) !== key || this.maybeApplied.has(b.id)) break;
+      run.push(b);
+    }
+    return run;
+  }
+
+  /**
+   * Envía una tanda en paralelo. Lo confirmado sale de la cola; el primer trozo que falle queda en cabeza y el
+   * bucle lo reenvía por el camino normal (que sabe dividir, esperar a la red, comprobar duplicados o descartar).
+   */
+  private async pushParallel(run: Batch[]) {
+    await this.markInflight(run.map((b) => b.id));
+    const results = await Promise.all(run.map((b) => this.sb.rpc("sync_push", { p_org: b.orgId, p_batch: { ops: b.ops, audit: b.audit } })));
+    const ok: Batch[] = [];
+    results.forEach((r, i) => {
+      if (r.error) {
+        if (isTransient(r.error)) this.maybeApplied.add(run[i]!.id);
+        return;
+      }
+      ok.push(run[i]!);
+      this.outbox = this.outbox.filter((b) => b.id !== run[i]!.id);
+      this.acks++;
+      this.applyServerValues(r.data as { table: string; rows: Row[] }[]);
+    });
+    if (!ok.length) return;
+    await this.persist();
+    await this.clearInflight(ok.map((b) => b.id));
+    this.retryDelay = 2000;
+    this.setStatus({ state: "idle", lastSyncedAt: new Date().toISOString(), error: undefined });
+    for (const g of new Set(ok.map((b) => b.group?.id).filter(Boolean) as string[])) if (!this.hasGroup(g)) this.settleGroup(g, { groupId: g, state: "done" });
+  }
+
+  private async markInflight(ids: string[]) {
+    for (const id of ids) this.inflight.add(id);
+    await this.saveInflight();
+  }
+
+  private async clearInflight(ids: string[]) {
+    let changed = false;
+    for (const id of ids) changed = this.inflight.delete(id) || changed;
+    if (changed) await this.saveInflight();
+  }
+
   private async confirm(batch: Batch, result: { table: string; rows: Row[] }[]) {
-    this.outbox.shift();
+    this.outbox = this.outbox.filter((b) => b.id !== batch.id);
     this.acks++;
     await this.persist();
+    await this.clearInflight([batch.id]);
     this.applyServerValues(result);
     this.retryDelay = 2000;
     this.setStatus({ state: "idle", lastSyncedAt: new Date().toISOString(), error: undefined });
@@ -626,13 +778,13 @@ export class CloudSync {
     if (g && !this.hasGroup(g.id)) this.settleGroup(g.id, { groupId: g.id, state: "done" });
   }
 
-  /** Renumera los trozos de un grupo tras dividir uno (el progreso sigue siendo exacto). */
-  private regroup(groupId?: string) {
+  /**
+   * Tras dividir un trozo en `extra + 1`, el grupo tiene `extra` trozos más: hechos = total − pendientes sigue siendo
+   * exacto y nunca retrocede (aunque haya trozos confirmados fuera de orden por los envíos en paralelo).
+   */
+  private regroup(groupId: string | undefined, extra: number) {
     if (!groupId) return;
-    const mine = this.outbox.filter((b) => b.group?.id === groupId);
-    const doneBefore = mine[0] ? mine[0].group!.index : 0;
-    const total = doneBefore + mine.length;
-    mine.forEach((b, i) => (b.group = { ...b.group!, index: doneBefore + i, total }));
+    for (const b of this.outbox) if (b.group?.id === groupId) b.group = { ...b.group, total: b.group.total + extra };
   }
 
   /**
