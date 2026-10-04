@@ -30,7 +30,8 @@ export function periodFileLabel(p: Period): string {
   return `${toISODate(s)}_${toISODate(e)}`;
 }
 
-export function buildGestoriaReport(ws: Workspace, p: Period, locationId?: string): GestoriaReport {
+/** `canSensitive: false` → el workspace llega sin NIF de clientes: no se avisa de «facturas sin NIF» (sería un falso aviso). */
+export function buildGestoriaReport(ws: Workspace, p: Period, locationId?: string, opts: { canSensitive?: boolean } = {}): GestoriaReport {
   const inP = (iso?: string) => !!iso && inPeriod(iso.length === 10 ? new Date(`${iso}T00:00`).toISOString() : iso, p);
   const loc = (id?: string) => !locationId || !id || id === locationId;
   const methodByKey = new Map(ws.paymentMethods.map((m) => [m.key, m.name]));
@@ -89,7 +90,7 @@ export function buildGestoriaReport(ws: Workspace, p: Period, locationId?: strin
   if (sales.some((s) => s.granularity === "aggregate")) warnings.push("Incluye resúmenes mensuales importados (sin detalle por ticket).");
   if (sales.some((s) => s.source === "import" && !paysBySale.has(s.id))) warnings.push("Hay ventas importadas sin método de pago (el Excel de origen no lo indicaba).");
   if (ws.products.some((p) => p.importId && p.taxRateBp === 1000)) warnings.push("El IVA de algunos productos importados es una propuesta por categoría (10 %): pendiente de validar.");
-  if (inv.some((i) => !i.customerTaxId)) warnings.push(`${inv.filter((i) => !i.customerTaxId).length} facturas sin NIF del cliente.`);
+  if (opts.canSensitive !== false && inv.some((i) => !i.customerTaxId)) warnings.push(`${inv.filter((i) => !i.customerTaxId).length} facturas sin NIF del cliente.`);
   // Gastos (facturas recibidas) por fecha de factura: IVA soportado
   const expAll = ws.expenses.filter((e) => inP(e.issueDate) && loc(e.locationId)).sort((a, b) => a.issueDate.localeCompare(b.issueDate));
   const exps = expAll.filter((e) => e.status !== "void");

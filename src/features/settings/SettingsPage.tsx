@@ -8,7 +8,8 @@ import {
 import { addLocation, addPaymentMethod, addTaxRate, createInvoiceSeries, setDefaultTaxRate, setLocationStatus, updateActivityRules, updateOrganization, updatePaymentMethod } from "@/data/repos/settings";
 import { createExpenseCategory, ensureExpenseCategories, updateExpenseCategory } from "@/data/repos/expenses";
 import { useServerReady } from "@/app/serverCaps";
-import { ROLE_LABELS } from "@/domain/permissions";
+import { hasOverrides, ROLE_LABELS } from "@/domain/permissions";
+import { PermissionOverridesDialog } from "./PermissionOverridesDialog";
 import { hasModule, MODULE_INFO } from "@/domain/modules";
 import type { ActivityRule, AuditLog, PaymentKind, RoleKey, Vertical } from "@/domain/types";
 import { formatDateTime } from "@/lib/dates";
@@ -162,6 +163,7 @@ function TeamTab() {
   const { member: me, mode, addMember, updateMember } = useSession();
   const toast = useToast();
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
   const [f, setF] = useState({ fullName: "", email: "", password: "", role: "employee" as RoleKey, location: "" });
   const members = useTeam();
   return (
@@ -181,15 +183,24 @@ function TeamTab() {
               <span className="text-xs text-fg-3">{m.locationIds ? m.locationIds.map((id) => ws.locations.find((l) => l.id === id)?.name).join(", ") : "Todos los centros"}</span>
               {m.role === "owner" ? (
                 <Badge tone="accent">{ROLE_LABELS.owner.name}</Badge>
+              ) : m.userId === me?.userId ? (
+                // Nadie cambia su propio rol ni sus permisos (lo hace otra persona con permiso sobre el equipo)
+                <Badge>{ROLE_LABELS[m.role].name}</Badge>
               ) : (
                 <Select aria-label={`Rol de ${u?.fullName ?? "este miembro"}`} value={m.role} className="w-40" onChange={async (e) => { try { await updateMember(m.id, { role: e.target.value as RoleKey }); toast.success("Rol actualizado"); } catch (err) { toast.fromError(err); } }}>
                   {(Object.keys(ROLE_LABELS) as RoleKey[]).filter((r) => r !== "owner").map((r) => <option key={r} value={r}>{ROLE_LABELS[r].name}</option>)}
                 </Select>
               )}
+              {m.role !== "owner" && m.userId !== me?.userId && (
+                <button type="button" onClick={() => setEditing(m.id)} className="text-xs font-medium text-fg-3 hover:text-fg">
+                  Permisos{hasOverrides(m.permissionOverrides) ? <Badge className="ml-1.5" tone="accent">{(m.permissionOverrides?.grant.length ?? 0) + (m.permissionOverrides?.revoke.length ?? 0)}</Badge> : null}
+                </button>
+              )}
             </div>
           );
         })}
       </Card>
+      {editing && members.find((m) => m.id === editing) && <PermissionOverridesDialog member={members.find((m) => m.id === editing)!} onClose={() => setEditing(null)} />}
       <Card>
         <CardHeader title="Roles" />
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -403,7 +414,7 @@ function DataTab() {
       </Card>
       <Card>
         <CardHeader title="Copia de seguridad" description="Descarga toda la empresa en un único archivo (JSON): clientes, ventas, facturas, gastos, membresías y auditoría." />
-        <Button variant="primary" icon={Download} disabled={!can("settings.manage")} onClick={async () => triggerDownload(new Blob([await store.exportWorkspaceJson()], { type: "application/json" }), `backup_${ws.organization.name.replace(/\W+/g, "_")}_${new Date().toISOString().slice(0, 10)}.json`)}>
+        <Button variant="primary" icon={Download} disabled={!can("settings.manage")} onClick={async () => triggerDownload(new Blob([await store.exportWorkspaceJson({ canSensitive: can("customers.sensitive") })], { type: "application/json" }), `backup_${ws.organization.name.replace(/\W+/g, "_")}_${new Date().toISOString().slice(0, 10)}.json`)}>
           Descargar copia (.json)
         </Button>
         {!can("settings.manage") && <p className="mt-3 text-xs text-fg-3">Solo quien administra la empresa puede descargar la copia.</p>}

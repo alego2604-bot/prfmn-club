@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, Bell, Check, ChevronDown, FlaskConical, Layers, LogOut, Menu as MenuIcon, Monitor, Moon, MoreHorizontal, RefreshCw, Search, Sun, WifiOff, X } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Drawer, EmptyState, IconButton, Kbd, Menu, MenuItem, useToast } from "@/design-system/components";
+import { Drawer, EmptyState, ExportAllowedContext, IconButton, Kbd, Menu, MenuItem, useToast } from "@/design-system/components";
 import { computeAlerts } from "@/domain/alerts";
 import { hasModule } from "@/domain/modules";
 import { ALL_ITEMS, isPlanned, MOBILE_TABS, NAV, routePath, SETTINGS_ITEM, type NavItem } from "./nav";
@@ -417,6 +417,7 @@ function DemoBanner() {
 
 export function AppShell() {
   const ws = useWorkspace();
+  const canExport = useSession().can("reports.export");
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -473,7 +474,7 @@ export function AppShell() {
         </header>
         {locations.length > 1 && <div className="flex items-center gap-2 border-b border-line px-3 py-2 md:hidden"><LocationSwitcher compact /></div>}
         <main className={cn(isPos && "min-h-0 flex-1")}>
-          <RouteErrorBoundary resetKey={location.pathname}><Outlet /></RouteErrorBoundary>
+          <ExportAllowedContext.Provider value={canExport}><RouteErrorBoundary resetKey={location.pathname}><Outlet /></RouteErrorBoundary></ExportAllowedContext.Provider>
         </main>
       </div>
       <MobileMenu open={mobileOpen} onClose={() => setMobileOpen(false)} />

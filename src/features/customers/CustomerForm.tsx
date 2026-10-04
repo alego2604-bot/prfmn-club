@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useCtx } from "@/app/session";
+import { useCtx, useSession } from "@/app/session";
 import { Button, Field, Input, Modal, Select, useToast, DateInput } from "@/design-system/components";
 import { createCustomer, updateCustomer, type CustomerInput } from "@/data/repos/customers";
 import type { Customer, CustomerStatus } from "@/domain/types";
@@ -15,6 +15,7 @@ export const CUSTOMER_STATUS: Record<CustomerStatus, { label: string; tone: "suc
 
 export function CustomerForm({ customer, onClose, onSaved }: { customer?: Customer; onClose: () => void; onSaved?: (c: Customer) => void }) {
   const ctx = useCtx();
+  const sensitive = useSession().can("customers.sensitive");
   const toast = useToast();
   const [f, setF] = useState<CustomerInput>(() => ({
     firstName: customer?.firstName ?? "", lastName: customer?.lastName ?? "", taxId: customer?.taxId ?? "", email: customer?.email ?? "", phone: customer?.phone ?? "",
@@ -44,6 +45,7 @@ export function CustomerForm({ customer, onClose, onSaved }: { customer?: Custom
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Nombre" required><Input autoFocus value={f.firstName} onChange={set("firstName")} /></Field>
         <Field label="Apellidos"><Input value={f.lastName} onChange={set("lastName")} /></Field>
+        {sensitive && (
         <Field
           label="DNI / NIF / NIE"
           error={tax.kind === "invalid" ? "No es un DNI/NIE/CIF válido (letra de control o formato)" : null}
@@ -51,6 +53,7 @@ export function CustomerForm({ customer, onClose, onSaved }: { customer?: Custom
         >
           <Input value={f.taxId} onChange={set("taxId")} invalid={tax.kind === "invalid"} />
         </Field>
+        )}
         <Field label="Estado">
           <Select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value as CustomerStatus })}>
             {Object.entries(CUSTOMER_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
@@ -58,11 +61,15 @@ export function CustomerForm({ customer, onClose, onSaved }: { customer?: Custom
         </Field>
         <Field label="Email"><Input type="email" value={f.email} onChange={set("email")} /></Field>
         <Field label="Teléfono"><Input type="tel" value={f.phone} onChange={set("phone")} placeholder="+34 600 000 000" /></Field>
-        <Field label="Fecha de nacimiento"><DateInput value={f.birthDate} onChange={set("birthDate")} /></Field>
-        <Field label="Empresa"><Input value={f.companyName} onChange={set("companyName")} placeholder="Opcional" /></Field>
-        <Field label="Dirección" className="sm:col-span-2"><Input value={f.address} onChange={set("address")} /></Field>
-        <Field label="Código postal"><Input value={f.postalCode} onChange={set("postalCode")} /></Field>
-        <Field label="Ciudad"><Input value={f.city} onChange={set("city")} /></Field>
+        {sensitive && (
+          <>
+          <Field label="Fecha de nacimiento"><DateInput value={f.birthDate} onChange={set("birthDate")} /></Field>
+          <Field label="Empresa"><Input value={f.companyName} onChange={set("companyName")} placeholder="Opcional" /></Field>
+          <Field label="Dirección" className="sm:col-span-2"><Input value={f.address} onChange={set("address")} /></Field>
+          <Field label="Código postal"><Input value={f.postalCode} onChange={set("postalCode")} /></Field>
+          <Field label="Ciudad"><Input value={f.city} onChange={set("city")} /></Field>
+          </>
+        )}
         <Field label="Fecha de alta"><DateInput value={f.joinedAt} onChange={set("joinedAt")} /></Field>
         <Field label="Fecha de baja"><DateInput value={f.leftAt} onChange={set("leftAt")} /></Field>
       </div>

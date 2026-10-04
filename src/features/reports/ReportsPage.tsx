@@ -44,7 +44,7 @@ export default function ReportsPage() {
     return makePeriod("custom", now, { start: new Date(`${custom.start}T00:00`), end: new Date(`${custom.end}T00:00`) });
   }, [mode, year, q, month, custom]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const report = useMemo(() => buildGestoriaReport(ws, period, locationId || undefined), [ws, period, locationId]);
+  const report = useMemo(() => buildGestoriaReport(ws, period, locationId || undefined, { canSensitive: can("customers.sensitive") }), [ws, period, locationId, can]);
   const empty = report.kpis[0]!.value === 0;
   const companyMeta = { company: ws.organization.name };
   const [include, setInclude] = useState<Record<SectionKey, boolean>>({ sales: true, invoices: true, expenses: true, tax: true, cash: true, customers: true });

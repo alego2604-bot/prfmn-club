@@ -52,7 +52,7 @@ export default function InvoicesPage() {
         .filter((i) => !method || i.paymentMethodId === method)
         .filter((i) => !series || seriesOf(i) === series)
         .filter((i) => !source || i.source === source)
-        .filter((i) => !nq || normalizeKey(`${i.number ?? ""} ${i.externalNumber ?? ""} ${i.customerName ?? ""} ${i.customerTaxId ?? ""} ${i.concept ?? ""}`).includes(nq))
+        .filter((i) => !nq || normalizeKey(`${i.number ?? ""} ${i.externalNumber ?? ""} ${i.customerName ?? ""} ${can("customers.sensitive") ? i.customerTaxId ?? "" : ""} ${i.concept ?? ""}`).includes(nq))
         .sort((a, b) => Number(b.status === "draft") - Number(a.status === "draft") || (b.issueDate ?? "").localeCompare(a.issueDate ?? "") || (b.number ?? b.externalNumber ?? "").localeCompare(a.number ?? a.externalNumber ?? "")),
     [scoped, filter, status, method, series, source, nq, today], // eslint-disable-line react-hooks/exhaustive-deps
   );
@@ -78,7 +78,7 @@ export default function InvoicesPage() {
     { id: "series", header: "Serie", cell: (i) => seriesOf(i) ?? "—", exportValue: (i) => seriesOf(i) ?? "", defaultHidden: true },
     { id: "date", header: "Emisión", sortValue: (i) => i.issueDate ?? "", exportValue: (i) => (i.issueDate ? new Date(`${i.issueDate}T00:00`) : null), exportFormat: "date", cell: (i) => <span className="text-fg-2 num">{i.issueDate ? formatDate(i.issueDate) : "—"}</span> },
     { id: "customer", header: "Cliente", sortValue: (i) => i.customerName ?? "", exportValue: (i) => i.customerName ?? "", cell: (i) => <span className="block max-w-[260px] truncate font-medium">{i.customerName ?? <span className="text-fg-3">Sin destinatario</span>}</span> },
-    { id: "tax", header: "NIF", exportValue: (i) => i.customerTaxId ?? "", cell: (i) => <span className="font-mono text-xs text-fg-2">{i.customerTaxId ?? "—"}</span>, defaultHidden: true },
+    ...(!can("customers.sensitive") ? [] : [{ id: "tax", header: "NIF", exportValue: (i: Invoice) => i.customerTaxId ?? "", cell: (i: Invoice) => <span className="font-mono text-xs text-fg-2">{i.customerTaxId ?? "—"}</span>, defaultHidden: true }]),
     { id: "concept", header: "Concepto", priority: "low", exportValue: (i) => i.concept ?? "", cell: (i) => <span className="line-clamp-1 max-w-[240px] text-fg-2">{i.concept}</span> },
     { id: "due", header: "Vence", priority: "medium", sortValue: (i) => i.dueDate ?? "", exportValue: (i) => i.dueDate ?? "", cell: (i) => { const v = invoiceView(i, today); return <span className={v === "overdue" ? "font-medium text-danger-fg num" : "text-fg-2 num"}>{i.dueDate && i.status !== "paid" && i.status !== "void" ? formatDate(i.dueDate) : "—"}</span>; } },
     { id: "base", header: "Base", align: "right", sortValue: (i) => i.subtotal, exportValue: (i) => euros(i.subtotal), exportFormat: "money", cell: (i) => formatMoney(i.subtotal), defaultHidden: true },

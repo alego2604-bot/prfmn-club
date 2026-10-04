@@ -280,9 +280,11 @@ export default function CustomerDetailPage() {
                 items={[
                   { label: "Email", value: c.email ?? "—" },
                   { label: "Teléfono", value: c.phone ?? "—" },
-                  { label: "Dirección", value: [c.address, c.postalCode, c.city].filter(Boolean).join(", ") || "—" },
-                  { label: "Nacimiento", value: c.birthDate ? formatDate(c.birthDate) : "—" },
-                  { label: "Empresa", value: c.companyName ?? "—" },
+                  ...(can("customers.sensitive") ? [
+                    { label: "Dirección", value: [c.address, c.postalCode, c.city].filter(Boolean).join(", ") || "—" },
+                    { label: "Nacimiento", value: c.birthDate ? formatDate(c.birthDate) : "—" },
+                    { label: "Empresa", value: c.companyName ?? "—" },
+                  ] : [{ label: "Datos fiscales y personales", value: "Restringidos a tu rol" }]),
                   { label: "Origen", value: sourceLabel(c.source) },
                 ]}
               />

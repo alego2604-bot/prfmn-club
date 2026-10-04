@@ -4,7 +4,7 @@ import {
   ArrowLeft, BarChart3, BriefcaseBusiness, CalendarRange, Contact, CreditCard, Download, FileSpreadsheet, FileText, Package, Receipt, ScrollText, ShoppingBag,
   Store, TrendingUp, Users, Wallet, type LucideIcon,
 } from "lucide-react";
-import { useLocationScope, useWorkspace } from "@/app/session";
+import { useLocationScope, useSession, useWorkspace } from "@/app/session";
 import { Button, Card, CardHeader, DeltaChip, EmptyState, FilterBar, FilterSelect, Menu, MenuItem, Page, PageHeader, Segmented, DateInput } from "@/design-system/components";
 import { ColumnChart, compactMoney } from "@/design-system/components/charts";
 import { buildReport, comparableOf, kpiDelta, REPORTS, reportPeriod, toDate, type ReportKey } from "@/domain/reports";
@@ -71,6 +71,7 @@ function ReportsIndex() {
 
 function ReportView({ reportKey }: { reportKey: ReportKey }) {
   const ws = useWorkspace();
+  const { can } = useSession();
   const navigate = useNavigate();
   const { current, locations, canSeeAll } = useLocationScope();
   const now = useMemo(() => new Date(), []);
@@ -121,7 +122,7 @@ function ReportView({ reportKey }: { reportKey: ReportKey }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Segmented size="sm" value={compare} onChange={setCompare} items={[{ value: "previous", label: "vs anterior" }, { value: "year", label: "vs año anterior" }, { value: "none", label: "Sin comparar" }]} />
-          <Menu trigger={(_, t) => <Button variant="primary" icon={Download} onClick={t}>Exportar</Button>}>
+          {can("reports.export") && <Menu trigger={(_, t) => <Button variant="primary" icon={Download} onClick={t}>Exportar</Button>}>
             {(close) => (
               <>
                 <MenuItem icon={FileSpreadsheet} onClick={() => { close(); void downloadXlsx(`${fileBase}.xlsx`, [sheet()], { company: ws.organization.name }); }}>Excel (.xlsx)</MenuItem>
@@ -129,7 +130,7 @@ function ReportView({ reportKey }: { reportKey: ReportKey }) {
                 <MenuItem icon={Download} onClick={() => { close(); downloadCsv(fileBase, sheet()); }}>CSV (;)</MenuItem>
               </>
             )}
-          </Menu>
+          </Menu>}
         </div>
       </div>
 

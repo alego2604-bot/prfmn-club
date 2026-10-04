@@ -18,6 +18,7 @@ type Quick = "" | "riesgo" | "fiscal" | "saldo" | "renovacion";
 export default function CustomersPage() {
   const ws = useWorkspace();
   const { can } = useSession();
+  const sensitive = can("customers.sensitive");
   const navigate = useNavigate();
   const { filterId, locations } = useLocationScope();
   const [params, setParams] = useSearchParams();
@@ -75,7 +76,7 @@ export default function CustomersPage() {
     { id: "next", header: "Próxima acción", priority: "low", exportValue: (c) => nextAction(c, snap(c), today).label, cell: (c) => { const a = nextAction(c, snap(c), today); return a.kind === "none" ? <span className="text-fg-3">—</span> : <span className={`block max-w-[200px] truncate text-xs ${a.tone === "danger" ? "text-danger-fg" : a.tone === "warning" ? "text-warning-fg" : "text-fg-2"}`}>{a.label}</span>; } },
     { id: "tags", header: "Etiquetas", priority: "low", defaultHidden: !tags.length, exportValue: (c) => c.tags.join(", "), cell: (c) => (c.tags.length ? <span className="flex flex-wrap gap-1">{c.tags.slice(0, 3).map((t) => <Badge key={t}>{t}</Badge>)}</span> : <span className="text-fg-3">—</span>) },
     { id: "joined", header: "Alta", defaultHidden: true, sortValue: (c) => c.joinedAt ?? "", exportValue: (c) => (c.joinedAt ? new Date(`${c.joinedAt}T00:00`) : null), exportFormat: "date", cell: (c) => (c.joinedAt ? formatDate(c.joinedAt) : "—") },
-    { id: "tax", header: "NIF", defaultHidden: true, exportValue: (c) => c.taxId ?? "", cell: (c) => <span className="font-mono text-xs">{c.taxIdNormalized ?? c.taxId ?? "—"}</span> },
+    ...(!sensitive ? [] : [{ id: "tax", header: "NIF", defaultHidden: true, exportValue: (c: Customer) => c.taxId ?? "", cell: (c: Customer) => <span className="font-mono text-xs">{c.taxIdNormalized ?? c.taxId ?? "—"}</span> }]),
     { id: "phone", header: "Teléfono", defaultHidden: true, exportValue: (c) => c.phone ?? "", cell: (c) => c.phone ?? "—" },
     { id: "balance", header: "Saldo", align: "right", sortValue: (c) => snap(c).balance, exportValue: (c) => euros(snap(c).balance), exportFormat: "money", cell: (c) => (snap(c).balance ? <span className={snap(c).overdueInvoices.length ? "font-medium text-danger-fg" : "font-medium text-warning-fg"}>{formatMoney(snap(c).balance)}</span> : <span className="text-fg-3">—</span>) },
     { id: "value", header: "Valor", align: "right", sortValue: (c) => snap(c).lifetimeValue, exportValue: (c) => euros(snap(c).lifetimeValue), exportFormat: "money", cell: (c) => <span className="font-semibold">{formatMoney(snap(c).lifetimeValue)}</span> },
@@ -100,7 +101,7 @@ export default function CustomersPage() {
           { key: "owed", label: "Con saldo pendiente", value: formatNumber(owed.length), hint: formatMoney(owed.reduce((t, c) => t + snap(c).balance, 0)), onClick: () => setQuick("saldo") },
           { key: "renew", label: "Renuevan en 7 días", value: formatNumber(renewCount), onClick: () => setQuick("renovacion") },
           { key: "risk", label: "Sin actividad 30 días", value: formatNumber(riskCount), hint: "activos sin compras ni cuotas", onClick: () => setQuick("riesgo") },
-          { key: "fiscal", label: "Datos fiscales a revisar", value: formatNumber(fiscalCount), hint: "NIF no válido o falta", onClick: () => setQuick("fiscal") },
+          ...(sensitive ? [{ key: "fiscal", label: "Datos fiscales a revisar", value: formatNumber(fiscalCount), hint: "NIF no válido o falta", onClick: () => setQuick("fiscal") }] : []),
         ]}
       />
       <DataTable
@@ -113,7 +114,7 @@ export default function CustomersPage() {
         storageKey="customers.v3"
         filters={
           <FilterBar className="mb-0" active={active} onClear={clear}>
-            <SearchField value={q} onChange={setQ} placeholder="Nombre, NIF, email o teléfono…" />
+            <SearchField value={q} onChange={setQ} placeholder={sensitive ? "Nombre, NIF, email o teléfono…" : "Nombre, email o teléfono…"} />
             <FilterSelect label="Estado" value={status} onChange={setStatus} options={(Object.keys(CUSTOMER_STATUS) as CustomerStatus[]).map((s) => ({ value: s, label: CUSTOMER_STATUS[s].label, count: all.filter((c) => c.status === s).length }))} />
             <FilterSelect label="Membresía" value={mview} onChange={setMview} options={[...(["ACTIVE", "PAST_DUE", "PAUSED", "PENDING", "CANCELLED"] as MembershipView[]).map((v) => ({ value: v, label: MEMBERSHIP_VIEW[v].label })), { value: "none" as const, label: "Sin membresía" }]} />
             {ws.membershipPlans.length > 0 && <FilterSelect label="Tarifa" value={plan} onChange={setPlan} options={ws.membershipPlans.map((p) => ({ value: p.id, label: p.name }))} />}

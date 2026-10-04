@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Columns3, Download, FileSpreadsheet, Search, X } from "lucide-react";
 import { ScrollFade } from "./layout";
 import { cn } from "@/lib/cn";
@@ -96,10 +96,18 @@ function readHidden(key: string | undefined, cols: { id: string; defaultHidden?:
   return new Set(cols.filter((c) => c.defaultHidden).map((c) => c.id));
 }
 
+/**
+ * ¿Puede esta persona exportar tablas (CSV/Excel)? La aplicación lo fija una sola vez (AppShell, según reports.export):
+ * ninguna tabla, presente o futura, ofrece exportar por su cuenta. Por defecto permitido (tests y componentes aislados).
+ */
+export const ExportAllowedContext = createContext(true);
+
 export function DataTable<T>({
   rows, columns, getRowId, onRowClick, searchText, searchPlaceholder = "Buscar…", toolbar, selectable, bulkActions, pageSize = 50,
   exportName, exportCompany = "Business OS", empty, storageKey, initialSort, rowClassName, footer, dense, mobile, filters,
 }: DataTableProps<T>) {
+  const exportAllowed = useContext(ExportAllowedContext);
+  if (!exportAllowed) exportName = undefined;
   const [compact, setCompact] = useState<boolean>(() => dense ?? getPref(`table.density.${storageKey ?? "default"}`) === "compact");
   // Una sola vista en el DOM: tarjetas en móvil, tabla desde 768 px
   const wide = useMediaQuery("(min-width: 768px)");

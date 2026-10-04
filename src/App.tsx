@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom"
 import { SessionProvider, useSession } from "@/app/session";
 import { AppShell } from "@/app/AppShell";
 import { ALL_ITEMS } from "@/app/nav";
+import { ROUTE_PERMISSIONS } from "@/app/routePermissions";
 import { ToastProvider, Skeleton } from "@/design-system/components";
 import { AuthPage, OnboardingPage } from "@/features/auth/AuthPages";
 import { PlannedModulePage } from "@/features/planned/PlannedModulePage";
@@ -53,8 +54,10 @@ function PageFallback() {
   );
 }
 
-function Guard({ perm, children }: { perm: Permission; children: ReactNode }) {
+/** El permiso de cada ruta sale de ROUTE_PERMISSIONS (una sola tabla, comprobada por tests contra la navegación). */
+function Guard({ route, perm: explicit, children }: { route?: string; perm?: Permission; children: ReactNode }) {
   const { can } = useSession();
+  const perm = (explicit ?? ROUTE_PERMISSIONS[route ?? ""])!;
   if (!can(perm)) {
     return (
       <div className="mx-auto max-w-lg px-6 py-24 text-center">
@@ -102,35 +105,35 @@ const router = createBrowserRouter([
   {
     element: <Root />,
     children: [
-      { index: true, element: <Guard perm="dashboard.view"><DashboardPage /></Guard> },
-      { path: "caja", element: <Guard perm="pos.sell"><PosPage /></Guard> },
-      { path: "ventas", element: <Guard perm="sales.view"><SalesPage /></Guard> },
-      { path: "cierres", element: <Guard perm="sales.view"><CashPage /></Guard> },
-      { path: "catalogo", element: <Guard perm="catalog.view"><CatalogPage /></Guard> },
-      { path: "clientes", element: <Guard perm="customers.view"><CustomersPage /></Guard> },
-      { path: "clientes/:id", element: <Guard perm="customers.view"><CustomerDetailPage /></Guard> },
-      { path: "membresias", element: <Guard perm="customers.view"><MembershipsPage /></Guard> },
-      { path: "bienvenida", element: <Guard perm="dashboard.view"><OnboardingWizard /></Guard> },
-      { path: "seguimiento", element: <Guard perm="customers.view"><FollowUpPage /></Guard> },
-      { path: "finanzas", element: <Guard perm="finance.view"><FinancePage /></Guard> },
-      { path: "flujo-de-caja", element: <Guard perm="finance.view"><CashflowPage /></Guard> },
-      { path: "impuestos", element: <Guard perm="finance.view"><TaxesPage /></Guard> },
-      { path: "gastos", element: <Guard perm="finance.view"><ExpensesPage /></Guard> },
-      { path: "proveedores", element: <Guard perm="finance.view"><SuppliersPage /></Guard> },
-      { path: "proveedores/:id", element: <Guard perm="finance.view"><SupplierDetailPage /></Guard> },
-      { path: "facturas", element: <Guard perm="finance.view"><InvoicesPage /></Guard> },
-      { path: "facturas/nueva", element: <Guard perm="invoices.manage"><InvoiceEditorPage /></Guard> },
-      { path: "facturas/:id", element: <Guard perm="finance.view"><InvoiceDetailPage /></Guard> },
-      { path: "facturas/:id/editar", element: <Guard perm="invoices.manage"><InvoiceEditorPage /></Guard> },
-      { path: "pagos", element: <Guard perm="finance.view"><PaymentsPage /></Guard> },
-      { path: "importaciones", element: <Guard perm="imports.run"><ImportsPage /></Guard> },
-      { path: "importaciones/nueva", element: <Guard perm="imports.run"><ImportWizardPage /></Guard> },
-      { path: "importaciones/:id", element: <Guard perm="imports.run"><ImportDetailPage /></Guard> },
-      { path: "informes", element: <Guard perm="analytics.view"><ReportsHubPage /></Guard> },
-      { path: "informes/gestoria", element: <Guard perm="analytics.view"><ReportsPage /></Guard> },
-      { path: "informes/:key", element: <Guard perm="analytics.view"><ReportsHubPage /></Guard> },
-      { path: "ajustes", element: <Guard perm="dashboard.view"><SettingsPage /></Guard> },
-      ...planned.map((item) => ({ path: item.to.slice(1), element: <PlannedModulePage item={item} /> })),
+      { index: true, element: <Guard route="/"><DashboardPage /></Guard> },
+      { path: "caja", element: <Guard route="/caja"><PosPage /></Guard> },
+      { path: "ventas", element: <Guard route="/ventas"><SalesPage /></Guard> },
+      { path: "cierres", element: <Guard route="/cierres"><CashPage /></Guard> },
+      { path: "catalogo", element: <Guard route="/catalogo"><CatalogPage /></Guard> },
+      { path: "clientes", element: <Guard route="/clientes"><CustomersPage /></Guard> },
+      { path: "clientes/:id", element: <Guard route="/clientes/:id"><CustomerDetailPage /></Guard> },
+      { path: "membresias", element: <Guard route="/membresias"><MembershipsPage /></Guard> },
+      { path: "bienvenida", element: <Guard route="/bienvenida"><OnboardingWizard /></Guard> },
+      { path: "seguimiento", element: <Guard route="/seguimiento"><FollowUpPage /></Guard> },
+      { path: "finanzas", element: <Guard route="/finanzas"><FinancePage /></Guard> },
+      { path: "flujo-de-caja", element: <Guard route="/flujo-de-caja"><CashflowPage /></Guard> },
+      { path: "impuestos", element: <Guard route="/impuestos"><TaxesPage /></Guard> },
+      { path: "gastos", element: <Guard route="/gastos"><ExpensesPage /></Guard> },
+      { path: "proveedores", element: <Guard route="/proveedores"><SuppliersPage /></Guard> },
+      { path: "proveedores/:id", element: <Guard route="/proveedores/:id"><SupplierDetailPage /></Guard> },
+      { path: "facturas", element: <Guard route="/facturas"><InvoicesPage /></Guard> },
+      { path: "facturas/nueva", element: <Guard route="/facturas/nueva"><InvoiceEditorPage /></Guard> },
+      { path: "facturas/:id", element: <Guard route="/facturas/:id"><InvoiceDetailPage /></Guard> },
+      { path: "facturas/:id/editar", element: <Guard route="/facturas/:id/editar"><InvoiceEditorPage /></Guard> },
+      { path: "pagos", element: <Guard route="/pagos"><PaymentsPage /></Guard> },
+      { path: "importaciones", element: <Guard route="/importaciones"><ImportsPage /></Guard> },
+      { path: "importaciones/nueva", element: <Guard route="/importaciones/nueva"><ImportWizardPage /></Guard> },
+      { path: "importaciones/:id", element: <Guard route="/importaciones/:id"><ImportDetailPage /></Guard> },
+      { path: "informes", element: <Guard route="/informes"><ReportsHubPage /></Guard> },
+      { path: "informes/gestoria", element: <Guard route="/informes/gestoria"><ReportsPage /></Guard> },
+      { path: "informes/:key", element: <Guard route="/informes/:key"><ReportsHubPage /></Guard> },
+      { path: "ajustes", element: <Guard route="/ajustes"><SettingsPage /></Guard> },
+      ...planned.map((item) => ({ path: item.to.slice(1), element: item.perm ? <Guard perm={item.perm}><PlannedModulePage item={item} /></Guard> : <PlannedModulePage item={item} /> })),
       { path: "*", element: <Navigate to="/" replace /> },
     ],
   },

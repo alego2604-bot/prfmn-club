@@ -39,7 +39,7 @@ export function AssignMembershipDrawer({ open, onClose, customerId, onSaved }: {
   const plan = ws.membershipPlans.find((p) => p.id === planId);
   const version = plan ? currentVersion(ws.planVersions, plan.id, start) : undefined;
   const effective = price ?? version?.price ?? 0;
-  const canCharge = can("invoices.manage");
+  const canCharge = can("memberships.manage");
   const canCollect = canCharge && can("payments.manage");
   const end = plan && version ? addDaysISO(periodEnd(start, plan.billingPeriod, version.durationDays), -1) : undefined;
   const save = () => {
@@ -128,7 +128,7 @@ export function MembershipActions({ membership: m, size = "md" }: { membership: 
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        {live && can("invoices.manage") && m.nextRenewalDate && <Button size={size === "sm" ? "sm" : "md"} variant="primary" icon={CreditCard} onClick={() => setDialog("charge")}>Cobrar cuota</Button>}
+        {live && m.nextRenewalDate && <Button size={size === "sm" ? "sm" : "md"} variant="primary" icon={CreditCard} onClick={() => setDialog("charge")}>Cobrar cuota</Button>}
         {v === "PAUSED" && <Button size={size === "sm" ? "sm" : "md"} variant="primary" icon={CirclePlay} onClick={() => run(() => resumeMembership(ctx, m.id), "Membresía reanudada")}>Reanudar</Button>}
         {ended && <Button size={size === "sm" ? "sm" : "md"} variant="primary" icon={RotateCcw} onClick={() => run(() => reactivateMembership(ctx, m.id), "Membresía reactivada")}>Reactivar</Button>}
         {!ended && (

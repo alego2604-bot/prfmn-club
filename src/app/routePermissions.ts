@@ -1,0 +1,33 @@
+/** Permiso que exige cada ruta protegida (y que también aplica la navegación, la paleta ⌘K y los enlaces internos). */
+import type { Permission } from "@/domain/permissions";
+
+export const ROUTE_PERMISSIONS: Record<string, Permission> = {
+  "/caja": "pos.sell",
+  "/ventas": "sales.view",
+  "/cierres": "sales.view",
+  "/catalogo": "catalog.view",
+  "/clientes": "customers.view",
+  "/clientes/:id": "customers.view",
+  "/membresias": "customers.view",
+  "/bienvenida": "settings.manage",
+  "/seguimiento": "customers.view",
+  "/finanzas": "finance.view",
+  "/flujo-de-caja": "finance.view",
+  "/impuestos": "finance.view",
+  "/gastos": "finance.view",
+  "/proveedores": "finance.view",
+  "/proveedores/:id": "finance.view",
+  "/facturas": "finance.view",
+  "/facturas/nueva": "invoices.manage",
+  "/facturas/:id": "finance.view",
+  "/facturas/:id/editar": "invoices.manage",
+  "/pagos": "finance.view",
+  "/importaciones": "imports.run",
+  "/importaciones/nueva": "imports.run",
+  "/importaciones/:id": "imports.run",
+  "/informes": "analytics.view",
+  "/informes/gestoria": "analytics.view",
+  "/informes/:key": "analytics.view",
+  "/ajustes": "dashboard.view",
+  "/": "dashboard.view",
+};
