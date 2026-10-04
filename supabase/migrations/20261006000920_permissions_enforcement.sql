@@ -148,11 +148,13 @@ $$;
 
 create or replace function app.valid_permission_overrides(o jsonb) returns boolean
 language sql immutable set search_path = public, pg_temp as $$
-  select jsonb_typeof(o) = 'object'
-     and (select coalesce(bool_and(k in ('grant', 'revoke')), true) from jsonb_object_keys(o) k)
-     and jsonb_typeof(o -> 'grant') = 'array' and jsonb_typeof(o -> 'revoke') = 'array'
-     and not exists (select 1 from jsonb_array_elements(o -> 'grant') e where jsonb_typeof(e) <> 'string' or (e #>> '{}') !~ '^[a-z_]+\.[a-z_]+$')
-     and not exists (select 1 from jsonb_array_elements(o -> 'revoke') e where jsonb_typeof(e) <> 'string' or (e #>> '{}') !~ '^[a-z_]+\.[a-z_]+$')
+  select coalesce(
+        jsonb_typeof(o) = 'object'
+        and (select coalesce(bool_and(k in ('grant', 'revoke')), true) from jsonb_object_keys(o) k)
+        and jsonb_typeof(o -> 'grant') = 'array' and jsonb_typeof(o -> 'revoke') = 'array'
+        and not exists (select 1 from jsonb_array_elements(o -> 'grant') e where jsonb_typeof(e) <> 'string' or (e #>> '{}') !~ '^[a-z_]+\.[a-z_]+$')
+        and not exists (select 1 from jsonb_array_elements(o -> 'revoke') e where jsonb_typeof(e) <> 'string' or (e #>> '{}') !~ '^[a-z_]+\.[a-z_]+$'),
+      false)      -- cualquier forma rara (claves que faltan, no objeto, null) = no válido
 $$;
 
 create or replace function app.guard_member_change() returns trigger

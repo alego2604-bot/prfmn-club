@@ -676,6 +676,9 @@ begin
   perform public.set_member_overrides(m_m, array['expenses.manage', 'invoices.manage', 'reports.export'], array['sales.void', 'payments.manage']);
   perform pg_temp.denied(format($q$select public.set_member_overrides(%L, array['no.existe'], '{}')$q$, m_m), 'permiso desconocido en excepciones');
   perform pg_temp.denied(format($q$update public.organization_members set permission_overrides = '{"grant":"x"}' where id = %L$q$, m_m), 'excepciones mal formadas');
+  perform pg_temp.denied(format($q$update public.organization_members set permission_overrides = '{}' where id = %L$q$, m_m), 'excepciones sin claves grant/revoke');
+  perform pg_temp.denied(format($q$update public.organization_members set permission_overrides = '{"grant":[],"revoke":[],"x":[]}' where id = %L$q$, m_m), 'excepciones con claves ajenas');
+  perform pg_temp.denied(format($q$update public.organization_members set permission_overrides = '{"grant":[1],"revoke":[]}' where id = %L$q$, m_m), 'excepciones con elementos que no son texto');
   perform pg_temp.denied(format($q$select public.set_member_overrides(%L, '{}', array['team.manage'])$q$, (select id from public.organization_members where organization_id = org and role_id = (select id from public.roles where key = 'owner' and organization_id is null))), 'excepciones al owner');
   if not exists (select 1 from public.audit_logs where entity_id = m_m and action = 'permission_change' and context #>> '{to,grant}' like '%invoices.manage%' and context #>> '{from,grant}' = '[]') then
     raise exception 'FAIL: permission_change sin auditar con de/a';
