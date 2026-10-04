@@ -69,6 +69,7 @@ Auditoría del producto con cinco perspectivas (propietario, encargado, empleado
 ### Verificación
 - `check:privacy`, `lint`, `typecheck`, `test` (130, incluidas las integraciones contra staging), `build` y `db:test`.
 - Una ejecución completa tuvo 1 fallo intermitente en una integración contra staging; la repetición pasó 130/130.
+- E2E contra https://alego2604-bot.github.io/prfmn-club/ (commit `e883e2f`): negocio 16/16, persistencia 22/22 y multiempresa 7/7. Cero errores no esperados; solo aparecen los 404 conocidos de Pages.
 
 ## 2026-10-04 — Experiencia mientras se crea la demo (comprobada en la URL pública)
 
